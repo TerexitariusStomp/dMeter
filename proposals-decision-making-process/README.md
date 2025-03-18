@@ -1,0 +1,9 @@
+# Proposals Decision Making Process
+
+
+
+Part 4 - Official vote - Decision: After all the Voting Members have voted, the proposal may be accepted or rejected. If accepted, the proposer will have the ability to execute what they have proposed. dMeter will adopt the proposal and execute any changes to governance, management, or strategic objective outlined therein. dMeter treasury will fulfill any fiduciary responsibilities outline within the adopted proposal. For Proposals of work, dMeter stewards will review and approve work upon completion. This proposal will be decided upon through a simple consensus vote in the governance and mission meeting on Tuesday February 7th, with acceptance written in Discord.
+
+&#x20;
+
+Please change status to Accepted or Rejected
