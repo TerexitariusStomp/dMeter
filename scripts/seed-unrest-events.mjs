@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { loadEnvFile, CHROME_UA, runSeed } from './_seed-utils.mjs';
+import { loadEnvFile, CHROME_UA, FETCH_HEADERS, runSeed } from './_seed-utils.mjs';
 import { getAcledToken } from './shared/acled-oauth.mjs';
 
 loadEnvFile(import.meta.url);
@@ -111,9 +111,9 @@ async function fetchAcledProtests() {
 
   const resp = await fetch(`${ACLED_API_URL}?${params}`, {
     headers: {
+      ...FETCH_HEADERS,
       Accept: 'application/json',
       Authorization: `Bearer ${token}`,
-      'User-Agent': CHROME_UA,
     },
     signal: AbortSignal.timeout(15_000),
   });
@@ -166,7 +166,7 @@ async function fetchGdeltEvents() {
   });
 
   const resp = await fetch(`${GDELT_GKG_URL}?${params}`, {
-    headers: { Accept: 'application/json', 'User-Agent': CHROME_UA },
+    headers: { ...FETCH_HEADERS, Accept: 'application/json' },
     signal: AbortSignal.timeout(15_000),
   });
 

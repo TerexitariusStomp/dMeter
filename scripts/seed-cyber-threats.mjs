@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { loadEnvFile, CHROME_UA, runSeed, verifySeedKey, writeExtraKey } from './_seed-utils.mjs';
+import { loadEnvFile, CHROME_UA, FETCH_HEADERS, runSeed, verifySeedKey, writeExtraKey } from './_seed-utils.mjs';
 
 loadEnvFile(import.meta.url);
 
@@ -190,7 +190,7 @@ function sanitize(t) {
 async function fetchGeoIp(ip, signal) {
   try {
     const resp = await fetch(`https://ipinfo.io/${encodeURIComponent(ip)}/json`, {
-      headers: { 'User-Agent': CHROME_UA },
+      headers: { ...FETCH_HEADERS },
       signal: signal || AbortSignal.timeout(GEO_PER_IP_TIMEOUT_MS),
     });
     if (resp.ok) {
@@ -204,7 +204,7 @@ async function fetchGeoIp(ip, signal) {
   if (signal?.aborted) return null;
   try {
     const resp = await fetch(`https://freeipapi.com/api/json/${encodeURIComponent(ip)}`, {
-      headers: { 'User-Agent': CHROME_UA },
+      headers: { ...FETCH_HEADERS },
       signal: signal || AbortSignal.timeout(GEO_PER_IP_TIMEOUT_MS),
     });
     if (!resp.ok) return null;
@@ -270,7 +270,7 @@ async function hydrateCoordinates(threats) {
 async function fetchFeodo(cutoffMs) {
   try {
     const resp = await fetch(FEODO_URL, {
-      headers: { Accept: 'application/json', 'User-Agent': CHROME_UA },
+      headers: { ...FETCH_HEADERS, Accept: 'application/json' },
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
     if (!resp.ok) return { ok: false, threats: [] };
@@ -311,7 +311,7 @@ async function fetchUrlhaus(cutoffMs) {
   try {
     const resp = await fetch(URLHAUS_RECENT_URL(MAX_LIMIT), {
       method: 'GET',
-      headers: { Accept: 'application/json', 'Auth-Key': authKey, 'User-Agent': CHROME_UA },
+      headers: { ...FETCH_HEADERS, Accept: 'application/json', 'Auth-Key': authKey },
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
     if (!resp.ok) return { ok: false, threats: [] };
@@ -361,7 +361,7 @@ async function fetchUrlhaus(cutoffMs) {
 async function fetchC2Intel() {
   try {
     const resp = await fetch(C2INTEL_URL, {
-      headers: { Accept: 'text/plain', 'User-Agent': CHROME_UA },
+      headers: { ...FETCH_HEADERS, Accept: 'text/plain' },
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
     if (!resp.ok) return { ok: false, threats: [] };
@@ -404,7 +404,7 @@ async function fetchOtx(days) {
   try {
     const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
     const resp = await fetch(`${OTX_INDICATORS_URL}${encodeURIComponent(since)}`, {
-      headers: { Accept: 'application/json', 'X-OTX-API-KEY': apiKey, 'User-Agent': CHROME_UA },
+      headers: { ...FETCH_HEADERS, Accept: 'application/json', 'X-OTX-API-KEY': apiKey },
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
     if (!resp.ok) return { ok: false, threats: [] };
@@ -460,7 +460,7 @@ async function fetchAbuseIpDb() {
   try {
     const url = `${ABUSEIPDB_BLACKLIST_URL}?confidenceMinimum=90&limit=${Math.min(MAX_LIMIT, 500)}`;
     const resp = await fetch(url, {
-      headers: { Accept: 'application/json', Key: apiKey, 'User-Agent': CHROME_UA },
+      headers: { ...FETCH_HEADERS, Accept: 'application/json', Key: apiKey },
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
     if (!resp.ok) return { ok: false, threats: [] };

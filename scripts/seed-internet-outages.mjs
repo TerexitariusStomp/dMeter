@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { loadEnvFile, CHROME_UA, runSeed } from './_seed-utils.mjs';
+import { loadEnvFile, CHROME_UA, FETCH_HEADERS, runSeed } from './_seed-utils.mjs';
 
 loadEnvFile(import.meta.url);
 
@@ -70,8 +70,8 @@ async function fetchOutages() {
 
   const resp = await fetch(`${CF_RADAR_URL}?dateRange=7d&limit=50`, {
     headers: {
+      ...FETCH_HEADERS,
       Authorization: `Bearer ${token}`,
-      'User-Agent': CHROME_UA,
     },
     signal: AbortSignal.timeout(15_000),
   });

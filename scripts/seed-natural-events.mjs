@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { loadEnvFile, CHROME_UA, runSeed } from './_seed-utils.mjs';
+import { loadEnvFile, CHROME_UA, FETCH_HEADERS, runSeed } from './_seed-utils.mjs';
 
 loadEnvFile(import.meta.url);
 
@@ -45,7 +45,7 @@ function normalizeCategory(id) {
 async function fetchEonet(days) {
   const url = `${EONET_API_URL}?status=open&days=${days}`;
   const res = await fetch(url, {
-    headers: { Accept: 'application/json', 'User-Agent': CHROME_UA },
+    headers: { ...FETCH_HEADERS, Accept: 'application/json' },
     signal: AbortSignal.timeout(15_000),
   });
   if (!res.ok) throw new Error(`EONET ${res.status}`);
@@ -141,7 +141,7 @@ function parseGdacsTcFields(props) {
 
 async function fetchGdacs() {
   const res = await fetch(GDACS_API, {
-    headers: { Accept: 'application/json', 'User-Agent': CHROME_UA },
+    headers: { ...FETCH_HEADERS, Accept: 'application/json' },
     signal: AbortSignal.timeout(15_000),
   });
   if (!res.ok) throw new Error(`GDACS ${res.status}`);
@@ -213,7 +213,7 @@ for (const [prefix, base] of Object.entries(BASIN_OFFSETS)) {
 async function nhcQuery(layerId) {
   const url = `${NHC_BASE}/${layerId}/query?where=1%3D1&outFields=*&f=geojson`;
   const res = await fetch(url, {
-    headers: { Accept: 'application/json', 'User-Agent': CHROME_UA },
+    headers: { ...FETCH_HEADERS, Accept: 'application/json' },
     signal: AbortSignal.timeout(15_000),
   });
   if (!res.ok) return { type: 'FeatureCollection', features: [] };

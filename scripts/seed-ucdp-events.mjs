@@ -3,6 +3,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { CHROME_UA, FETCH_HEADERS } from './_seed-utils.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -17,8 +18,6 @@ const VIOLENCE_TYPE_MAP = {
   2: 'UCDP_VIOLENCE_TYPE_NON_STATE',
   3: 'UCDP_VIOLENCE_TYPE_ONE_SIDED',
 };
-
-const CHROME_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
 function loadEnvFile() {
   let envPath = join(__dirname, '..', '.env.local');
@@ -54,7 +53,7 @@ function buildVersionCandidates() {
 }
 
 async function fetchGedPage(version, page, token) {
-  const headers = { Accept: 'application/json', 'User-Agent': CHROME_UA };
+  const headers = { ...FETCH_HEADERS, Accept: 'application/json' };
   if (token) headers['x-ucdp-access-token'] = token;
   const resp = await fetch(
     `https://ucdpapi.pcr.uu.se/api/gedevents/${version}?pagesize=${UCDP_PAGE_SIZE}&page=${page}`,

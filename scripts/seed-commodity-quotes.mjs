@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { loadEnvFile, loadSharedConfig, CHROME_UA, sleep, runSeed, parseYahooChart, writeExtraKey } from './_seed-utils.mjs';
+import { loadEnvFile, loadSharedConfig, CHROME_UA, FETCH_HEADERS, sleep, runSeed, parseYahooChart, writeExtraKey } from './_seed-utils.mjs';
 
 const commodityConfig = loadSharedConfig('commodities.json');
 
@@ -13,7 +13,7 @@ const YAHOO_DELAY_MS = 200;
 async function fetchYahooWithRetry(url, label, maxAttempts = 4) {
   for (let i = 0; i < maxAttempts; i++) {
     const resp = await fetch(url, {
-      headers: { 'User-Agent': CHROME_UA },
+      headers: { ...FETCH_HEADERS },
       signal: AbortSignal.timeout(10_000),
     });
     if (resp.status === 429) {

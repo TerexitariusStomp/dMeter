@@ -13,6 +13,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { CHROME_UA, FETCH_HEADERS } from './_seed-utils.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -108,7 +109,7 @@ async function fetchWithRetry(url, attempt = 1) {
   try {
     const resp = await fetch(url, {
       headers: {
-        'User-Agent': 'WorldMonitor-Seed/1.0 (https://worldmonitor.app)',
+        ...FETCH_HEADERS,
         'Accept': 'application/json',
       },
       signal: AbortSignal.timeout(30_000),

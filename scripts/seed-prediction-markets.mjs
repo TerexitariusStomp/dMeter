@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { loadEnvFile, CHROME_UA, sleep, runSeed } from './_seed-utils.mjs';
+import { loadEnvFile, CHROME_UA, FETCH_HEADERS, sleep, runSeed } from './_seed-utils.mjs';
 import {
   isExcluded, isMemeCandidate, tagRegions, parseYesPrice,
   shouldInclude, scoreMarket, filterAndScore, isExpired,
@@ -34,7 +34,7 @@ async function fetchEventsByTag(tag, limit = 20) {
   });
 
   const resp = await fetch(`${GAMMA_BASE}/events?${params}`, {
-    headers: { Accept: 'application/json', 'User-Agent': CHROME_UA },
+    headers: { ...FETCH_HEADERS, Accept: 'application/json' },
     signal: AbortSignal.timeout(FETCH_TIMEOUT),
   });
   if (!resp.ok) {
@@ -52,7 +52,7 @@ async function fetchKalshiEvents() {
       with_nested_markets: 'true',
       limit: '100',
     });
-    const headers = { Accept: 'application/json', 'User-Agent': CHROME_UA };
+    const headers = { ...FETCH_HEADERS, Accept: 'application/json' };
     const resp = await fetch(`${KALSHI_BASE}/events?${params}`, {
       headers,
       signal: AbortSignal.timeout(FETCH_TIMEOUT),

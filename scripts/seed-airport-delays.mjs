@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { loadEnvFile, CHROME_UA, getRedisCredentials, acquireLock, releaseLock, withRetry, writeFreshnessMetadata, logSeedResult, verifySeedKey, extendExistingTtl } from './_seed-utils.mjs';
+import { loadEnvFile, CHROME_UA, FETCH_HEADERS, getRedisCredentials, acquireLock, releaseLock, withRetry, writeFreshnessMetadata, logSeedResult, verifySeedKey, extendExistingTtl } from './_seed-utils.mjs';
 
 loadEnvFile(import.meta.url);
 
@@ -141,7 +141,7 @@ async function redisSet(url, token, key, value, ttl) {
 async function seedFaaDelays() {
   console.log('[FAA] Fetching airport status...');
   const resp = await fetch(FAA_URL, {
-    headers: { Accept: 'application/xml', 'User-Agent': CHROME_UA },
+    headers: { ...FETCH_HEADERS, Accept: 'application/xml' },
     signal: AbortSignal.timeout(15_000),
   });
 
@@ -198,7 +198,7 @@ async function seedNotamClosures() {
     // ICAO API only supports key via query param (no header auth)
     const url = `${ICAO_NOTAM_URL}?api_key=${apiKey}&format=json&locations=${locations}`;
     const resp = await fetch(url, {
-      headers: { 'User-Agent': CHROME_UA },
+      headers: { ...FETCH_HEADERS },
       signal: AbortSignal.timeout(30_000),
     });
     if (!resp.ok) {

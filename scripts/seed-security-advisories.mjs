@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { loadEnvFile, loadSharedConfig, CHROME_UA, runSeed } from './_seed-utils.mjs';
+import { loadEnvFile, loadSharedConfig, FETCH_HEADERS, runSeed } from './_seed-utils.mjs';
 
 loadEnvFile(import.meta.url);
 
@@ -137,7 +137,7 @@ async function fetchFeed(feed) {
 
   try {
     const resp = await fetch(proxyUrl, {
-      headers: { 'User-Agent': CHROME_UA, Accept: 'application/rss+xml, application/xml, text/xml, */*' },
+      headers: { ...FETCH_HEADERS, Accept: 'application/rss+xml, application/xml, text/xml, */*' },
       signal: AbortSignal.timeout(15_000),
     });
     if (!resp.ok) {

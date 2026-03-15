@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { loadEnvFile, maskToken, runSeed, CHROME_UA, sleep } from './_seed-utils.mjs';
+import { loadEnvFile, maskToken, runSeed, CHROME_UA, FETCH_HEADERS, sleep } from './_seed-utils.mjs';
 
 loadEnvFile(import.meta.url);
 
@@ -53,7 +53,7 @@ function parseDetectedAt(acqDate, acqTime) {
 async function fetchRegionSource(apiKey, regionName, bbox, source) {
   const url = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${apiKey}/${source}/${bbox}/1`;
   const res = await fetch(url, {
-    headers: { Accept: 'text/csv', 'User-Agent': CHROME_UA },
+    headers: { ...FETCH_HEADERS, Accept: 'text/csv' },
     signal: AbortSignal.timeout(30_000),
   });
   if (!res.ok) throw new Error(`FIRMS ${res.status} for ${regionName}/${source}`);

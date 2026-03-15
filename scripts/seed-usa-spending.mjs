@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { loadEnvFile, CHROME_UA, runSeed } from './_seed-utils.mjs';
+import { loadEnvFile, FETCH_HEADERS, runSeed } from './_seed-utils.mjs';
 
 loadEnvFile(import.meta.url);
 
@@ -31,7 +31,7 @@ async function fetchSpending() {
 
   const resp = await fetch(`${API_BASE}/search/spending_by_award/`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'User-Agent': CHROME_UA },
+    headers: { 'Content-Type': 'application/json', ...FETCH_HEADERS },
     signal: AbortSignal.timeout(20_000),
     body: JSON.stringify({
       filters: {

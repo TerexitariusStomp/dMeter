@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { loadEnvFile, loadSharedConfig, CHROME_UA, runSeed, sleep } from './_seed-utils.mjs';
+import { loadEnvFile, loadSharedConfig, CHROME_UA, FETCH_HEADERS, runSeed, sleep } from './_seed-utils.mjs';
 
 const cryptoConfig = loadSharedConfig('crypto.json');
 
@@ -12,7 +12,7 @@ const CACHE_TTL = 3600; // 1 hour
 const CRYPTO_IDS = cryptoConfig.ids;
 const CRYPTO_META = cryptoConfig.meta;
 
-async function fetchWithRateLimitRetry(url, maxAttempts = 5, headers = { Accept: 'application/json', 'User-Agent': CHROME_UA }) {
+async function fetchWithRateLimitRetry(url, maxAttempts = 5, headers = { ...FETCH_HEADERS, Accept: 'application/json' }) {
   for (let i = 0; i < maxAttempts; i++) {
     const resp = await fetch(url, {
       headers,
@@ -39,7 +39,7 @@ async function fetchFromCoinGecko() {
     ? 'https://pro-api.coingecko.com/api/v3'
     : 'https://api.coingecko.com/api/v3';
   const url = `${baseUrl}/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc&sparkline=true&price_change_percentage=24h`;
-  const headers = { Accept: 'application/json', 'User-Agent': CHROME_UA };
+  const headers = { ...FETCH_HEADERS, Accept: 'application/json' };
   if (apiKey) headers['x-cg-pro-api-key'] = apiKey;
 
   const resp = await fetchWithRateLimitRetry(url, 5, headers);
@@ -53,7 +53,7 @@ async function fetchFromCoinGecko() {
 async function fetchFromCoinPaprika() {
   console.log('  [CoinPaprika] Falling back to CoinPaprika...');
   const resp = await fetch('https://api.coinpaprika.com/v1/tickers?quotes=USD', {
-    headers: { Accept: 'application/json', 'User-Agent': CHROME_UA },
+    headers: { ...FETCH_HEADERS, Accept: 'application/json' },
     signal: AbortSignal.timeout(15_000),
   });
   if (!resp.ok) throw new Error(`CoinPaprika HTTP ${resp.status}`);

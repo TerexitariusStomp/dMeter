@@ -8,7 +8,7 @@
  * - listTrendingRepos (python, javascript, typescript daily)
  */
 
-import { loadEnvFile, CHROME_UA, runSeed, writeExtraKeyWithMeta, sleep } from './_seed-utils.mjs';
+import { loadEnvFile, FETCH_HEADERS, runSeed, writeExtraKeyWithMeta, sleep } from './_seed-utils.mjs';
 
 loadEnvFile(import.meta.url);
 
@@ -26,7 +26,7 @@ async function fetchArxivPapers() {
   for (const cat of categories) {
     const url = `https://export.arxiv.org/api/query?search_query=cat:${cat}&start=0&max_results=50`;
     const resp = await fetch(url, {
-      headers: { Accept: 'application/xml', 'User-Agent': CHROME_UA },
+      headers: { Accept: 'application/xml', ...FETCH_HEADERS },
       signal: AbortSignal.timeout(15_000),
     });
     if (!resp.ok) { console.warn(`  arXiv ${cat}: HTTP ${resp.status}`); continue; }
@@ -73,7 +73,7 @@ async function fetchHackerNews() {
 
   for (const feed of feeds) {
     const idsResp = await fetch(`https://hacker-news.firebaseio.com/v0/${feed}stories.json`, {
-      headers: { 'User-Agent': CHROME_UA },
+      headers: { ...FETCH_HEADERS },
       signal: AbortSignal.timeout(10_000),
     });
     if (!idsResp.ok) { console.warn(`  HN ${feed}: HTTP ${idsResp.status}`); continue; }
@@ -89,7 +89,7 @@ async function fetchHackerNews() {
         batch.map(async (id) => {
           try {
             const res = await fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`, {
-              headers: { 'User-Agent': CHROME_UA },
+              headers: { ...FETCH_HEADERS },
               signal: AbortSignal.timeout(5_000),
             });
             if (!res.ok) return null;
@@ -125,7 +125,7 @@ async function fetchTechEvents() {
   // Techmeme ICS
   try {
     const resp = await fetch(ICS_URL, {
-      headers: { 'User-Agent': CHROME_UA },
+      headers: { ...FETCH_HEADERS },
       signal: AbortSignal.timeout(8_000),
     });
     if (resp.ok) {
@@ -158,7 +158,7 @@ async function fetchTechEvents() {
   const rssCount = events.length;
   try {
     const resp = await fetch(RSS_URL, {
-      headers: { 'User-Agent': CHROME_UA, Accept: 'application/rss+xml, text/xml, */*' },
+      headers: { ...FETCH_HEADERS, Accept: 'application/rss+xml, text/xml, */*' },
       signal: AbortSignal.timeout(8_000),
     });
     if (resp.ok) {
@@ -234,7 +234,7 @@ async function fetchTrendingFromOSSInsight(lang) {
   const resp = await fetch(
     `https://api.ossinsight.io/v1/trends/repos/?language=${ossLang}&period=past_24_hours`,
     {
-      headers: { Accept: 'application/json', 'User-Agent': CHROME_UA },
+      headers: { Accept: 'application/json', ...FETCH_HEADERS },
       signal: AbortSignal.timeout(10_000),
     },
   );
@@ -255,7 +255,7 @@ async function fetchTrendingFromGitHubSearch(lang) {
   const resp = await fetch(
     `https://api.github.com/search/repositories?q=language:${lang}+created:>${since}&sort=stars&order=desc&per_page=50`,
     {
-      headers: { Accept: 'application/vnd.github+json', 'User-Agent': CHROME_UA },
+      headers: { Accept: 'application/vnd.github+json', ...FETCH_HEADERS },
       signal: AbortSignal.timeout(10_000),
     },
   );

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { loadEnvFile, loadSharedConfig, CHROME_UA, sleep, runSeed, parseYahooChart, writeExtraKey } from './_seed-utils.mjs';
+import { loadEnvFile, loadSharedConfig, CHROME_UA, FETCH_HEADERS, sleep, runSeed, parseYahooChart, writeExtraKey } from './_seed-utils.mjs';
 
 const stocksConfig = loadSharedConfig('stocks.json');
 
@@ -18,7 +18,7 @@ async function fetchFinnhubQuote(symbol, apiKey) {
   try {
     const url = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}`;
     const resp = await fetch(url, {
-      headers: { 'User-Agent': CHROME_UA, 'X-Finnhub-Token': apiKey },
+      headers: { ...FETCH_HEADERS, 'X-Finnhub-Token': apiKey },
       signal: AbortSignal.timeout(10_000),
     });
     if (!resp.ok) return null;
@@ -34,7 +34,7 @@ async function fetchFinnhubQuote(symbol, apiKey) {
 async function fetchYahooWithRetry(url, label, maxAttempts = 4) {
   for (let i = 0; i < maxAttempts; i++) {
     const resp = await fetch(url, {
-      headers: { 'User-Agent': CHROME_UA },
+      headers: { ...FETCH_HEADERS },
       signal: AbortSignal.timeout(10_000),
     });
     if (resp.status === 429) {

@@ -20,7 +20,7 @@
  * - summarizeArticle: per-article LLM summarization
  */
 
-import { loadEnvFile, CHROME_UA } from './_seed-utils.mjs';
+import { loadEnvFile, FETCH_HEADERS } from './_seed-utils.mjs';
 
 loadEnvFile(import.meta.url);
 
@@ -31,7 +31,7 @@ async function warmPing(name, path, body = {}) {
   try {
     const resp = await fetch(`${API_BASE}${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'User-Agent': CHROME_UA, Origin: 'https://worldmonitor.app' },
+      headers: { 'Content-Type': 'application/json', ...FETCH_HEADERS, Origin: 'https://worldmonitor.app' },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(TIMEOUT),
     });

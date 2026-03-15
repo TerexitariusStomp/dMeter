@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { loadEnvFile, CHROME_UA, runSeed } from './_seed-utils.mjs';
+import { loadEnvFile, CHROME_UA, FETCH_HEADERS, runSeed } from './_seed-utils.mjs';
 
 loadEnvFile(import.meta.url);
 
@@ -55,7 +55,7 @@ async function fetchZone(zone, startDate, endDate) {
   const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${zone.lat}&longitude=${zone.lon}&start_date=${startDate}&end_date=${endDate}&daily=temperature_2m_mean,precipitation_sum&timezone=UTC`;
 
   const resp = await fetch(url, {
-    headers: { 'User-Agent': CHROME_UA },
+    headers: { ...FETCH_HEADERS },
     signal: AbortSignal.timeout(20_000),
   });
   if (!resp.ok) throw new Error(`Open-Meteo ${resp.status} for ${zone.name}`);

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { loadEnvFile, CHROME_UA, runSeed } from './_seed-utils.mjs';
+import { loadEnvFile, CHROME_UA, FETCH_HEADERS, runSeed } from './_seed-utils.mjs';
 
 loadEnvFile(import.meta.url);
 
@@ -10,7 +10,7 @@ const CACHE_TTL = 3600; // 1 hour
 
 async function fetchEarthquakes() {
   const resp = await fetch(USGS_FEED_URL, {
-    headers: { Accept: 'application/json', 'User-Agent': CHROME_UA },
+    headers: { ...FETCH_HEADERS, Accept: 'application/json' },
     signal: AbortSignal.timeout(15_000),
   });
   if (!resp.ok) throw new Error(`USGS API error: ${resp.status}`);

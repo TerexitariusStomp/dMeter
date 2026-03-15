@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { loadEnvFile, loadSharedConfig, CHROME_UA, runSeed } from './_seed-utils.mjs';
+import { loadEnvFile, loadSharedConfig, CHROME_UA, FETCH_HEADERS, runSeed } from './_seed-utils.mjs';
 
 const gulfConfig = loadSharedConfig('gulf.json');
 
@@ -19,7 +19,7 @@ function sleep(ms) {
 async function fetchYahooWithRetry(url, label, maxAttempts = 4) {
   for (let i = 0; i < maxAttempts; i++) {
     const resp = await fetch(url, {
-      headers: { 'User-Agent': CHROME_UA },
+      headers: { ...FETCH_HEADERS },
       signal: AbortSignal.timeout(10_000),
     });
     if (resp.status === 429) {
