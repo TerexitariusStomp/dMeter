@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { loadEnvFile, CHROME_UA, FETCH_HEADERS, runSeed, writeExtraKey } from './_seed-utils.mjs';
+import { loadEnvFile, CHROME_UA, runSeed, writeExtraKey } from './_seed-utils.mjs';
 
 loadEnvFile(import.meta.url);
 
@@ -35,7 +35,7 @@ async function fetchBisCSV(dataset, key) {
   const separator = key.includes('?') ? '&' : '?';
   const url = `${BIS_BASE}/${dataset}/${key}${separator}format=csv`;
   const resp = await fetch(url, {
-    headers: { ...FETCH_HEADERS, Accept: 'text/csv' },
+    headers: { 'User-Agent': CHROME_UA, Accept: 'text/csv' },
     signal: AbortSignal.timeout(30_000),
   });
   if (!resp.ok) throw new Error(`BIS HTTP ${resp.status} for ${dataset}`);

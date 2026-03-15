@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { loadEnvFile, CHROME_UA, FETCH_HEADERS, runSeed, sleep } from './_seed-utils.mjs';
+import { loadEnvFile, CHROME_UA, runSeed, sleep } from './_seed-utils.mjs';
 
 loadEnvFile(import.meta.url);
 
@@ -49,7 +49,7 @@ async function fetchTopicArticles(topic) {
   url.searchParams.set('timespan', '24h');
 
   const resp = await fetch(url.toString(), {
-    headers: { ...FETCH_HEADERS },
+    headers: { 'User-Agent': CHROME_UA },
     signal: AbortSignal.timeout(15_000),
   });
 

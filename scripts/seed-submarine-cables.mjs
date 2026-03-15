@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { loadEnvFile, CHROME_UA, FETCH_HEADERS, runSeed } from './_seed-utils.mjs';
+import { loadEnvFile, CHROME_UA, runSeed } from './_seed-utils.mjs';
 
 loadEnvFile(import.meta.url);
 
@@ -162,7 +162,7 @@ async function fetchSubmarineCables() {
 
   // Bulk endpoints
   const cableGeoResp = await fetch(`${BASE}/cable/cable-geo.json`, {
-    headers: { ...FETCH_HEADERS },
+    headers: { 'User-Agent': CHROME_UA },
     signal: AbortSignal.timeout(30_000),
   });
   if (!cableGeoResp.ok) throw new Error(`cable-geo.json: HTTP ${cableGeoResp.status}`);
@@ -186,7 +186,7 @@ async function fetchSubmarineCables() {
   console.log(`  ${routeMap.size} cable routes`);
 
   const lpGeoResp = await fetch(`${BASE}/landing-point/landing-point-geo.json`, {
-    headers: { ...FETCH_HEADERS },
+    headers: { 'User-Agent': CHROME_UA },
     signal: AbortSignal.timeout(30_000),
   });
   if (!lpGeoResp.ok) throw new Error(`landing-point-geo.json: HTTP ${lpGeoResp.status}`);
@@ -213,7 +213,7 @@ async function fetchSubmarineCables() {
     const batch = allIds.slice(i, i + 5);
     const results = await Promise.all(batch.map(async (id) => {
       const resp = await fetch(`${BASE}/cable/${id}.json`, {
-        headers: { ...FETCH_HEADERS },
+        headers: { 'User-Agent': CHROME_UA },
         signal: AbortSignal.timeout(15_000),
       });
       if (!resp.ok) { failed.push(id); return null; }

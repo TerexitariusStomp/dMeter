@@ -10,7 +10,6 @@ const MAX_PAYLOAD_BYTES = 5 * 1024 * 1024; // 5MB per key
 const __seed_dirname = dirname(fileURLToPath(import.meta.url));
 
 export { CHROME_UA };
-export const FETCH_HEADERS = { 'User-Agent': CHROME_UA, 'Accept-Encoding': 'gzip, deflate' };
 
 export function loadSharedConfig(filename) {
   for (const base of [join(__seed_dirname, '..', 'shared'), join(__seed_dirname, 'shared')]) {

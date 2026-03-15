@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { loadEnvFile, FETCH_HEADERS, runSeed, writeExtraKeyWithMeta, sleep } from './_seed-utils.mjs';
+import { loadEnvFile, CHROME_UA, runSeed, writeExtraKeyWithMeta, sleep } from './_seed-utils.mjs';
 
 loadEnvFile(import.meta.url);
 
@@ -42,7 +42,7 @@ async function fetchEnergyPrices() {
       length: '2',
     });
     const resp = await fetch(`https://api.eia.gov${c.apiPath}?${params}`, {
-      headers: { Accept: 'application/json', ...FETCH_HEADERS },
+      headers: { Accept: 'application/json', 'User-Agent': CHROME_UA },
       signal: AbortSignal.timeout(10_000),
     });
     if (!resp.ok) { console.warn(`  EIA ${c.commodity}: HTTP ${resp.status}`); continue; }
@@ -87,7 +87,7 @@ async function fetchCapacityForSource(sourceCode, apiKey, startYear) {
   });
   const resp = await fetch(
     `https://api.eia.gov/v2/electricity/state-electricity-profiles/capability/data/?${params}`,
-    { headers: { Accept: 'application/json', ...FETCH_HEADERS }, signal: AbortSignal.timeout(15_000) },
+    { headers: { Accept: 'application/json', 'User-Agent': CHROME_UA }, signal: AbortSignal.timeout(15_000) },
   );
   if (!resp.ok) return new Map();
   const data = await resp.json();
@@ -197,7 +197,7 @@ async function fetchFredSeries() {
 
 async function fetchJsonSafe(url, timeout = 8000) {
   const resp = await fetch(url, {
-    headers: { ...FETCH_HEADERS },
+    headers: { 'User-Agent': CHROME_UA },
     signal: AbortSignal.timeout(timeout),
   });
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);

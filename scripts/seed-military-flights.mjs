@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { loadEnvFile, CHROME_UA, FETCH_HEADERS, getRedisCredentials, acquireLock, releaseLock, withRetry, writeFreshnessMetadata, logSeedResult, verifySeedKey, extendExistingTtl } from './_seed-utils.mjs';
+import { loadEnvFile, CHROME_UA, getRedisCredentials, acquireLock, releaseLock, withRetry, writeFreshnessMetadata, logSeedResult, verifySeedKey, extendExistingTtl } from './_seed-utils.mjs';
 import http from 'node:http';
 import https from 'node:https';
 import tls from 'node:tls';
@@ -337,7 +337,7 @@ async function fetchOpenSkyAuthenticated(region) {
 
   const authHeader = 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64');
   const resp = await fetch(url, {
-    headers: { Authorization: authHeader, ...FETCH_HEADERS, Accept: 'application/json' },
+    headers: { Authorization: authHeader, 'User-Agent': CHROME_UA, Accept: 'application/json' },
     signal: AbortSignal.timeout(15_000),
   });
   if (!resp.ok) {
@@ -358,7 +358,7 @@ async function fetchOpenSkyAnonymous(region) {
   }
 
   const resp = await fetch(url, {
-    headers: { ...FETCH_HEADERS, Accept: 'application/json' },
+    headers: { 'User-Agent': CHROME_UA, Accept: 'application/json' },
     signal: AbortSignal.timeout(15_000),
   });
   if (!resp.ok) {
@@ -390,7 +390,7 @@ async function fetchWingbits() {
 
   const resp = await fetch(WINGBITS_BASE, {
     method: 'POST',
-    headers: { 'x-api-key': apiKey, Accept: 'application/json', 'Content-Type': 'application/json', ...FETCH_HEADERS },
+    headers: { 'x-api-key': apiKey, Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': CHROME_UA },
     body: JSON.stringify(areas),
     signal: AbortSignal.timeout(20_000),
   });

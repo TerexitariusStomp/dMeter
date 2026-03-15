@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { loadEnvFile, CHROME_UA, FETCH_HEADERS, runSeed, writeExtraKeyWithMeta, sleep, verifySeedKey } from './_seed-utils.mjs';
+import { loadEnvFile, CHROME_UA, runSeed, writeExtraKeyWithMeta, sleep, verifySeedKey } from './_seed-utils.mjs';
 
 loadEnvFile(import.meta.url);
 
@@ -54,7 +54,7 @@ async function fetchShippingRates() {
         frequency: cfg.frequency, sort_order: 'desc', limit: '24',
       });
       const resp = await fetch(`https://api.stlouisfed.org/fred/series/observations?${params}`, {
-        headers: { ...FETCH_HEADERS, Accept: 'application/json' },
+        headers: { Accept: 'application/json', 'User-Agent': CHROME_UA },
         signal: AbortSignal.timeout(10_000),
       });
       if (!resp.ok) { console.warn(`  FRED ${cfg.seriesId}: HTTP ${resp.status}`); continue; }
@@ -84,7 +84,7 @@ async function fetchShippingRates() {
 async function fetchSSEIndex(indexName, indexId, dataItemType, displayName, unit) {
   try {
     const resp = await fetch(`https://en.sse.net.cn/currentIndex?indexName=${indexName}`, {
-      headers: { ...FETCH_HEADERS, Accept: 'application/json' },
+      headers: { 'User-Agent': CHROME_UA, Accept: 'application/json' },
       signal: AbortSignal.timeout(10_000),
     });
     if (!resp.ok) { console.warn(`  SSE ${indexName}: HTTP ${resp.status}`); return []; }
@@ -130,7 +130,7 @@ const BDI_INDEX_MAP = [
 async function fetchBDI() {
   try {
     const resp = await fetch('https://www.handybulk.com/baltic-dry-index/', {
-      headers: { ...FETCH_HEADERS },
+      headers: { 'User-Agent': CHROME_UA, 'Accept-Encoding': 'gzip, deflate' },
       signal: AbortSignal.timeout(10_000),
       redirect: 'manual',
     });
@@ -226,7 +226,7 @@ async function wtoFetch(path, params) {
   const url = new URL(`https://api.wto.org/timeseries/v1${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   const resp = await fetch(url.toString(), {
-    headers: { ...FETCH_HEADERS, 'Ocp-Apim-Subscription-Key': apiKey },
+    headers: { 'Ocp-Apim-Subscription-Key': apiKey, 'User-Agent': CHROME_UA },
     signal: AbortSignal.timeout(15_000),
   });
   if (resp.status === 204) return { Dataset: [] };
@@ -444,7 +444,7 @@ async function fetchCustomsRevenue() {
   const url = `${TREASURY_MTS_URL}?fields=${fields}&filter=classification_desc:eq:Customs%20Duties,record_date:gte:${threeYearsAgo}&sort=-record_date&page[size]=50`;
 
   const resp = await fetch(url, {
-    headers: { ...FETCH_HEADERS, Accept: 'application/json' },
+    headers: { 'User-Agent': CHROME_UA, Accept: 'application/json' },
     signal: AbortSignal.timeout(15_000),
   });
   if (!resp.ok) throw new Error(`Treasury MTS HTTP ${resp.status}`);

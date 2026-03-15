@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { loadEnvFile, CHROME_UA, FETCH_HEADERS, runSeed } from './_seed-utils.mjs';
+import { loadEnvFile, CHROME_UA, runSeed } from './_seed-utils.mjs';
 
 loadEnvFile(import.meta.url);
 
@@ -29,7 +29,7 @@ function calculateCentroid(coords) {
 
 async function fetchAlerts() {
   const resp = await fetch(NWS_API, {
-    headers: { ...FETCH_HEADERS, Accept: 'application/geo+json' },
+    headers: { Accept: 'application/geo+json', 'User-Agent': CHROME_UA },
     signal: AbortSignal.timeout(15_000),
   });
   if (!resp.ok) throw new Error(`NWS API error: ${resp.status}`);

@@ -16,7 +16,7 @@
  * - searchGdeltDocuments: per-query GDELT search
  */
 
-import { loadEnvFile, FETCH_HEADERS, runSeed, writeExtraKeyWithMeta, sleep } from './_seed-utils.mjs';
+import { loadEnvFile, CHROME_UA, runSeed, writeExtraKeyWithMeta, sleep } from './_seed-utils.mjs';
 
 loadEnvFile(import.meta.url);
 
@@ -51,7 +51,7 @@ async function fetchAcledToken() {
     });
     const resp = await fetch('https://acleddata.com/oauth/token', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...FETCH_HEADERS },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': CHROME_UA },
       body,
       signal: AbortSignal.timeout(15_000),
     });
@@ -85,7 +85,7 @@ async function fetchAcledEvents() {
   });
 
   const resp = await fetch(`https://acleddata.com/api/acled/read?${params}`, {
-    headers: { Accept: 'application/json', Authorization: `Bearer ${token}`, ...FETCH_HEADERS },
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}`, 'User-Agent': CHROME_UA },
     signal: AbortSignal.timeout(15_000),
   });
   if (!resp.ok) throw new Error(`ACLED HTTP ${resp.status}`);
@@ -125,7 +125,7 @@ async function fetchHapiSummary(countryCode) {
   const url = `https://hapi.humdata.org/api/v2/coordination-context/conflict-events?output_format=json&limit=1000&offset=0&app_identifier=${appId}&location_code=${iso3}`;
 
   const resp = await fetch(url, {
-    headers: { Accept: 'application/json', ...FETCH_HEADERS },
+    headers: { Accept: 'application/json', 'User-Agent': CHROME_UA },
     signal: AbortSignal.timeout(15_000),
   });
   if (!resp.ok) return null;
@@ -183,7 +183,7 @@ async function fetchAllHumanitarianSummaries() {
 
 async function fetchPizzintStatus() {
   const resp = await fetch('https://www.pizzint.watch/api/dashboard-data', {
-    headers: { Accept: 'application/json', ...FETCH_HEADERS },
+    headers: { Accept: 'application/json', 'User-Agent': CHROME_UA },
     signal: AbortSignal.timeout(10_000),
   });
   if (!resp.ok) return null;
@@ -226,7 +226,7 @@ async function fetchPizzintStatus() {
 async function fetchGdeltTensions() {
   const pairs = 'usa_russia,russia_ukraine,usa_china,china_taiwan,usa_iran,usa_venezuela';
   const resp = await fetch(`https://www.pizzint.watch/api/gdelt/batch?pairs=${encodeURIComponent(pairs)}&method=gpr`, {
-    headers: { Accept: 'application/json', ...FETCH_HEADERS },
+    headers: { Accept: 'application/json', 'User-Agent': CHROME_UA },
     signal: AbortSignal.timeout(10_000),
   });
   if (!resp.ok) return [];

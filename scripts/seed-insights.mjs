@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { loadEnvFile, FETCH_HEADERS, getRedisCredentials, runSeed } from './_seed-utils.mjs';
+import { loadEnvFile, CHROME_UA, getRedisCredentials, runSeed } from './_seed-utils.mjs';
 import { clusterItems, selectTopStories } from './_clustering.mjs';
 
 loadEnvFile(import.meta.url);
@@ -65,7 +65,7 @@ const LLM_PROVIDERS = [
     apiUrlFn: (baseUrl) => new URL('/v1/chat/completions', baseUrl).toString(),
     model: () => process.env.OLLAMA_MODEL || 'llama3.1:8b',
     headers: (_key) => {
-      const h = { 'Content-Type': 'application/json', ...FETCH_HEADERS };
+      const h = { 'Content-Type': 'application/json', 'User-Agent': CHROME_UA };
       const apiKey = process.env.OLLAMA_API_KEY;
       if (apiKey) h.Authorization = `Bearer ${apiKey}`;
       return h;
@@ -78,7 +78,7 @@ const LLM_PROVIDERS = [
     envKey: 'GROQ_API_KEY',
     apiUrl: 'https://api.groq.com/openai/v1/chat/completions',
     model: GROQ_MODEL,
-    headers: (key) => ({ 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', ...FETCH_HEADERS }),
+    headers: (key) => ({ 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'User-Agent': CHROME_UA }),
     timeout: 15_000,
   },
   {
@@ -86,7 +86,7 @@ const LLM_PROVIDERS = [
     envKey: 'OPENROUTER_API_KEY',
     apiUrl: 'https://openrouter.ai/api/v1/chat/completions',
     model: 'google/gemini-2.5-flash',
-    headers: (key) => ({ 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://worldmonitor.app', 'X-Title': 'World Monitor', ...FETCH_HEADERS }),
+    headers: (key) => ({ 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://worldmonitor.app', 'X-Title': 'World Monitor', 'User-Agent': CHROME_UA }),
     timeout: 20_000,
   },
 ];
@@ -190,7 +190,7 @@ async function warmDigestCache() {
   const apiBase = process.env.API_BASE_URL || 'https://api.worldmonitor.app';
   try {
     const resp = await fetch(`${apiBase}/api/news/v1/list-feed-digest?variant=full&lang=en`, {
-      headers: { ...FETCH_HEADERS },
+      headers: { 'User-Agent': CHROME_UA },
       signal: AbortSignal.timeout(30_000),
     });
     if (resp.ok) console.log('  Digest cache warmed via RPC');

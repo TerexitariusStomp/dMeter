@@ -8,7 +8,7 @@
  * Standalone fallback — primary seeder is the AIS relay loop.
  */
 
-import { loadEnvFile, FETCH_HEADERS, getRedisCredentials, logSeedResult, extendExistingTtl } from './_seed-utils.mjs';
+import { loadEnvFile, CHROME_UA, getRedisCredentials, logSeedResult, extendExistingTtl } from './_seed-utils.mjs';
 
 loadEnvFile(import.meta.url);
 
@@ -27,7 +27,7 @@ async function warmPing() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...FETCH_HEADERS,
+        'User-Agent': CHROME_UA,
         Origin: 'https://worldmonitor.app',
       },
       body: '{}',

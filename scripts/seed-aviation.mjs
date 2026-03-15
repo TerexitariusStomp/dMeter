@@ -12,7 +12,7 @@
  * - listAirportFlights (arbitrary airport + direction + limit combos)
  */
 
-import { loadEnvFile, FETCH_HEADERS, runSeed, writeExtraKeyWithMeta, sleep } from './_seed-utils.mjs';
+import { loadEnvFile, CHROME_UA, runSeed, writeExtraKeyWithMeta, sleep } from './_seed-utils.mjs';
 
 loadEnvFile(import.meta.url);
 
@@ -37,7 +37,7 @@ async function fetchAviationStackFlights(airports) {
         access_key: apiKey, dep_iata: iata, limit: '100',
       });
       const resp = await fetch(`${AVIATIONSTACK_URL}?${params}`, {
-        headers: { ...FETCH_HEADERS },
+        headers: { 'User-Agent': CHROME_UA },
         signal: AbortSignal.timeout(10_000),
       });
       if (!resp.ok) { console.warn(`  AviationStack ${iata}: HTTP ${resp.status}`); continue; }
@@ -208,7 +208,7 @@ async function fetchAviationNews() {
     AVIATION_RSS_FEEDS.map(async (feed) => {
       try {
         const resp = await fetch(feed.url, {
-          headers: { ...FETCH_HEADERS, Accept: 'application/rss+xml, application/xml, text/xml, */*' },
+          headers: { 'User-Agent': CHROME_UA, Accept: 'application/rss+xml, application/xml, text/xml, */*' },
           signal: AbortSignal.timeout(8_000),
         });
         if (!resp.ok) return;

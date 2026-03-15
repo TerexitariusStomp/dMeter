@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { loadEnvFile, CHROME_UA, FETCH_HEADERS, runSeed } from './_seed-utils.mjs';
+import { loadEnvFile, CHROME_UA, runSeed } from './_seed-utils.mjs';
 
 loadEnvFile(import.meta.url);
 
@@ -36,8 +36,8 @@ async function fetchUnhcrYearItems(year) {
       `https://api.unhcr.org/population/v1/population/?year=${year}&limit=${limit}&page=${page}&coo_all=true&coa_all=true`,
       {
         headers: {
-          ...FETCH_HEADERS,
           Accept: 'application/json',
+          'User-Agent': CHROME_UA,
         },
         signal: AbortSignal.timeout(15_000),
       },
