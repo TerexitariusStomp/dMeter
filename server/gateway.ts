@@ -62,6 +62,7 @@ const RPC_CACHE_TIER: Record<string, CacheTier> = {
   '/api/infrastructure/v1/list-service-statuses': 'slow',
   '/api/seismology/v1/list-earthquakes': 'slow',
   '/api/infrastructure/v1/list-internet-outages': 'slow',
+  '/api/infrastructure/v1/list-temporal-anomalies': 'slow',
 
   '/api/unrest/v1/list-unrest-events': 'slow',
   '/api/cyber/v1/list-cyber-threats': 'slow',
@@ -128,6 +129,8 @@ const RPC_CACHE_TIER: Record<string, CacheTier> = {
   '/api/news/v1/summarize-article-cache': 'slow',
 
   '/api/imagery/v1/search-imagery': 'static',
+  '/api/webcam/v1/list-webcams': 'static',
+  '/api/webcam/v1/get-webcam-image': 'static',
 };
 
 const PREMIUM_RPC_PATHS = new Set([

@@ -157,10 +157,7 @@ export async function cachedFetchJson<T extends object>(
 ): Promise<T | null> {
   const cached = await getCachedJson(key);
   if (cached === NEG_SENTINEL) return null;
-  if (cached !== null) {
-    writeSeedMeta(key, estimateRecordCount(cached));
-    return cached as T;
-  }
+  if (cached !== null) return cached as T;
 
   const existing = inflight.get(key);
   if (existing) return existing as Promise<T | null>;
@@ -169,7 +166,6 @@ export async function cachedFetchJson<T extends object>(
     .then(async (result) => {
       if (result != null) {
         await setCachedJson(key, result, ttlSeconds);
-        writeSeedMeta(key, estimateRecordCount(result));
       } else {
         await setCachedJson(key, NEG_SENTINEL, negativeTtlSeconds);
       }
@@ -204,10 +200,7 @@ export async function cachedFetchJsonWithMeta<T extends object>(
 ): Promise<{ data: T | null; source: 'cache' | 'fresh' }> {
   const cached = await getCachedJson(key);
   if (cached === NEG_SENTINEL) return { data: null, source: 'cache' };
-  if (cached !== null) {
-    writeSeedMeta(key, estimateRecordCount(cached));
-    return { data: cached as T, source: 'cache' };
-  }
+  if (cached !== null) return { data: cached as T, source: 'cache' };
 
   const existing = inflight.get(key);
   if (existing) {
@@ -219,7 +212,6 @@ export async function cachedFetchJsonWithMeta<T extends object>(
     .then(async (result) => {
       if (result != null) {
         await setCachedJson(key, result, ttlSeconds);
-        writeSeedMeta(key, estimateRecordCount(result));
       } else {
         await setCachedJson(key, NEG_SENTINEL, negativeTtlSeconds);
       }
