@@ -578,6 +578,7 @@ export interface MapLayers {
   ais: boolean;
   nuclear: boolean;
   irradiators: boolean;
+  radiationWatch?: boolean;
   sanctions: boolean;
   weather: boolean;
   economic: boolean;
@@ -1443,6 +1444,7 @@ export interface CountryBriefSignals {
   outages: number;
   aisDisruptions: number;
   satelliteFires: number;
+  radiationAnomalies: number;
   temporalAnomalies: number;
   cyberThreats: number;
   earthquakes: number;
