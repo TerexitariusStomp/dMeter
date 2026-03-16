@@ -70,6 +70,7 @@ const STANDALONE_KEYS = {
   corridorrisk:          'supply_chain:corridorrisk:v1',
   chokepointTransits:    'supply_chain:chokepoint_transits:v1',
   transitSummaries:      'supply_chain:transit-summaries:v1',
+  radiation:             'radiation:observations:v1',
 };
 
 const SEED_META = {
@@ -141,6 +142,7 @@ const ON_DEMAND_KEYS = new Set([
   'cyberThreatsRpc', 'militaryBases', 'temporalAnomalies', 'displacement',
   'corridorrisk', // intermediate key; data flows through transit-summaries:v1
   'riskScores', 'serviceStatuses', // RPC-populated; no seed-meta after PR #1649 removed it from cachedFetchJson
+  'radiation', // RPC-populated via cachedFetchJson; no dedicated seed
 ]);
 
 // Keys where 0 records is a valid healthy state (e.g. no airports closed).
