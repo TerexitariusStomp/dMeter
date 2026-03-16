@@ -8554,6 +8554,67 @@ a.prediction-link:hover {
   text-align: right;
 }
 
+.radiation-panel-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.radiation-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.radiation-table th,
+.radiation-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.radiation-row {
+  cursor: pointer;
+}
+
+.radiation-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.radiation-reading {
+  color: var(--accent);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.radiation-source,
+.radiation-freshness {
+  display: inline-flex;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 10px;
+}
+
+.radiation-freshness-live {
+  color: var(--semantic-normal);
+}
+
+.radiation-freshness-recent {
+  color: var(--semantic-elevated);
+}
+
+.radiation-freshness-historical {
+  color: var(--text-dim);
+}
+
+.radiation-footer {
+  padding: 0 8px 8px 8px;
+  color: var(--text-dim);
+  font-size: 10px;
+  text-align: right;
+}
+
 .economic-source {
   font-size: 9px;
   color: var(--text-dim);
