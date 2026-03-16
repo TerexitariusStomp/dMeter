@@ -48,6 +48,7 @@ import { isAllowedPreviewUrl } from '@/utils/imagery-preview';
 import { getCategoryStyle } from '@/services/webcams';
 import { pinWebcam, isPinned } from '@/services/webcams/pinned-store';
 import type { WebcamEntry, WebcamCluster } from '@/generated/client/worldmonitor/webcam/v1/service_client';
+import type { RadiationObservation } from '@/services/radiation';
 
 const SAT_COUNTRY_COLORS: Record<string, string> = { CN: '#ff2020', RU: '#ff8800', US: '#4488ff', EU: '#44cc44', KR: '#aa66ff', IN: '#ff66aa', TR: '#ff4466', OTHER: '#ccccff' };
 const SAT_TYPE_EMOJI: Record<string, string> = { sar: '\u{1F4E1}', optical: '\u{1F4F7}', military: '\u{1F396}', sigint: '\u{1F4FB}' };
@@ -231,6 +232,17 @@ interface EarthquakeMarker extends BaseMarker {
   place: string;
   magnitude: number;
 }
+interface RadiationMarker extends BaseMarker {
+  _kind: 'radiation';
+  id: string;
+  location: string;
+  country: string;
+  value: number;
+  unit: string;
+  delta: number;
+  zScore: number;
+  severity: 'normal' | 'elevated' | 'spike';
+}
 interface EconomicMarker extends BaseMarker {
   _kind: 'economic';
   id: string;
@@ -380,7 +392,7 @@ type GlobeMarker =
   | CyberMarker | FireMarker | ProtestMarker
   | UcdpMarker | DisplacementMarker | ClimateMarker | GpsJamMarker | TechMarker
   | ConflictZoneMarker | MilBaseMarker | NuclearSiteMarker | IrradiatorSiteMarker | SpaceportSiteMarker
-  | EarthquakeMarker | EconomicMarker | DatacenterMarker | WaterwayMarker | MineralMarker
+  | EarthquakeMarker | RadiationMarker | EconomicMarker | DatacenterMarker | WaterwayMarker | MineralMarker
   | FlightDelayMarker | NotamRingMarker | CableAdvisoryMarker | RepairShipMarker | AisDisruptionMarker
   | NewsLocationMarker | FlashMarker | SatelliteMarker | SatFootprintMarker | ImagerySceneMarker
   | WebcamMarkerData | WebcamClusterData;
@@ -455,6 +467,7 @@ export class GlobeMap {
   private irradiatorSiteMarkers: IrradiatorSiteMarker[] = [];
   private spaceportSiteMarkers: SpaceportSiteMarker[] = [];
   private earthquakeMarkers: EarthquakeMarker[] = [];
+  private radiationMarkers: RadiationMarker[] = [];
   private economicMarkers: EconomicMarker[] = [];
   private datacenterMarkers: DatacenterMarker[] = [];
   private waterwayMarkers: WaterwayMarker[] = [];
@@ -971,6 +984,15 @@ export class GlobeMap {
       const c = severityColors[d.severity] ?? '#88aaff';
       el.innerHTML = GlobeMap.wrapHit(`<div style="font-size:9px;color:${c};text-shadow:0 0 4px ${c}88;font-weight:bold;">⚡</div>`);
       el.title = d.headline;
+    } else if (d._kind === 'radiation') {
+      const c = d.severity === 'spike' ? '#ff3030' : '#ffaa00';
+      const ring = d.severity === 'spike'
+        ? `<div style="position:absolute;inset:-5px;border-radius:50%;border:2px solid ${c}66;${this.pulseStyle('1.8s')}"></div>`
+        : '';
+      el.innerHTML = GlobeMap.wrapHit(
+        `<div style="position:relative;display:inline-flex;align-items:center;justify-content:center;">${ring}<div style="font-size:11px;color:${c};text-shadow:0 0 5px ${c}88;">☢</div></div>`
+      );
+      el.title = `${d.location} · ${d.severity}`;
     } else if (d._kind === 'natural') {
       const typeIcons: Record<string, string> = {
         earthquakes: '〽', volcanoes: '🌋', severeStorms: '🌀',
@@ -1200,6 +1222,35 @@ export class GlobeMap {
       // Fly to cluster and zoom in (reduce altitude by 60%)
       this.globe.pointOfView({ lat: d._lat, lng: d._lng, altitude: pov.altitude * 0.4 }, 800);
     }
+    if (d._kind === 'radiation' && this.popup) {
+      const aRect = anchor.getBoundingClientRect();
+      const cRect = this.container.getBoundingClientRect();
+      const x = aRect.left - cRect.left + aRect.width / 2;
+      const y = aRect.top - cRect.top;
+      this.hideTooltip();
+      this.popup.show({
+        type: 'radiation',
+        data: {
+          id: d.id,
+          source: 'EPA RadNet',
+          location: d.location,
+          country: d.country,
+          lat: d._lat,
+          lon: d._lng,
+          value: d.value,
+          unit: d.unit,
+          observedAt: new Date(),
+          freshness: 'recent',
+          baselineValue: d.value - d.delta,
+          delta: d.delta,
+          zScore: d.zScore,
+          severity: d.severity,
+        },
+        x,
+        y,
+      });
+      return;
+    }
     this.showMarkerTooltip(d, anchor);
   }
 
@@ -1278,6 +1329,11 @@ export class GlobeMap {
       const wc = d.severity === 'Extreme' ? '#ff0044' : d.severity === 'Severe' ? '#ff6600' : '#88aaff';
       html = `<span style="color:${wc};font-weight:bold;">⚡ ${esc(d.severity)}</span>` +
              `<br><span style="opacity:.7;white-space:normal;display:block;">${esc(d.headline.slice(0, 90))}</span>`;
+    } else if (d._kind === 'radiation') {
+      const rc = d.severity === 'spike' ? '#ff3030' : '#ffaa00';
+      html = `<span style="color:${rc};font-weight:bold;">☢ ${esc(d.severity.toUpperCase())}</span>` +
+             `<br><span style="opacity:.7;">${esc(d.location)}, ${esc(d.country)}</span>` +
+             `<br><span style="opacity:.5;">${d.value.toFixed(1)} ${esc(d.unit)} · ${d.delta >= 0 ? '+' : ''}${d.delta.toFixed(1)} vs baseline</span>`;
     } else if (d._kind === 'natural') {
       html = `<span style="font-weight:bold;">${esc(d.title.slice(0, 60))}</span>` +
              `<br><span style="opacity:.7;">${esc(d.category)}</span>`;
@@ -1822,6 +1878,7 @@ export class GlobeMap {
       markers.push(...this.naturalMarkers);
       markers.push(...this.earthquakeMarkers);
     }
+    if (this.layers.radiationWatch) markers.push(...this.radiationMarkers);
     if (this.layers.economic) markers.push(...this.economicMarkers);
     if (this.layers.datacenters) markers.push(...this.datacenterMarkers);
     if (this.layers.waterways) markers.push(...this.waterwayMarkers);
@@ -2565,6 +2622,24 @@ export class GlobeMap {
       }));
     this.flushMarkers();
   }
+
+  public setRadiationObservations(observations: RadiationObservation[]): void {
+    this.radiationMarkers = (observations ?? []).map((observation) => ({
+      _kind: 'radiation' as const,
+      _lat: observation.lat,
+      _lng: observation.lon,
+      id: observation.id,
+      location: observation.location,
+      country: observation.country,
+      value: observation.value,
+      unit: observation.unit,
+      delta: observation.delta,
+      zScore: observation.zScore,
+      severity: observation.severity,
+    }));
+    this.flushMarkers();
+  }
+
   public setImageryScenes(scenes: ImageryScene[]): void {
     const valid = (scenes ?? []).filter(s => {
       try {
