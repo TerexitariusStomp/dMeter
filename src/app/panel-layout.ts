@@ -33,6 +33,7 @@ import {
   InvestmentsPanel,
   TradePolicyPanel,
   SupplyChainPanel,
+  SanctionsPressurePanel,
   GulfEconomiesPanel,
   WorldClockPanel,
   AirlineIntelPanel,
@@ -561,6 +562,7 @@ export class PanelLayoutManager implements AppModule {
     this.createPanel('economic', () => new EconomicPanel());
 
     this.createPanel('trade-policy', () => new TradePolicyPanel());
+    this.createPanel('sanctions-pressure', () => new SanctionsPressurePanel());
     this.createPanel('supply-chain', () => new SupplyChainPanel());
 
     this.createNewsPanel('africa', 'panels.africa');

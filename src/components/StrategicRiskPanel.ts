@@ -210,6 +210,7 @@ export class StrategicRiskPanel extends Panel {
       case 'cii_spike': return '📊';
       case 'cascade': return '🔗';
       case 'radiation': return '☢️';
+      case 'sanctions': return '🚫';
       case 'composite': return '⚠️';
       default: return '📍';
     }

@@ -75,6 +75,7 @@ const SOURCE_METADATA: Record<DataSourceId, { name: string; requiredForRisk: boo
   supply_chain: { name: 'Supply Chain Intelligence', requiredForRisk: false, panelId: 'supply-chain' },
   security_advisories: { name: 'Security Advisories', requiredForRisk: false, panelId: 'security-advisories' },
   radiation: { name: 'Radiation Watch', requiredForRisk: false, panelId: 'radiation-watch' },
+  sanctions_pressure: { name: 'Sanctions Pressure', requiredForRisk: false, panelId: 'sanctions-pressure' },
   gpsjam: { name: 'GPS/GNSS Interference', requiredForRisk: false, panelId: 'map' },
   treasury_revenue: { name: 'Treasury Customs Revenue', requiredForRisk: false, panelId: 'trade-policy' },
 };
@@ -337,6 +338,7 @@ const INTELLIGENCE_GAP_MESSAGES: Record<DataSourceId, string> = {
   supply_chain: 'Supply chain disruption status unavailable—chokepoint monitoring offline',
   security_advisories: 'Government travel advisory data unavailable—security alerts may be missed',
   radiation: 'Radiation monitoring degraded—EPA RadNet and Safecast observations unavailable',
+  sanctions_pressure: 'Structured sanctions pressure unavailable—OFAC designation visibility reduced',
   gpsjam: 'GPS/GNSS interference data unavailable—jamming zones undetected',
   treasury_revenue: 'US Treasury customs revenue data unavailable',
 };

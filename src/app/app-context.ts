@@ -2,6 +2,7 @@ import type { InternetOutage, SocialUnrestEvent, MilitaryFlight, MilitaryFlightC
 import type { AirportDelayAlert, PositionSample } from '@/services/aviation';
 import type { IranEvent } from '@/generated/client/worldmonitor/conflict/v1/service_client';
 import type { RadiationWatchResult } from '@/services/radiation';
+import type { SanctionsPressureResult } from '@/services/sanctions-pressure';
 import type { SecurityAdvisory } from '@/services/security-advisories';
 import type { Earthquake } from '@/services/earthquakes';
 
@@ -19,6 +20,7 @@ export interface IntelligenceCache {
   orefAlerts?: { alertCount: number; historyCount24h: number };
   advisories?: SecurityAdvisory[];
   radiation?: RadiationWatchResult;
+  sanctions?: SanctionsPressureResult;
   imageryScenes?: Array<{ id: string; satellite: string; datetime: string; resolutionM: number; mode: string; geometryGeojson: string; previewUrl: string; assetUrl: string }>;
 }
 
