@@ -3392,7 +3392,7 @@ export class DeckGLMap {
       case 'irradiators-layer':
         return { html: `<div class="deckgl-tooltip"><strong>${text(obj.name)}</strong><br/>${text(obj.type || t('components.deckgl.layers.gammaIrradiators'))}</div>` };
       case 'radiation-watch-layer': {
-        const severityLabel = obj.severity === 'spike' ? 'Radiation spike' : 'Elevated radiation';
+        const severityLabel = obj.severity === 'spike' ? t('components.deckgl.layers.radiationSpike') : t('components.deckgl.layers.radiationElevated');
         const delta = Number(obj.delta || 0);
         return { html: `<div class="deckgl-tooltip"><strong>${severityLabel}</strong><br/>${text(obj.location)}<br/>${Number(obj.value).toFixed(1)} ${text(obj.unit)} · ${delta >= 0 ? '+' : ''}${delta.toFixed(1)} vs baseline</div>` };
       }

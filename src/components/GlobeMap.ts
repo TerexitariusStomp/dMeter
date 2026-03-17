@@ -235,6 +235,7 @@ interface EarthquakeMarker extends BaseMarker {
 interface RadiationMarker extends BaseMarker {
   _kind: 'radiation';
   id: string;
+  source: string;
   location: string;
   country: string;
   value: number;
@@ -1232,7 +1233,7 @@ export class GlobeMap {
         type: 'radiation',
         data: {
           id: d.id,
-          source: 'EPA RadNet',
+          source: d.source,
           location: d.location,
           country: d.country,
           lat: d._lat,
@@ -1245,7 +1246,7 @@ export class GlobeMap {
           delta: d.delta,
           zScore: d.zScore,
           severity: d.severity,
-        },
+        } as RadiationObservation,
         x,
         y,
       });
@@ -2629,6 +2630,7 @@ export class GlobeMap {
       _lat: observation.lat,
       _lng: observation.lon,
       id: observation.id,
+      source: observation.source || 'Unknown',
       location: observation.location,
       country: observation.country,
       value: observation.value,

@@ -141,6 +141,7 @@ export const COMMANDS: Command[] = [
   { id: 'panel:tech-readiness', keywords: ['tech readiness', 'digital readiness', 'technology index'], label: 'Panel: Tech Readiness Index', icon: '\u{1F4F1}', category: 'panels' },
   { id: 'panel:world-clock', keywords: ['clock', 'world clock', 'time zones', 'timezone'], label: 'Panel: World Clock', icon: '\u{1F570}\uFE0F', category: 'panels' },
   { id: 'panel:layoffs', keywords: ['layoffs', 'layoff tracker', 'job cuts', 'redundancies'], label: 'Panel: Layoffs Tracker', icon: '\u{1F4C9}', category: 'panels' },
+  { id: 'panel:radiation-watch', keywords: ['radiation', 'nuclear', 'radnet', 'safecast', 'radiation watch'], label: 'Panel: Radiation Watch', icon: '\u2622\uFE0F', category: 'panels' },
 
   // View / settings
   { id: 'view:dark', keywords: ['dark', 'dark mode', 'night'], label: 'Switch to dark mode', icon: '\u{1F319}', category: 'view' },
