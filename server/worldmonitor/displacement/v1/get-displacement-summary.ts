@@ -124,11 +124,31 @@ interface MergedCountry {
   hostTotal: number;
 }
 
+function requestedOrCurrentYear(year: number): number {
+  return year > 0 ? year : new Date().getFullYear();
+}
+
+function applySummaryLimits(
+  summary: NonNullable<GetDisplacementSummaryResponse['summary']>,
+  req: GetDisplacementSummaryRequest,
+): NonNullable<GetDisplacementSummaryResponse['summary']> {
+  const limitedSummary = { ...summary };
+
+  if (req.countryLimit > 0) {
+    limitedSummary.countries = limitedSummary.countries.slice(0, req.countryLimit);
+  }
+
+  const flowLimit = req.flowLimit > 0 ? req.flowLimit : 50;
+  limitedSummary.topFlows = limitedSummary.topFlows.slice(0, flowLimit);
+
+  return limitedSummary;
+}
+
 // ---------- Seed-first helpers ----------
 
 async function trySeededData(req: GetDisplacementSummaryRequest): Promise<GetDisplacementSummaryResponse | null> {
   try {
-    const year = req.year > 0 ? req.year : new Date().getFullYear();
+    const year = requestedOrCurrentYear(req.year);
     const seedKey = `${REDIS_CACHE_KEY}:${year}`;
     const [seedData, seedMeta] = await Promise.all([
       getCachedJson(seedKey, true) as Promise<GetDisplacementSummaryResponse | null>,
@@ -141,11 +161,7 @@ async function trySeededData(req: GetDisplacementSummaryRequest): Promise<GetDis
     const isFresh = Date.now() - fetchedAt < SEED_FRESHNESS_MS;
 
     if (isFresh || !process.env.SEED_FALLBACK_DISPLACEMENT) {
-      const summary = { ...seedData.summary };
-      if (req.countryLimit > 0) summary.countries = summary.countries.slice(0, req.countryLimit);
-      const flowLimit = req.flowLimit > 0 ? req.flowLimit : 50;
-      summary.topFlows = summary.topFlows.slice(0, flowLimit);
-      return { summary };
+      return { summary: applySummaryLimits(seedData.summary, req) };
     }
 
     return null;
@@ -162,7 +178,7 @@ export async function getDisplacementSummary(
 ): Promise<GetDisplacementSummaryResponse> {
   const emptyResponse: GetDisplacementSummaryResponse = {
     summary: {
-      year: req.year > 0 ? req.year : new Date().getFullYear(),
+      year: requestedOrCurrentYear(req.year),
       globalTotals: { refugees: 0, asylumSeekers: 0, idps: 0, stateless: 0, total: 0 },
       countries: [],
       topFlows: [],
@@ -174,7 +190,7 @@ export async function getDisplacementSummary(
     if (seeded) return seeded;
 
     // Redis shared cache (keyed by year)
-    const year = req.year > 0 ? req.year : new Date().getFullYear();
+    const year = requestedOrCurrentYear(req.year);
     const cacheKey = `${REDIS_CACHE_KEY}:${year}`;
 
     const result = await cachedFetchJson<GetDisplacementSummaryResponse>(cacheKey, REDIS_CACHE_TTL, async () => {
@@ -360,13 +376,7 @@ export async function getDisplacementSummary(
     });
 
     if (result?.summary) {
-      const summary = { ...result.summary };
-      if (req.countryLimit > 0) {
-        summary.countries = summary.countries.slice(0, req.countryLimit);
-      }
-      const flowLimit = req.flowLimit > 0 ? req.flowLimit : 50;
-      summary.topFlows = summary.topFlows.slice(0, flowLimit);
-      return { summary };
+      return { summary: applySummaryLimits(result.summary, req) };
     }
     return result || emptyResponse;
   } catch {
