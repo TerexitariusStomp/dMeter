@@ -118,6 +118,8 @@ describe('forecast trace artifact builder', () => {
     assert.ok(artifacts.worldState.actorRegistry.every(actor => actor.name && actor.id));
     assert.equal(artifacts.summary.worldStateSummary.persistentActorCount, 0);
     assert.ok(typeof artifacts.summary.worldStateSummary.newlyActiveActors === 'number');
+    assert.equal(artifacts.summary.worldStateSummary.branchCount, 6);
+    assert.equal(artifacts.summary.worldStateSummary.newBranches, 6);
     assert.ok(artifacts.forecasts[0].payload.caseFile.worldState.summary.includes('Iran'));
     assert.equal(artifacts.forecasts[0].payload.caseFile.branches.length, 3);
     assert.equal(artifacts.forecasts[0].payload.traceMeta.narrativeSource, 'fallback');
@@ -227,12 +229,33 @@ describe('forecast run world state', () => {
             regions: ['Middle East'],
           },
         ],
+        branchStates: [
+          {
+            id: `${a.id}:base`,
+            forecastId: a.id,
+            kind: 'base',
+            title: 'Base Branch',
+            projectedProbability: 0.62,
+            actorIds: ['Regional command authority:state'],
+            triggerSample: ['Old trigger'],
+          },
+          {
+            id: `${a.id}:contrarian`,
+            forecastId: a.id,
+            kind: 'contrarian',
+            title: 'Contrarian Branch',
+            projectedProbability: 0.55,
+            actorIds: ['Regional command authority:state'],
+            triggerSample: [],
+          },
+        ],
       },
     });
 
     assert.equal(worldState.version, 1);
     assert.equal(worldState.domainStates.length, 2);
     assert.ok(worldState.actorRegistry.length > 0);
+    assert.equal(worldState.branchStates.length, 6);
     assert.equal(worldState.continuity.risingForecasts, 1);
     assert.ok(worldState.summary.includes('2 active forecasts'));
     assert.ok(worldState.evidenceLedger.supporting.length > 0);
@@ -240,6 +263,10 @@ describe('forecast run world state', () => {
     assert.ok(worldState.actorContinuity.newlyActiveCount >= 1);
     assert.ok(worldState.actorContinuity.newlyActivePreview.length >= 1);
     assert.ok(worldState.actorContinuity.noLongerActivePreview.some(actor => actor.id === 'legacy:state'));
+    assert.ok(worldState.branchContinuity.persistentBranchCount >= 2);
+    assert.ok(worldState.branchContinuity.newBranchCount >= 1);
+    assert.ok(worldState.branchContinuity.strengthenedBranchCount >= 1);
+    assert.ok(worldState.branchContinuity.resolvedBranchCount >= 0);
   });
 
   it('reports full actor continuity counts even when previews are capped', () => {

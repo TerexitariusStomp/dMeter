@@ -2119,6 +2119,122 @@ function buildActorContinuitySummary(currentActors, priorWorldState = null) {
   };
 }
 
+function buildForecastBranchStates(predictions) {
+  const branches = [];
+
+  for (const pred of predictions) {
+    const branchList = pred.caseFile?.branches || buildForecastBranches(pred, {
+      actors: pred.caseFile?.actors || buildForecastActors(pred),
+      triggers: pred.caseFile?.triggers || buildCaseTriggers(pred),
+      counterEvidence: pred.caseFile?.counterEvidence || buildCounterEvidence(pred),
+      worldState: pred.caseFile?.worldState || buildForecastWorldState(pred),
+    });
+
+    for (const branch of branchList) {
+      branches.push({
+        id: `${pred.id}:${branch.kind}`,
+        forecastId: pred.id,
+        forecastTitle: pred.title,
+        kind: branch.kind,
+        title: branch.title,
+        domain: pred.domain,
+        region: pred.region,
+        projectedProbability: +(branch.projectedProbability || 0).toFixed(3),
+        baselineProbability: +(pred.probability || 0).toFixed(3),
+        probabilityDelta: +((branch.projectedProbability || 0) - (pred.probability || 0)).toFixed(3),
+        summary: branch.summary,
+        outcome: branch.outcome,
+        roundCount: Array.isArray(branch.rounds) ? branch.rounds.length : 0,
+        actorIds: (pred.caseFile?.actors || []).map(actor => actor.id).slice(0, 6),
+        triggerSample: (pred.caseFile?.triggers || []).slice(0, 3),
+        evidenceSample: (pred.caseFile?.supportingEvidence || []).slice(0, 2).map(item => item.summary),
+        counterEvidenceSample: (pred.caseFile?.counterEvidence || []).slice(0, 2).map(item => item.summary),
+      });
+    }
+  }
+
+  return branches
+    .sort((a, b) => b.projectedProbability - a.projectedProbability || a.id.localeCompare(b.id));
+}
+
+function buildBranchContinuitySummary(currentBranchStates, priorWorldState = null) {
+  const priorBranchStates = Array.isArray(priorWorldState?.branchStates) ? priorWorldState.branchStates : [];
+  const priorById = new Map(priorBranchStates.map(branch => [branch.id, branch]));
+  const currentById = new Map(currentBranchStates.map(branch => [branch.id, branch]));
+
+  const newBranches = [];
+  const strengthened = [];
+  const weakened = [];
+  const stable = [];
+
+  for (const branch of currentBranchStates) {
+    const prev = priorById.get(branch.id);
+    if (!prev) {
+      newBranches.push({
+        id: branch.id,
+        forecastId: branch.forecastId,
+        kind: branch.kind,
+        title: branch.title,
+        projectedProbability: branch.projectedProbability,
+      });
+      continue;
+    }
+
+    const delta = +((branch.projectedProbability || 0) - (prev.projectedProbability || 0)).toFixed(3);
+    const actorDelta = branch.actorIds.filter(id => !(prev.actorIds || []).includes(id));
+    const triggerDelta = branch.triggerSample.filter(item => !(prev.triggerSample || []).includes(item));
+
+    const record = {
+      id: branch.id,
+      forecastId: branch.forecastId,
+      kind: branch.kind,
+      title: branch.title,
+      projectedProbability: branch.projectedProbability,
+      priorProjectedProbability: +(prev.projectedProbability || 0).toFixed(3),
+      probabilityDelta: delta,
+      newActorIds: actorDelta.slice(0, 4),
+      newTriggers: triggerDelta.slice(0, 3),
+    };
+
+    if (delta >= 0.05 || actorDelta.length > 0 || triggerDelta.length > 0) {
+      strengthened.push(record);
+    } else if (delta <= -0.05) {
+      weakened.push(record);
+    } else {
+      stable.push(record);
+    }
+  }
+
+  const resolved = priorBranchStates
+    .filter(branch => !currentById.has(branch.id))
+    .map(branch => ({
+      id: branch.id,
+      forecastId: branch.forecastId,
+      kind: branch.kind,
+      title: branch.title,
+      projectedProbability: +(branch.projectedProbability || 0).toFixed(3),
+    }));
+
+  return {
+    priorBranchCount: priorBranchStates.length,
+    currentBranchCount: currentBranchStates.length,
+    persistentBranchCount: currentBranchStates.filter(branch => priorById.has(branch.id)).length,
+    newBranchCount: newBranches.length,
+    strengthenedBranchCount: strengthened.length,
+    weakenedBranchCount: weakened.length,
+    stableBranchCount: stable.length,
+    resolvedBranchCount: resolved.length,
+    newBranchPreview: newBranches.slice(0, 8),
+    strengthenedBranchPreview: strengthened
+      .sort((a, b) => b.probabilityDelta - a.probabilityDelta || a.id.localeCompare(b.id))
+      .slice(0, 8),
+    weakenedBranchPreview: weakened
+      .sort((a, b) => a.probabilityDelta - b.probabilityDelta || a.id.localeCompare(b.id))
+      .slice(0, 8),
+    resolvedBranchPreview: resolved.slice(0, 8),
+  };
+}
+
 function buildForecastDomainStates(predictions) {
   const states = new Map();
 
@@ -2277,10 +2393,12 @@ function buildForecastRunWorldState(data) {
   const regionalStates = buildForecastRegionalStates(predictions);
   const actorRegistry = buildForecastRunActorRegistry(predictions);
   const actorContinuity = buildActorContinuitySummary(actorRegistry, priorWorldState);
+  const branchStates = buildForecastBranchStates(predictions);
+  const branchContinuity = buildBranchContinuitySummary(branchStates, priorWorldState);
   const continuity = buildForecastRunContinuity(predictions);
   const evidenceLedger = buildForecastEvidenceLedger(predictions);
   const activeDomains = domainStates.filter((item) => item.forecastCount > 0).map((item) => item.domain);
-  const summary = `${predictions.length} active forecasts are spanning ${activeDomains.length} domains and ${regionalStates.length} key regions in this run, with ${continuity.newForecasts} new forecasts, ${continuity.materiallyChanged.length} materially changed paths, and ${actorContinuity.newlyActiveCount} newly active actors.`;
+  const summary = `${predictions.length} active forecasts are spanning ${activeDomains.length} domains and ${regionalStates.length} key regions in this run, with ${continuity.newForecasts} new forecasts, ${continuity.materiallyChanged.length} materially changed paths, ${actorContinuity.newlyActiveCount} newly active actors, and ${branchContinuity.strengthenedBranchCount} strengthened branches.`;
 
   return {
     version: 1,
@@ -2291,6 +2409,8 @@ function buildForecastRunWorldState(data) {
     regionalStates,
     actorRegistry,
     actorContinuity,
+    branchStates,
+    branchContinuity,
     continuity,
     evidenceLedger,
     uncertainties: evidenceLedger.counter.slice(0, 10),
@@ -2448,6 +2568,12 @@ function buildForecastTraceArtifacts(data, context = {}, config = {}) {
       strengthenedActors: worldState.actorContinuity.strengthenedCount,
       weakenedActors: worldState.actorContinuity.weakenedCount,
       noLongerActiveActors: worldState.actorContinuity.noLongerActiveCount,
+      branchCount: worldState.branchStates.length,
+      persistentBranches: worldState.branchContinuity.persistentBranchCount,
+      newBranches: worldState.branchContinuity.newBranchCount,
+      strengthenedBranches: worldState.branchContinuity.strengthenedBranchCount,
+      weakenedBranches: worldState.branchContinuity.weakenedBranchCount,
+      resolvedBranches: worldState.branchContinuity.resolvedBranchCount,
       newForecasts: worldState.continuity.newForecasts,
       materiallyChanged: worldState.continuity.materiallyChanged.length,
     },
