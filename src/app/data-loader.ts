@@ -60,7 +60,6 @@ import {
   fetchShippingRates,
   fetchChokepointStatus,
   fetchCriticalMinerals,
-  fetchRadiationWatch,
 } from '@/services';
 import { getMarketWatchlistEntries } from '@/services/market-watchlist';
 import { fetchStockAnalysesForTargets, getStockAnalysisTargets } from '@/services/stock-analysis';
@@ -122,6 +121,7 @@ import {
   CIIPanel,
   StrategicPosturePanel,
   EconomicPanel,
+  EnergyComplexPanel,
   TechReadinessPanel,
   UcdpEventsPanel,
   TradePolicyPanel,
@@ -360,7 +360,7 @@ export class DataLoaderManager implements AppModule {
 
     // Happy variant only loads news data -- skip all geopolitical/financial/military data
     if (SITE_VARIANT !== 'happy') {
-      if (shouldLoadAny(['markets', 'heatmap', 'commodities', 'crypto'])) {
+      if (shouldLoadAny(['markets', 'heatmap', 'commodities', 'crypto', 'energy-complex'])) {
         tasks.push({ name: 'markets', task: runGuarded('markets', () => this.loadMarkets()) });
       }
       if (SITE_VARIANT === 'finance' && getSecretState('WORLDMONITOR_API_KEY').present && shouldLoad('stock-analysis')) {
@@ -378,9 +378,9 @@ export class DataLoaderManager implements AppModule {
       tasks.push({ name: 'pizzint', task: runGuarded('pizzint', () => this.loadPizzInt()) });
       if (shouldLoad('economic')) {
         tasks.push({ name: 'fred', task: runGuarded('fred', () => this.loadFredData()) });
+      }
+      if (shouldLoad('energy-complex')) {
         tasks.push({ name: 'oil', task: runGuarded('oil', () => this.loadOilAnalytics()) });
-        tasks.push({ name: 'spending', task: runGuarded('spending', () => this.loadGovernmentSpending()) });
-        tasks.push({ name: 'bis', task: runGuarded('bis', () => this.loadBisData()) });
       }
 
       // Trade policy data (FULL and FINANCE only)
@@ -474,9 +474,6 @@ export class DataLoaderManager implements AppModule {
     if (SITE_VARIANT !== 'happy' && (this.ctx.mapLayers.techEvents || SITE_VARIANT === 'tech')) tasks.push({ name: 'techEvents', task: runGuarded('techEvents', () => this.loadTechEvents()) });
     if (SITE_VARIANT !== 'happy' && this.ctx.mapLayers.satellites && this.ctx.map?.isGlobeMode?.()) tasks.push({ name: 'satellites', task: runGuarded('satellites', () => this.loadSatellites()) });
     if (SITE_VARIANT !== 'happy' && this.ctx.mapLayers.webcams) tasks.push({ name: 'webcams', task: runGuarded('webcams', () => this.loadWebcams()) });
-    if (SITE_VARIANT !== 'happy' && (this.ctx.panels['radiation-watch'] || this.ctx.mapLayers.radiationWatch)) {
-      tasks.push({ name: 'radiation', task: runGuarded('radiation', () => this.loadRadiationWatch()) });
-    }
 
     if (SITE_VARIANT !== 'happy') {
       tasks.push({ name: 'techReadiness', task: runGuarded('techReadiness', () => (this.ctx.panels['tech-readiness'] as TechReadinessPanel)?.refresh()) });
@@ -578,9 +575,6 @@ export class DataLoaderManager implements AppModule {
         }
         case 'webcams':
           await this.loadWebcams();
-          break;
-        case 'radiationWatch':
-          await this.loadRadiationWatch();
           break;
         case 'ucdpEvents':
         case 'displacement':
@@ -1241,9 +1235,13 @@ export class DataLoaderManager implements AppModule {
       }
 
       const commoditiesPanel = this.ctx.panels['commodities'] as CommoditiesPanel | undefined;
+      const energyPanel = this.ctx.panels['energy-complex'] as EnergyComplexPanel | undefined;
       const mapCommodity = (c: MarketData) => ({ display: c.display, price: c.price, change: c.change, sparkline: c.sparkline });
+      const energySymbols = new Set(['CL=F', 'BZ=F', 'NG=F']);
+      const filterCommodityTape = (data: MarketData[]) => data.filter((item) => item.symbol !== '^VIX' && !energySymbols.has(item.symbol));
+      const filterEnergyTape = (data: MarketData[]) => data.filter((item) => energySymbols.has(item.symbol));
 
-      if (commoditiesPanel) {
+      if (commoditiesPanel || energyPanel) {
         // Hydrate commodities from bootstrap (same pattern as sectors/markets)
         const hydratedCommodities = getHydratedData('commodityQuotes') as ListMarketQuotesResponse | undefined;
         let commoditiesLoaded = stocksResult.rateLimited && stocksResult.data.length === 0;
@@ -1258,26 +1256,40 @@ export class DataLoaderManager implements AppModule {
             change: q.change ?? null,
             sparkline: q.sparkline?.length > 0 ? q.sparkline : undefined,
           }));
-          const mapped = data.map(mapCommodity);
-          if (mapped.some(d => d.price !== null)) {
-            commoditiesPanel.renderCommodities(mapped);
+          const commodityMapped = filterCommodityTape(data).map(mapCommodity);
+          const energyMapped = filterEnergyTape(data);
+          if (commodityMapped.some(d => d.price !== null) || energyMapped.some(d => d.price !== null)) {
+            if (commoditiesPanel && commodityMapped.some(d => d.price !== null)) {
+              commoditiesPanel.renderCommodities(commodityMapped);
+            }
+            energyPanel?.updateTape(energyMapped);
             commoditiesLoaded = true;
           }
         }
 
         for (let attempt = 0; attempt < 1 && !commoditiesLoaded; attempt++) {
           const commoditiesResult = await fetchMultipleStocks(COMMODITIES, {
-            onBatch: (partial) => commoditiesPanel.renderCommodities(partial.map(mapCommodity)),
+            onBatch: (partial) => {
+              const commodityMapped = filterCommodityTape(partial).map(mapCommodity);
+              const energyMapped = filterEnergyTape(partial);
+              if (commoditiesPanel) commoditiesPanel.renderCommodities(commodityMapped);
+              energyPanel?.updateTape(energyMapped);
+            },
             useCommodityBreaker: true,
           });
-          const mapped = commoditiesResult.data.map(mapCommodity);
-          if (mapped.some(d => d.price !== null)) {
-            commoditiesPanel.renderCommodities(mapped);
+          const commodityMapped = filterCommodityTape(commoditiesResult.data).map(mapCommodity);
+          const energyMapped = filterEnergyTape(commoditiesResult.data);
+          if (commodityMapped.some(d => d.price !== null) || energyMapped.some(d => d.price !== null)) {
+            if (commoditiesPanel && commodityMapped.some(d => d.price !== null)) {
+              commoditiesPanel.renderCommodities(commodityMapped);
+            }
+            energyPanel?.updateTape(energyMapped);
             commoditiesLoaded = true;
           }
         }
         if (!commoditiesLoaded) {
-          commoditiesPanel.renderCommodities([]);
+          commoditiesPanel?.renderCommodities([]);
+          energyPanel?.updateTape([]);
         }
       }
     } catch {
@@ -2243,10 +2255,10 @@ export class DataLoaderManager implements AppModule {
   }
 
   async loadOilAnalytics(): Promise<void> {
-    const economicPanel = this.ctx.panels['economic'] as EconomicPanel;
+    const energyPanel = this.ctx.panels['energy-complex'] as EnergyComplexPanel | undefined;
     try {
       const data = await fetchOilAnalytics();
-      economicPanel?.updateOil(data);
+      energyPanel?.updateAnalytics(data);
       const hasData = !!(data.wtiPrice || data.brentPrice || data.usProduction || data.usInventory);
       this.ctx.statusPanel?.updateApi('EIA', { status: hasData ? 'ok' : 'error' });
       if (hasData) {
@@ -2670,25 +2682,6 @@ export class DataLoaderManager implements AppModule {
       }
     } catch (error) {
       console.error('[App] Security advisories fetch failed:', error);
-    }
-  }
-
-  async loadRadiationWatch(): Promise<void> {
-    try {
-      const result = await fetchRadiationWatch();
-      const anomalies = result.observations.filter((observation) => observation.severity !== 'normal');
-      this.callPanel('radiation-watch', 'setData', result);
-      this.ctx.intelligenceCache.radiation = result;
-      signalAggregator.ingestRadiationObservations(result.observations);
-      this.ctx.map?.setRadiationObservations(anomalies);
-      this.ctx.map?.setLayerReady('radiationWatch', anomalies.length > 0);
-      if (result.observations.length > 0) {
-        dataFreshness.recordUpdate('radiation', result.observations.length);
-      }
-    } catch (error) {
-      console.error('[App] Radiation watch fetch failed:', error);
-      this.ctx.map?.setLayerReady('radiationWatch', false);
-      dataFreshness.recordError('radiation', String(error));
     }
   }
 

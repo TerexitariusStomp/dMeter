@@ -14,6 +14,7 @@ import {
   PredictionPanel,
   MonitorPanel,
   EconomicPanel,
+  EnergyComplexPanel,
   GdeltIntelPanel,
   LiveNewsPanel,
   LiveWebcamsPanel,
@@ -534,6 +535,7 @@ export class PanelLayoutManager implements AppModule {
     });
 
     this.createPanel('commodities', () => new CommoditiesPanel());
+    this.createPanel('energy-complex', () => new EnergyComplexPanel());
     this.createPanel('polymarket', () => new PredictionPanel());
 
     this.createNewsPanel('gov', 'panels.gov');
@@ -687,14 +689,6 @@ export class PanelLayoutManager implements AppModule {
       import('@/components/SecurityAdvisoriesPanel').then(m => {
         const p = new m.SecurityAdvisoriesPanel();
         p.setRefreshHandler(() => { void this.callbacks.loadSecurityAdvisories?.(); });
-        return p;
-      }),
-    );
-
-    this.lazyPanel('radiation-watch', () =>
-      import('@/components/RadiationWatchPanel').then(m => {
-        const p = new m.RadiationWatchPanel();
-        p.setLocationClickHandler((lat: number, lon: number) => { this.ctx.map?.setCenter(lat, lon, 4); });
         return p;
       }),
     );
