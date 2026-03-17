@@ -49,6 +49,7 @@ export const BOOTSTRAP_CACHE_KEYS: Record<string, string> = {
   securityAdvisories: 'intelligence:advisories-bootstrap:v1',
   forecasts:          'forecast:predictions:v2',
   customsRevenue:     'trade:customs-revenue:v1',
+  thermalEscalation:  'thermal:escalation:v1',
 };
 
 export const BOOTSTRAP_TIERS: Record<string, 'slow' | 'fast'> = {
@@ -69,4 +70,5 @@ export const BOOTSTRAP_TIERS: Record<string, 'slow' | 'fast'> = {
   securityAdvisories: 'slow',
   forecasts: 'fast',
   customsRevenue: 'slow',
+  thermalEscalation: 'slow',
 };

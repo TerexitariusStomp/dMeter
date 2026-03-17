@@ -12,6 +12,19 @@ const CONFLICT_REGIONS = new Set([
   'Iran',
   'Taiwan',
   'North Korea',
+  'Yemen',
+  'Myanmar',
+  'Sudan',
+  'South Sudan',
+  'Ethiopia',
+  'Somalia',
+  'Democratic Republic of the Congo',
+  'Libya',
+  'Mali',
+  'Burkina Faso',
+  'Niger',
+  'Iraq',
+  'Pakistan',
 ]);
 
 const REGION_TO_COUNTRY = {
@@ -24,6 +37,19 @@ const REGION_TO_COUNTRY = {
   'North Korea': { code: 'KP', name: 'North Korea' },
   'Saudi Arabia': { code: 'SA', name: 'Saudi Arabia' },
   Turkey: { code: 'TR', name: 'Turkey' },
+  Yemen: { code: 'YE', name: 'Yemen' },
+  Myanmar: { code: 'MM', name: 'Myanmar' },
+  Sudan: { code: 'SD', name: 'Sudan' },
+  'South Sudan': { code: 'SS', name: 'South Sudan' },
+  Ethiopia: { code: 'ET', name: 'Ethiopia' },
+  Somalia: { code: 'SO', name: 'Somalia' },
+  'Democratic Republic of the Congo': { code: 'CD', name: 'DR Congo' },
+  Libya: { code: 'LY', name: 'Libya' },
+  Mali: { code: 'ML', name: 'Mali' },
+  'Burkina Faso': { code: 'BF', name: 'Burkina Faso' },
+  Niger: { code: 'NE', name: 'Niger' },
+  Iraq: { code: 'IQ', name: 'Iraq' },
+  Pakistan: { code: 'PK', name: 'Pakistan' },
 };
 
 export function round(value, digits = 1) {

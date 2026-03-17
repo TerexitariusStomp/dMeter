@@ -35,6 +35,7 @@ const BOOTSTRAP_KEYS = {
   forecasts:         'forecast:predictions:v2',
   securityAdvisories: 'intelligence:advisories-bootstrap:v1',
   customsRevenue:    'trade:customs-revenue:v1',
+  thermalEscalation: 'thermal:escalation:v1',
 };
 
 const STANDALONE_KEYS = {
@@ -130,6 +131,7 @@ const SEED_META = {
   usniFleet:           { key: 'seed-meta:military:usni-fleet',               maxStaleMin: 420 },
   securityAdvisories:  { key: 'seed-meta:intelligence:advisories',           maxStaleMin: 90 },
   customsRevenue:      { key: 'seed-meta:trade:customs-revenue',              maxStaleMin: 1440 },
+  thermalEscalation:   { key: 'seed-meta:thermal:escalation',                 maxStaleMin: 240 },
 };
 
 // Standalone keys that are populated on-demand by RPC handlers (not seeds).
@@ -191,7 +193,7 @@ function dataSize(parsed) {
                       'chokepoints', 'minerals', 'anomalies', 'flows', 'bases', 'flights',
                       'theaters', 'fleets', 'warnings', 'closures', 'cables',
                       'airports', 'closedIcaos', 'categories', 'regions', 'entries', 'satellites',
-                      'sectors', 'statuses', 'scores', 'topics', 'advisories', 'months']) {
+                      'sectors', 'statuses', 'scores', 'topics', 'advisories', 'months', 'clusters']) {
       if (Array.isArray(parsed[k])) return parsed[k].length;
     }
     return Object.keys(parsed).length;

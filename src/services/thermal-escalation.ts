@@ -1,4 +1,5 @@
 import { getRpcBaseUrl } from '@/services/rpc-client';
+import { getHydratedData } from '@/services/bootstrap';
 import { createCircuitBreaker } from '@/utils';
 import {
   ThermalServiceClient,
@@ -89,6 +90,23 @@ const emptyResult: ThermalEscalationWatch = {
 };
 
 export async function fetchThermalEscalations(maxItems = 12): Promise<ThermalEscalationWatch> {
+  const hydrated = getHydratedData('thermalEscalation') as { clusters?: unknown[]; fetchedAt?: string } | undefined;
+  if (hydrated?.clusters?.length) {
+    return {
+      fetchedAt: hydrated.fetchedAt ? new Date(hydrated.fetchedAt) : new Date(0),
+      observationWindowHours: (hydrated as any).observationWindowHours ?? 24,
+      sourceVersion: (hydrated as any).sourceVersion || 'thermal-escalation-v1',
+      clusters: ((hydrated as any).clusters ?? []).map(toCluster),
+      summary: {
+        clusterCount: (hydrated as any).summary?.clusterCount ?? 0,
+        elevatedCount: (hydrated as any).summary?.elevatedCount ?? 0,
+        spikeCount: (hydrated as any).summary?.spikeCount ?? 0,
+        persistentCount: (hydrated as any).summary?.persistentCount ?? 0,
+        conflictAdjacentCount: (hydrated as any).summary?.conflictAdjacentCount ?? 0,
+        highRelevanceCount: (hydrated as any).summary?.highRelevanceCount ?? 0,
+      },
+    };
+  }
   return breaker.execute(async () => {
     const response = await client.listThermalEscalations(
       { maxItems },

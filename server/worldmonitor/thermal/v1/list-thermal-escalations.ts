@@ -12,12 +12,11 @@ const DEFAULT_MAX_ITEMS = 12;
 const MAX_ITEMS_LIMIT = 25;
 
 async function readSeededThermalWatch(): Promise<ListThermalEscalationsResponse | null> {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const seeded = await getCachedJson(REDIS_CACHE_KEY, true) as ListThermalEscalationsResponse | null;
-    if (seeded) return seeded;
-    if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
+  try {
+    return await getCachedJson(REDIS_CACHE_KEY, true) as ListThermalEscalationsResponse | null;
+  } catch {
+    return null;
   }
-  return null;
 }
 
 function clampMaxItems(value: number): number {
