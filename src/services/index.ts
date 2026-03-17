@@ -41,6 +41,7 @@ export * from './trade';
 export * from './supply-chain';
 export * from './radiation';
 export * from './sanctions-pressure';
+export * from './thermal-escalation';
 export * from './breaking-news-alerts';
 export * from './daily-market-brief';
 export * from './stock-analysis-history';

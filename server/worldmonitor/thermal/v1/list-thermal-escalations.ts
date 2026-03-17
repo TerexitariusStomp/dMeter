@@ -1,0 +1,55 @@
+import type {
+  ListThermalEscalationsRequest,
+  ListThermalEscalationsResponse,
+  ThermalServiceHandler,
+  ServerContext,
+} from '../../../../src/generated/server/worldmonitor/thermal/v1/service_server';
+
+import { getCachedJson } from '../../../_shared/redis';
+
+const REDIS_CACHE_KEY = 'thermal:escalation:v1';
+const DEFAULT_MAX_ITEMS = 12;
+const MAX_ITEMS_LIMIT = 25;
+
+async function readSeededThermalWatch(): Promise<ListThermalEscalationsResponse | null> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const seeded = await getCachedJson(REDIS_CACHE_KEY, true) as ListThermalEscalationsResponse | null;
+    if (seeded) return seeded;
+    if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
+  }
+  return null;
+}
+
+function clampMaxItems(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) return DEFAULT_MAX_ITEMS;
+  return Math.min(Math.max(Math.trunc(value), 1), MAX_ITEMS_LIMIT);
+}
+
+const emptyResponse: ListThermalEscalationsResponse = {
+  fetchedAt: '',
+  observationWindowHours: 24,
+  sourceVersion: 'thermal-escalation-v1',
+  clusters: [],
+  summary: {
+    clusterCount: 0,
+    elevatedCount: 0,
+    spikeCount: 0,
+    persistentCount: 0,
+    conflictAdjacentCount: 0,
+    highRelevanceCount: 0,
+  },
+};
+
+export const listThermalEscalations: ThermalServiceHandler['listThermalEscalations'] = async (
+  _ctx: ServerContext,
+  req: ListThermalEscalationsRequest,
+): Promise<ListThermalEscalationsResponse> => {
+  const seeded = await readSeededThermalWatch();
+  if (!seeded) return emptyResponse;
+
+  const maxItems = clampMaxItems(req.maxItems ?? 0);
+  return {
+    ...seeded,
+    clusters: (seeded.clusters ?? []).slice(0, maxItems),
+  };
+};
