@@ -112,8 +112,10 @@ describe('forecast trace artifact builder', () => {
     assert.ok(artifacts.summary.quality.fullRun.quietDomains.includes('military'));
     assert.equal(artifacts.summary.quality.traced.topPromotionSignals[0].type, 'cii');
     assert.ok(artifacts.summary.worldStateSummary.summary.includes('active forecasts'));
-    assert.equal(artifacts.summary.worldStateSummary.domainCount, 1);
+    assert.equal(artifacts.summary.worldStateSummary.domainCount, 2);
+    assert.equal(artifacts.summary.worldStateSummary.regionCount, 2);
     assert.ok(Array.isArray(artifacts.worldState.actorRegistry));
+    assert.ok(artifacts.worldState.actorRegistry.every(actor => actor.name && actor.id));
     assert.ok(artifacts.forecasts[0].payload.caseFile.worldState.summary.includes('Iran'));
     assert.equal(artifacts.forecasts[0].payload.caseFile.branches.length, 3);
     assert.equal(artifacts.forecasts[0].payload.traceMeta.narrativeSource, 'fallback');

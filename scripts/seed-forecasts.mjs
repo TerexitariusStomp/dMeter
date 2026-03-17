@@ -1997,8 +1997,8 @@ function buildForecastRunActorRegistry(predictions) {
   const actors = new Map();
 
   for (const pred of predictions) {
-    const actorLenses = pred.caseFile?.actorLenses || buildForecastActors(pred);
-    for (const actor of actorLenses) {
+    const structuredActors = pred.caseFile?.actors || buildForecastActors(pred);
+    for (const actor of structuredActors) {
       const key = actor.key || `${actor.name}:${actor.category}`;
       if (!actors.has(key)) {
         actors.set(key, {
@@ -2319,7 +2319,7 @@ function buildForecastTraceArtifacts(data, context = {}, config = {}) {
   const quality = summarizeForecastTraceQuality(predictions, tracedPredictions, data?.enrichmentMeta || null);
   const worldState = buildForecastRunWorldState({
     generatedAt,
-    predictions: tracedPredictions,
+    predictions,
   });
   const prefix = buildTraceRunPrefix(
     context.runId || `run_${generatedAt}`,
