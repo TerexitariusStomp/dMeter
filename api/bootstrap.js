@@ -49,6 +49,7 @@ const BOOTSTRAP_CACHE_KEYS = {
   forecasts:         'forecast:predictions:v2',
   securityAdvisories: 'intelligence:advisories-bootstrap:v1',
   customsRevenue:    'trade:customs-revenue:v1',
+  sanctionsPressure: 'sanctions:pressure:v1',
 };
 
 const SLOW_KEYS = new Set([
@@ -60,6 +61,7 @@ const SLOW_KEYS = new Set([
   'techEvents',
   'securityAdvisories',
   'customsRevenue',
+  'sanctionsPressure',
 ]);
 const FAST_KEYS = new Set([
   'earthquakes', 'outages', 'serviceStatuses', 'macroSignals', 'chokepoints', 'chokepointTransits',

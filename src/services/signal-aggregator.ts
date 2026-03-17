@@ -11,6 +11,7 @@ import type {
   SocialUnrestEvent,
   AisDisruptionEvent,
 } from '@/types';
+import type { CountrySanctionsPressure } from './sanctions-pressure';
 import { getCountryAtCoordinates, getCountryNameByCode, nameToCountryCode, ME_STRIKE_BOUNDS, resolveCountryFromBounds } from './country-geometry';
 
 export type SignalType =
@@ -20,7 +21,8 @@ export type SignalType =
   | 'protest'
   | 'ais_disruption'
   | 'satellite_fire'        // NASA FIRMS thermal anomalies
-  | 'temporal_anomaly'      // Baseline deviation alerts
+  | 'temporal_anomaly'
+  | 'sanctions_pressure'      // Baseline deviation alerts
   | 'active_strike'         // Iran attack / military conflict events
 
 export interface GeoSignal {
@@ -305,6 +307,36 @@ class SignalAggregator {
     this.pruneOld();
   }
 
+  ingestSanctionsPressure(countries: CountrySanctionsPressure[]): void {
+    this.clearSignalType('sanctions_pressure');
+
+    for (const country of countries) {
+      const code = normalizeCountryCode(country.countryCode || country.countryName);
+      const severity: 'low' | 'medium' | 'high' =
+        country.newEntryCount >= 5 || country.entryCount >= 50
+          ? 'high'
+          : country.newEntryCount >= 1 || country.entryCount >= 20
+            ? 'medium'
+            : 'low';
+      if (country.newEntryCount === 0 && country.entryCount < 20) continue;
+
+      this.signals.push({
+        type: 'sanctions_pressure',
+        country: code,
+        countryName: country.countryName || getCountryName(code),
+        lat: 0,
+        lon: 0,
+        severity,
+        title: country.newEntryCount > 0
+          ? `${country.newEntryCount} new OFAC designation${country.newEntryCount === 1 ? '' : 's'} tied to ${country.countryName}`
+          : `${country.entryCount} OFAC-linked designations tied to ${country.countryName}`,
+        timestamp: new Date(),
+      });
+    }
+    this.pruneOld();
+  }
+
+
   ingestConflictEvents(events: Array<{
     id: string;
     category: string;
@@ -480,6 +512,7 @@ class SignalAggregator {
           ais_disruption: 'shipping anomalies',
           satellite_fire: 'thermal anomalies',
           temporal_anomaly: 'baseline anomalies',
+          sanctions_pressure: 'sanctions pressure',
           active_strike: 'active strikes',
         };
 
@@ -536,6 +569,7 @@ class SignalAggregator {
       ais_disruption: 0,
       satellite_fire: 0,
       temporal_anomaly: 0,
+      sanctions_pressure: 0,
       active_strike: 0,
     };
 
