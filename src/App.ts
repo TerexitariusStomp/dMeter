@@ -463,6 +463,7 @@ export class App {
       speciesPanel: null,
       renewablePanel: null,
       authModal: null,
+      authHeaderWidget: null,
       tvMode: null,
       happyAllItems: [],
       isDestroyed: false,
