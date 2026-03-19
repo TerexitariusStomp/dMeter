@@ -4,6 +4,7 @@
  */
 import { createClient } from 'redis';
 import {
+  buildBasketSeriesSnapshot,
   buildFreshnessSnapshot,
   buildMoversSnapshot,
   buildOverviewSnapshot,
@@ -21,6 +22,13 @@ function makeKey(parts: string[]): string {
   return parts.join(':');
 }
 
+function recordCount(data: unknown): number {
+  if (!data || typeof data !== 'object') return 1;
+  const d = data as Record<string, unknown>;
+  const arr = d.retailers ?? d.risers ?? d.essentialsSeries ?? d.categories;
+  return Array.isArray(arr) ? arr.length : 1;
+}
+
 async function writeSnapshot(
   redis: ReturnType<typeof createClient>,
   key: string,
@@ -29,7 +37,11 @@ async function writeSnapshot(
 ) {
   const json = JSON.stringify(data);
   await redis.setEx(key, ttlSeconds, json);
-  await redis.setEx(makeKey(['seed-meta', key]), ttlSeconds * 2, JSON.stringify({ fetchedAt: Date.now(), key }));
+  await redis.setEx(
+    makeKey(['seed-meta', key]),
+    ttlSeconds * 2,
+    JSON.stringify({ fetchedAt: Date.now(), recordCount: recordCount(data) }),
+  );
   logger.info(`  wrote ${key} (${json.length} bytes, ttl=${ttlSeconds}s)`);
 }
 
@@ -82,6 +94,20 @@ export async function publishAll() {
           );
         } catch (err) {
           logger.error(`spread:${marketCode}:${basket.slug} failed: ${err}`);
+        }
+
+        for (const range of ['7d', '30d', '90d']) {
+          try {
+            const series = await buildBasketSeriesSnapshot(marketCode, basket.slug, range);
+            await writeSnapshot(
+              redis,
+              makeKey(['consumer-prices', 'basket-series', marketCode, basket.slug, range]),
+              series,
+              3600,
+            );
+          } catch (err) {
+            logger.error(`basket-series:${marketCode}:${basket.slug}:${range} failed: ${err}`);
+          }
         }
       }
     }

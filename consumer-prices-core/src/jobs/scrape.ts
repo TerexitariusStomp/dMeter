@@ -7,10 +7,9 @@ import { insertObservation } from '../db/queries/observations.js';
 import { upsertRetailerProduct } from '../db/queries/products.js';
 import { parseSize, unitPrice as calcUnitPrice } from '../normalizers/size.js';
 import { loadAllRetailerConfigs, loadRetailerConfig } from '../config/loader.js';
-import { initProviders } from '../acquisition/registry.js';
+import { initProviders, teardownAll } from '../acquisition/registry.js';
 import { GenericPlaywrightAdapter } from '../adapters/generic.js';
 import type { AdapterContext } from '../adapters/types.js';
-import { randomUUID } from 'node:crypto';
 
 const logger = {
   info: (msg: string, ...args: unknown[]) => console.log(`[scrape] ${msg}`, ...args),
@@ -133,6 +132,7 @@ export async function scrapeRetailer(slug: string) {
   const status = errorsCount === 0 ? 'completed' : pagesSucceeded > 0 ? 'partial' : 'failed';
   await updateScrapeRun(runId, status, pagesAttempted, pagesSucceeded, errorsCount);
   logger.info(`Run ${runId} finished: ${status} (${pagesSucceeded}/${pagesAttempted} pages)`);
+  await teardownAll();
 }
 
 export async function scrapeAll() {

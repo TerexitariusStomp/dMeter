@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import {
+  buildBasketSeriesSnapshot,
   buildFreshnessSnapshot,
   buildMoversSnapshot,
   buildOverviewSnapshot,
@@ -51,6 +52,21 @@ export async function worldmonitorRoutes(fastify: FastifyInstance) {
     } catch (err) {
       fastify.log.error(err);
       return reply.status(500).send({ error: 'failed to build freshness snapshot' });
+    }
+  });
+
+  fastify.get('/basket-series', async (request, reply) => {
+    const { market = 'ae', basket = 'essentials-ae', range = '30d' } = request.query as {
+      market?: string;
+      basket?: string;
+      range?: string;
+    };
+    try {
+      const data = await buildBasketSeriesSnapshot(market, basket, range);
+      return reply.send(data);
+    } catch (err) {
+      fastify.log.error(err);
+      return reply.status(500).send({ error: 'failed to build basket series snapshot' });
     }
   });
 }

@@ -22,23 +22,6 @@ interface BasketRow {
   observedAt: Date;
 }
 
-interface CategoryFloor {
-  category: string;
-  weight: number;
-  floorPrice: number;
-  retailerSlug: string;
-}
-
-interface BasketIndexResult {
-  date: Date;
-  essentialsIndex: number;
-  valueIndex: number;
-  retailerBreakdown: Record<string, number>;
-  categoryBreakdown: Array<{ category: string; contribution: number; wowPct: number | null; momPct: number | null }>;
-  coveragePct: number;
-  coverageCount: number;
-  totalItems: number;
-}
 
 async function getBasketRows(basketSlug: string, marketCode: string): Promise<BasketRow[]> {
   const result = await query<{
@@ -89,18 +72,22 @@ async function getBasketRows(basketSlug: string, marketCode: string): Promise<Ba
   }));
 }
 
-async function getBaselinePrice(basketItemId: string, baseDate: string): Promise<number | null> {
-  const result = await query<{ price: string }>(
-    `SELECT AVG(po.price)::numeric(12,2) AS price
+async function getBaselinePrices(basketItemIds: string[], baseDate: string): Promise<Map<string, number>> {
+  const result = await query<{ basket_item_id: string; price: string }>(
+    `SELECT pm.basket_item_id, AVG(po.price)::numeric(12,2) AS price
      FROM price_observations po
      JOIN product_matches pm ON pm.retailer_product_id = po.retailer_product_id
-     WHERE pm.basket_item_id = $1
+     WHERE pm.basket_item_id = ANY($1)
        AND po.in_stock = true
-       AND DATE_TRUNC('day', po.observed_at) = $2::date`,
-    [basketItemId, baseDate],
+       AND DATE_TRUNC('day', po.observed_at) = $2::date
+     GROUP BY pm.basket_item_id`,
+    [basketItemIds, baseDate],
   );
-  const p = result.rows[0]?.price;
-  return p ? parseFloat(p) : null;
+  const map = new Map<string, number>();
+  for (const row of result.rows) {
+    map.set(row.basket_item_id, parseFloat(row.price));
+  }
+  return map;
 }
 
 function computeFixedIndex(rows: BasketRow[], baselines: Map<string, number>): number {
@@ -129,28 +116,26 @@ function computeFixedIndex(rows: BasketRow[], baselines: Map<string, number>): n
 }
 
 function computeValueIndex(rows: BasketRow[], baselines: Map<string, number>): number {
-  const byCategory = new Map<string, BasketRow[]>();
+  // Value index: same as fixed index but using the cheapest available price
+  // per basket item (floor price across retailers), not the average.
+  const byItem = new Map<string, BasketRow[]>();
   for (const r of rows) {
-    if (!byCategory.has(r.category)) byCategory.set(r.category, []);
-    byCategory.get(r.category)!.push(r);
-  }
-
-  const floors: CategoryFloor[] = [];
-  for (const [cat, catRows] of byCategory) {
-    const sorted = [...catRows].sort((a, b) => a.price - b.price);
-    const cheapest = sorted.slice(0, 3);
-    const floorPrice = cheapest.reduce((s, r) => s + r.price, 0) / cheapest.length;
-    floors.push({ category: cat, weight: catRows[0].weight, floorPrice, retailerSlug: cheapest[0].retailerSlug });
+    if (!byItem.has(r.basketItemId)) byItem.set(r.basketItemId, []);
+    byItem.get(r.basketItemId)!.push(r);
   }
 
   let weightedSum = 0;
   let totalWeight = 0;
 
-  for (const floor of floors) {
-    const base = [...baselines.values()][0];
+  for (const [itemId, itemRows] of byItem) {
+    const base = baselines.get(itemId);
     if (!base) continue;
-    weightedSum += floor.weight * (floor.floorPrice / base);
-    totalWeight += floor.weight;
+
+    const floorPrice = itemRows.reduce((min, r) => Math.min(min, r.price), Infinity);
+    const weight = itemRows[0].weight;
+
+    weightedSum += weight * (floorPrice / base);
+    totalWeight += weight;
   }
 
   if (totalWeight === 0) return 100;
@@ -194,11 +179,8 @@ export async function aggregateBasket(basketSlug: string, marketCode: string) {
     return;
   }
 
-  const baselines = new Map<string, number>();
-  for (const itemId of new Set(rows.map((r) => r.basketItemId))) {
-    const base = await getBaselinePrice(itemId, basketConfig.baseDate);
-    if (base) baselines.set(itemId, base);
-  }
+  const uniqueItemIds = [...new Set(rows.map((r) => r.basketItemId))];
+  const baselines = await getBaselinePrices(uniqueItemIds, basketConfig.baseDate);
 
   const essentialsIndex = computeFixedIndex(rows, baselines);
   const valueIndex = computeValueIndex(rows, baselines);
