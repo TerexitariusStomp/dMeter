@@ -54,6 +54,7 @@ const FULL_PANELS: Record<string, PanelConfig> = {
   'satellite-fires': { name: 'Fires', enabled: true, priority: 2 },
   'macro-signals': { name: 'Market Regime', enabled: true, priority: 2 },
   'gulf-economies': { name: 'Gulf Economies', enabled: false, priority: 2 },
+  'consumer-prices': { name: 'Consumer Prices', enabled: false, priority: 2 },
   'etf-flows': { name: 'BTC ETF Tracker', enabled: true, priority: 2 },
   stablecoins: { name: 'Stablecoins', enabled: true, priority: 2 },
   'ucdp-events': { name: 'UCDP Conflict Events', enabled: true, priority: 2 },
@@ -401,6 +402,7 @@ const FINANCE_PANELS: Record<string, PanelConfig> = {
   'gcc-investments': { name: 'GCC Investments', enabled: true, priority: 2 },
   gccNews: { name: 'GCC Business News', enabled: true, priority: 2 },
   'gulf-economies': { name: 'Gulf Economies', enabled: true, priority: 1 },
+  'consumer-prices': { name: 'Consumer Prices', enabled: true, priority: 1 },
   polymarket: { name: 'Predictions', enabled: true, priority: 2 },
   'airline-intel': { name: 'Airline Intelligence', enabled: true, priority: 2 },
   'world-clock': { name: 'World Clock', enabled: true, priority: 2 },
@@ -693,6 +695,7 @@ const COMMODITY_PANELS: Record<string, PanelConfig> = {
   economic: { name: 'Macro Stress', enabled: true, priority: 1 },
   'gulf-economies': { name: 'Gulf & OPEC Economies', enabled: true, priority: 1 },
   'gcc-investments': { name: 'GCC Resource Investments', enabled: true, priority: 2 },
+  'consumer-prices': { name: 'Consumer Prices', enabled: true, priority: 2 },
   'airline-intel': { name: 'Airline Intelligence', enabled: true, priority: 2 },
   polymarket: { name: 'Commodity Predictions', enabled: true, priority: 2 },
   'world-clock': { name: 'World Clock', enabled: true, priority: 2 },
@@ -971,7 +974,7 @@ export const PANEL_CATEGORY_MAP: Record<string, { labelKey: string; panelKeys: s
   },
   gulfMena: {
     labelKey: 'header.panelCatGulfMena',
-    panelKeys: ['gulf-economies', 'gcc-investments', 'gccNews', 'monitors', 'world-clock'],
+    panelKeys: ['gulf-economies', 'gcc-investments', 'gccNews', 'consumer-prices', 'monitors', 'world-clock'],
     variants: ['finance'],
   },
 
@@ -988,7 +991,7 @@ export const PANEL_CATEGORY_MAP: Record<string, { labelKey: string; panelKeys: s
   },
   commodityEcon: {
     labelKey: 'header.panelCatCommodityEcon',
-    panelKeys: ['trade-policy', 'sanctions-pressure', 'economic', 'gulf-economies', 'gcc-investments', 'finance', 'polymarket', 'airline-intel', 'world-clock', 'monitors'],
+    panelKeys: ['trade-policy', 'sanctions-pressure', 'economic', 'gulf-economies', 'gcc-investments', 'consumer-prices', 'finance', 'polymarket', 'airline-intel', 'world-clock', 'monitors'],
     variants: ['commodity'],
   },
 

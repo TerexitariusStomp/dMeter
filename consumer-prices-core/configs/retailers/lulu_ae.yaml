@@ -1,0 +1,57 @@
+retailer:
+  slug: lulu_ae
+  name: Lulu Hypermarket UAE
+  marketCode: ae
+  currencyCode: AED
+  adapter: generic
+  baseUrl: https://www.luluhypermarket.com
+  enabled: false  # enable after validating selectors
+
+  acquisition:
+    provider: exa               # Exa search mode to find product pages by category
+    fallback: firecrawl
+    searchMode: false           # set true to use Exa search instead of direct URL
+    options:
+      timeout: 30000
+
+  rateLimit:
+    requestsPerMinute: 15
+    maxConcurrency: 1
+    delayBetweenRequestsMs: 4000
+
+  discovery:
+    mode: category_urls
+    maxPages: 8
+    seeds:
+      - id: eggs
+        url: /en-ae/eggs/c/FDTE040100
+        category: eggs
+      - id: milk
+        url: /en-ae/milk/c/FDDA010000
+        category: dairy
+      - id: bread
+        url: /en-ae/bread/c/FDBK010000
+        category: bread
+      - id: rice
+        url: /en-ae/rice/c/FDGR020000
+        category: rice
+      - id: cooking_oil
+        url: /en-ae/cooking-oil/c/FDOI010000
+        category: cooking_oil
+
+  extraction:
+    productCard:
+      container: '.product-item'
+      title: '.product-name'
+      price: '.price-box .price'
+      listPrice: '.old-price .price'
+      url: 'a.product-item-link::attr(href)'
+      imageUrl: 'img.product-image-photo::attr(src)'
+      sizeText: '.product-size'
+    productPage:
+      title: '.page-title h1'
+      jsonld: 'script[type="application/ld+json"]'
+    priceFormat:
+      decimalSeparator: '.'
+      thousandsSeparator: ','
+      currencySymbols: ['AED', 'د.إ']

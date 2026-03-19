@@ -70,4 +70,6 @@ export const BOOTSTRAP_TIERS: Record<string, 'slow' | 'fast'> = {
   securityAdvisories: 'slow',
   forecasts: 'fast',
   customsRevenue: 'slow',
+  consumerPricesOverview: 'slow', consumerPricesCategories: 'slow',
+  consumerPricesMovers: 'slow', consumerPricesSpread: 'slow',
 };

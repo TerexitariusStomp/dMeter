@@ -37,6 +37,11 @@ const BOOTSTRAP_KEYS = {
   customsRevenue:    'trade:customs-revenue:v1',
   sanctionsPressure: 'sanctions:pressure:v1',
   radiationWatch:    'radiation:observations:v1',
+  consumerPricesOverview:   'consumer-prices:overview:ae',
+  consumerPricesCategories: 'consumer-prices:categories:ae:30d',
+  consumerPricesMovers:     'consumer-prices:movers:ae:30d',
+  consumerPricesSpread:     'consumer-prices:retailer-spread:ae:essentials-ae',
+  consumerPricesFreshness:  'consumer-prices:freshness:ae',
 };
 
 const STANDALONE_KEYS = {
@@ -137,6 +142,11 @@ const SEED_META = {
   radiationWatch:      { key: 'seed-meta:radiation:observations',             maxStaleMin: 30 },
   thermalEscalation:   { key: 'seed-meta:thermal:escalation',                 maxStaleMin: 240 },
   tariffTrendsUs:      { key: 'seed-meta:trade:tariffs:v1:840:all:10',        maxStaleMin: 900 },
+  consumerPricesOverview:   { key: 'seed-meta:consumer-prices:overview:ae',     maxStaleMin: 240 },
+  consumerPricesCategories: { key: 'seed-meta:consumer-prices:categories:ae',   maxStaleMin: 240 },
+  consumerPricesMovers:     { key: 'seed-meta:consumer-prices:movers:ae:30d',   maxStaleMin: 240 },
+  consumerPricesSpread:     { key: 'seed-meta:consumer-prices:spread:ae',       maxStaleMin: 720 },
+  consumerPricesFreshness:  { key: 'seed-meta:consumer-prices:freshness:ae',    maxStaleMin: 30  },
 };
 
 // Standalone keys that are populated on-demand by RPC handlers (not seeds).
