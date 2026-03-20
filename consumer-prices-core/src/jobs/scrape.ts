@@ -25,12 +25,13 @@ async function sleep(ms: number) {
 }
 
 async function getOrCreateRetailer(slug: string, config: ReturnType<typeof loadRetailerConfig>) {
-  const existing = await query<{ id: string }>(`SELECT id FROM retailers WHERE slug = $1`, [slug]);
-  if (existing.rows.length > 0) return existing.rows[0].id;
-
   const result = await query<{ id: string }>(
     `INSERT INTO retailers (slug, name, market_code, country_code, currency_code, adapter_key, base_url)
-     VALUES ($1,$2,$3,$3,$4,$5,$6) RETURNING id`,
+     VALUES ($1,$2,$3,$3,$4,$5,$6)
+     ON CONFLICT (slug) DO UPDATE SET
+       name = EXCLUDED.name, adapter_key = EXCLUDED.adapter_key,
+       base_url = EXCLUDED.base_url, updated_at = NOW()
+     RETURNING id`,
     [slug, config.name, config.marketCode, config.currencyCode, config.adapter, config.baseUrl],
   );
   return result.rows[0].id;
@@ -130,7 +131,7 @@ export async function scrapeRetailer(slug: string) {
         if (
           config.adapter === 'exa-search' &&
           product.rawPayload.basketSlug &&
-          product.rawPayload.itemCategory
+          product.rawPayload.canonicalName
         ) {
           try {
             const canonicalId = await upsertCanonicalProduct({
@@ -176,14 +177,11 @@ export async function scrapeRetailer(slug: string) {
        (retailer_id, last_successful_run_at, last_run_status, parse_success_rate, updated_at)
      VALUES ($1, $2, $3, $4, NOW())
      ON CONFLICT (retailer_id) DO UPDATE SET
-       last_successful_run_at = COALESCE(
-         CASE WHEN $2 IS NOT NULL THEN $2 ELSE NULL END,
-         data_source_health.last_successful_run_at
-       ),
+       last_successful_run_at = COALESCE($2, data_source_health.last_successful_run_at),
        last_run_status    = EXCLUDED.last_run_status,
        parse_success_rate = EXCLUDED.parse_success_rate,
        updated_at         = NOW()`,
-    [retailerId, isSuccess ? new Date() : null, status, parseSuccessRate],
+    [retailerId, isSuccess ? new Date() : null, status, Math.round(parseSuccessRate * 100) / 100],
   );
 
   await teardownAll();
