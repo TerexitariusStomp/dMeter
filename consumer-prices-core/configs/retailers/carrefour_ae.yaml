@@ -3,16 +3,12 @@ retailer:
   name: Carrefour UAE
   marketCode: ae
   currencyCode: AED
-  adapter: generic
+  adapter: exa-search
   baseUrl: https://www.carrefouruae.com
   enabled: true
 
   acquisition:
-    provider: firecrawl          # primary: Firecrawl handles JS rendering cleanly
-    fallback: playwright         # fallback: local Playwright if Firecrawl quota exceeded
-    options:
-      waitForSelector: 'article[data-testid="product"]'
-      timeout: 30000
+    provider: exa
 
   rateLimit:
     requestsPerMinute: 20
@@ -20,56 +16,6 @@ retailer:
     delayBetweenRequestsMs: 3000
 
   discovery:
-    mode: category_urls
-    maxPages: 10
-    seeds:
-      - id: eggs
-        url: /mafuae/en/c/F1200000
-        category: eggs
-      - id: milk
-        url: /mafuae/en/c/F1100000
-        category: dairy
-      - id: bread
-        url: /mafuae/en/c/F1300000
-        category: bread
-      - id: rice
-        url: /mafuae/en/c/F1570000
-        category: rice
-      - id: cooking_oil
-        url: /mafuae/en/c/F1600000
-        category: cooking_oil
-      - id: chicken
-        url: /mafuae/en/c/F1050000
-        category: chicken
-      - id: tomatoes
-        url: /mafuae/en/c/V1010000
-        category: tomatoes
-      - id: onions
-        url: /mafuae/en/c/V1020000
-        category: onions
-      - id: water
-        url: /mafuae/en/c/D1010000
-        category: water
-      - id: sugar
-        url: /mafuae/en/c/F1700000
-        category: sugar
-
-  extraction:
-    productCard:
-      container: 'article[data-testid="product"]'
-      title: 'h3'
-      price: '[data-testid="price"]'
-      listPrice: '.old-price'
-      url: 'a[data-testid="product-link"]::attr(href)'
-      imageUrl: 'img[data-testid="product-image"]::attr(src)'
-      sizeText: '.size'
-      sku: '[data-sku]::attr(data-sku)'
-    productPage:
-      title: 'h1[data-testid="product-title"]'
-      sku: '[data-product-id]::attr(data-product-id)'
-      categoryPath: 'nav[aria-label="breadcrumb"] a'
-      jsonld: 'script[type="application/ld+json"]'
-    priceFormat:
-      decimalSeparator: '.'
-      thousandsSeparator: ','
-      currencySymbols: ['AED', 'د.إ']
+    mode: search
+    maxPages: 20
+    seeds: []

@@ -55,7 +55,7 @@ export const RetailerConfigSchema = z.object({
     name: z.string(),
     marketCode: z.string().length(2),
     currencyCode: z.string().length(3),
-    adapter: z.enum(['generic', 'custom']).default('generic'),
+    adapter: z.enum(['generic', 'exa-search', 'custom']).default('generic'),
     baseUrl: z.string().url(),
     rateLimit: RateLimitSchema.optional(),
     acquisition: AcquisitionConfigSchema,

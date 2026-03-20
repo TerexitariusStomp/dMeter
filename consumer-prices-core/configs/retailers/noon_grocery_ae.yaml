@@ -3,16 +3,12 @@ retailer:
   name: Noon Grocery UAE
   marketCode: ae
   currencyCode: AED
-  adapter: generic
+  adapter: exa-search
   baseUrl: https://www.noon.com
-  enabled: false  # enable after validating selectors
+  enabled: true
 
   acquisition:
-    provider: p0                # P0 handles Noon's heavy JS rendering and bot protection
-    fallback: playwright
-    options:
-      waitForSelector: '[data-qa="product-list"]'
-      timeout: 45000
+    provider: exa
 
   rateLimit:
     requestsPerMinute: 10
@@ -20,27 +16,6 @@ retailer:
     delayBetweenRequestsMs: 6000
 
   discovery:
-    mode: category_urls
-    maxPages: 5
-    seeds:
-      - id: eggs
-        url: /uae-en/grocery/eggs-c1a2e6b76ec84ab5ba065d66f4a28daa
-        category: eggs
-      - id: dairy
-        url: /uae-en/grocery/dairy-c1a2e6b76ec84ab5ba065d66f4a28dab
-        category: dairy
-      - id: rice
-        url: /uae-en/grocery/rice-c1a2e6b76ec84ab5ba065d66f4a28dac
-        category: rice
-
-  extraction:
-    productCard:
-      container: '[data-qa="product-item"]'
-      title: '[data-qa="product-name"]'
-      price: '[data-qa="product-price"]'
-      url: 'a[data-qa="product-link"]::attr(href)'
-      imageUrl: 'img[data-qa="product-image"]::attr(src)'
-    priceFormat:
-      decimalSeparator: '.'
-      thousandsSeparator: ','
-      currencySymbols: ['AED']
+    mode: search
+    maxPages: 20
+    seeds: []

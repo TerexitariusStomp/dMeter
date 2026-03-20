@@ -9,7 +9,10 @@ import { parseSize, unitPrice as calcUnitPrice } from '../normalizers/size.js';
 import { loadAllRetailerConfigs, loadRetailerConfig } from '../config/loader.js';
 import { initProviders, teardownAll } from '../acquisition/registry.js';
 import { GenericPlaywrightAdapter } from '../adapters/generic.js';
+import { ExaSearchAdapter } from '../adapters/exa-search.js';
 import type { AdapterContext } from '../adapters/types.js';
+import { upsertCanonicalProduct } from '../db/queries/products.js';
+import { getBasketItemId, upsertProductMatch } from '../db/queries/matches.js';
 
 const logger = {
   info: (msg: string, ...args: unknown[]) => console.log(`[scrape] ${msg}`, ...args),
@@ -69,7 +72,10 @@ export async function scrapeRetailer(slug: string) {
 
   logger.info(`Run ${runId} started for ${slug}`);
 
-  const adapter = new GenericPlaywrightAdapter();
+  const adapter =
+    config.adapter === 'exa-search'
+      ? new ExaSearchAdapter(process.env.EXA_API_KEY ?? '')
+      : new GenericPlaywrightAdapter();
   const ctx: AdapterContext = { config, runId, logger };
 
   const targets = await adapter.discoverTargets(ctx);
@@ -118,6 +124,36 @@ export async function scrapeRetailer(slug: string) {
           promoText: product.promoText,
           rawPayloadJson: product.rawPayload,
         });
+
+        // For exa-search adapter: auto-create product → basket match since we
+        // searched for a specific basket item (no ambiguity in what was scraped).
+        if (
+          config.adapter === 'exa-search' &&
+          product.rawPayload.basketSlug &&
+          product.rawPayload.itemCategory
+        ) {
+          try {
+            const canonicalId = await upsertCanonicalProduct({
+              canonicalName: (product.rawPayload.canonicalName as string) || product.rawTitle,
+              category: product.categoryText ?? target.category,
+            });
+            const basketItemId = await getBasketItemId(
+              product.rawPayload.basketSlug as string,
+              product.rawPayload.itemCategory as string,
+            );
+            if (basketItemId) {
+              await upsertProductMatch({
+                retailerProductId: productId,
+                canonicalProductId: canonicalId,
+                basketItemId,
+                matchScore: 1.0,
+                matchStatus: 'auto',
+              });
+            }
+          } catch (matchErr) {
+            logger.warn(`  [${target.id}] product match failed: ${matchErr}`);
+          }
+        }
       }
 
       pagesSucceeded++;
