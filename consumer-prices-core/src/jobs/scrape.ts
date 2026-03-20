@@ -139,7 +139,7 @@ export async function scrapeRetailer(slug: string) {
             });
             const basketItemId = await getBasketItemId(
               product.rawPayload.basketSlug as string,
-              product.rawPayload.itemCategory as string,
+              product.rawPayload.canonicalName as string,
             );
             if (basketItemId) {
               await upsertProductMatch({
@@ -168,6 +168,24 @@ export async function scrapeRetailer(slug: string) {
   const status = errorsCount === 0 ? 'completed' : pagesSucceeded > 0 ? 'partial' : 'failed';
   await updateScrapeRun(runId, status, pagesAttempted, pagesSucceeded, errorsCount);
   logger.info(`Run ${runId} finished: ${status} (${pagesSucceeded}/${pagesAttempted} pages)`);
+
+  const parseSuccessRate = pagesAttempted > 0 ? (pagesSucceeded / pagesAttempted) * 100 : 0;
+  const isSuccess = status === 'completed' || status === 'partial';
+  await query(
+    `INSERT INTO data_source_health
+       (retailer_id, last_successful_run_at, last_run_status, parse_success_rate, updated_at)
+     VALUES ($1, $2, $3, $4, NOW())
+     ON CONFLICT (retailer_id) DO UPDATE SET
+       last_successful_run_at = COALESCE(
+         CASE WHEN $2 IS NOT NULL THEN $2 ELSE NULL END,
+         data_source_health.last_successful_run_at
+       ),
+       last_run_status    = EXCLUDED.last_run_status,
+       parse_success_rate = EXCLUDED.parse_success_rate,
+       updated_at         = NOW()`,
+    [retailerId, isSuccess ? new Date() : null, status, parseSuccessRate],
+  );
+
   await teardownAll();
 }
 

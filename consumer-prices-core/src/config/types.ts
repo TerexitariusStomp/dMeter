@@ -75,7 +75,7 @@ export const RetailerConfigSchema = z.object({
           currencySymbols: z.array(z.string()).default([]),
         })
         .optional(),
-    }),
+    }).optional(),
     enabled: z.boolean().default(true),
   }),
 });
