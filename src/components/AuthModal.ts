@@ -1,7 +1,7 @@
 import { authClient } from '@/services/auth-client';
 import { subscribeAuthState } from '@/services/auth-state';
 import type { AuthSession } from '@/services/auth-state';
-import { trackSignIn, trackSignUp } from '@/services/analytics';
+import { trackSignIn } from '@/services/analytics';
 
 type AuthModalView = 'email' | 'otp';
 
@@ -12,6 +12,7 @@ export class AuthModal {
   private unsubscribeAuth: (() => void) | null = null;
   private isLoading = false;
   private currentEmail = '';
+  private lastResendAt = 0;
 
   constructor() {
     this.overlay = document.createElement('div');
@@ -227,13 +228,11 @@ export class AuthModal {
         this.setLoading(false);
         return;
       }
-      // On success, the auth state subscription will auto-close the modal
-      const isNewUser = (result as any).data?.user?.isNewUser ?? false;
-      if (isNewUser) {
-        trackSignUp('email-otp');
-      } else {
-        trackSignIn('email-otp');
-      }
+      // On success, the auth state subscription will auto-close the modal.
+      // Track all OTP verifications as sign-in — better-auth emailOTP does not
+      // expose a reliable isNewUser signal. Sign-up analytics can be added later
+      // via an onUserCreated server-side hook.
+      trackSignIn('email-otp');
     } catch (err: any) {
       this.showError(err?.message ?? 'An unexpected error occurred.');
       this.setLoading(false);
@@ -241,6 +240,14 @@ export class AuthModal {
   }
 
   private async handleResendOTP(): Promise<void> {
+    const COOLDOWN_MS = 30_000;
+    const elapsed = Date.now() - this.lastResendAt;
+    if (elapsed < COOLDOWN_MS) {
+      const remaining = Math.ceil((COOLDOWN_MS - elapsed) / 1000);
+      this.showError(`Please wait ${remaining}s before resending.`);
+      return;
+    }
+    this.lastResendAt = Date.now();
     this.setLoading(true);
     this.clearError();
 

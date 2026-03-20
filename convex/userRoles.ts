@@ -1,17 +1,11 @@
-import { query, internalMutation } from "./_generated/server";
+import { internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-
-// NOTE: Intentionally public -- called from both client (auth-state.ts) and
-// server (auth-session.ts) via Convex HTTP query API. The only data exposed is
-// the role string ("free"/"pro") for a known userId. Auth-gating would require
-// a Convex HTTP action with session header forwarding, deferred for now.
 
 /**
  * Get the role for a user. Returns "free" if no role row exists.
- * This is the fallback approach for role management when the
- * better-auth additionalFields.role is not reflected by the Convex adapter.
+ * Internal only -- exposed to clients via the authenticated /api/user-role HTTP action.
  */
-export const getUserRole = query({
+export const getUserRole = internalQuery({
   args: { userId: v.string() },
   handler: async (ctx, args) => {
     const row = await ctx.db

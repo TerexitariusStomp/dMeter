@@ -1,4 +1,5 @@
 import { authClient } from './auth-client';
+import { getSessionBearerToken } from './auth-token';
 
 /** Minimal user profile exposed to UI components. */
 export interface AuthUser {
@@ -16,47 +17,55 @@ export interface AuthSession {
 }
 
 // ---------------------------------------------------------------------------
-// Role fetching from Convex userRoles table
+// Raw session types — typed boundary for the better-auth nanostore atom
 // ---------------------------------------------------------------------------
 
-// Derive the Convex cloud URL from the site URL (replace .convex.site -> .convex.cloud)
+interface RawSessionUser {
+  id: string;
+  name: string;
+  email: string;
+  image?: string | null;
+}
+
+interface RawSessionValue {
+  data?: { user?: RawSessionUser } | null;
+  isPending?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Role fetching via authenticated /api/user-role Convex HTTP action
+// ---------------------------------------------------------------------------
+
 const CONVEX_SITE_URL = import.meta.env.VITE_CONVEX_SITE_URL as string | undefined;
-const CONVEX_CLOUD_URL = CONVEX_SITE_URL
-  ? CONVEX_SITE_URL.replace('.convex.site', '.convex.cloud')
-  : '';
 
-const ROLE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-
-/** Cached role for the current user -- avoids re-fetching on every state read. */
 let cachedRole: 'free' | 'pro' = 'free';
 let cachedRoleUserId: string | null = null;
-let cachedRoleExpiresAt = 0;
 
 /**
- * Fetch the user's role from the Convex userRoles table.
- * Falls back to "free" on any error.
+ * Fetch the user's role from the authenticated /api/user-role endpoint.
+ * Falls back to "free" on any non-abort error. AbortError is propagated.
  */
-async function fetchUserRole(userId: string): Promise<'free' | 'pro'> {
-  // Return cached value if we already fetched for this user and TTL hasn't expired
-  if (cachedRoleUserId === userId && Date.now() < cachedRoleExpiresAt) return cachedRole;
-  if (!CONVEX_CLOUD_URL) return 'free';
+async function fetchUserRole(signal?: AbortSignal): Promise<'free' | 'pro'> {
+  if (!CONVEX_SITE_URL) return 'free';
+
+  const token = getSessionBearerToken();
+  if (!token) return 'free';
 
   try {
-    const resp = await fetch(`${CONVEX_CLOUD_URL}/api/query`, {
+    const resp = await fetch(`${CONVEX_SITE_URL}/api/user-role`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        path: 'userRoles:getUserRole',
-        args: { userId },
-      }),
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      signal,
     });
     const data = await resp.json();
-    const role = data.value?.role === 'pro' ? 'pro' as const : 'free' as const;
+    const role: 'free' | 'pro' = data.role === 'pro' ? 'pro' : 'free';
     cachedRole = role;
-    cachedRoleUserId = userId;
-    cachedRoleExpiresAt = Date.now() + ROLE_CACHE_TTL_MS;
     return role;
-  } catch {
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') throw err;
     return 'free';
   }
 }
@@ -65,7 +74,7 @@ async function fetchUserRole(userId: string): Promise<'free' | 'pro'> {
 // Helpers to map raw session data to AuthUser
 // ---------------------------------------------------------------------------
 
-function mapRawUser(rawUser: any): AuthUser {
+function mapRawUser(rawUser: RawSessionUser): AuthUser {
   return {
     id: rawUser.id,
     name: rawUser.name,
@@ -76,50 +85,44 @@ function mapRawUser(rawUser: any): AuthUser {
 }
 
 // ---------------------------------------------------------------------------
+// TOCTOU guard for async role fetches
+// ---------------------------------------------------------------------------
+
+let _roleGeneration = 0;
+let _roleAbortController: AbortController | null = null;
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
 /**
  * Call once at app startup, before any UI subscribes to auth state.
- *
- * Handles the OAuth OTT (one-time token) redirect flow:
- *  1. If `?ott=TOKEN` is present in the URL, verifies the token via the
- *     crossDomain plugin and populates the session atom.
- *  2. Otherwise, calls `getSession()` to hydrate from the stored
- *     localStorage cookie (crossDomainClient handles persistence).
- *
- * After session hydration, fetches the user's role from the Convex
- * userRoles table and caches it for synchronous reads.
+ * Hydrates session from localStorage or OTT redirect, then pre-warms role cache.
  */
 export async function initAuthState(): Promise<void> {
   const url = new URL(window.location.href);
   const ottToken = url.searchParams.get('ott');
 
   if (ottToken) {
-    // Clean the OTT param from the visible URL immediately
     url.searchParams.delete('ott');
     window.history.replaceState({}, '', url.toString());
 
     try {
-      // Cast needed: crossDomain plugin types are not fully re-exported
       const result = await (authClient as any).crossDomain.oneTimeToken.verify({ token: ottToken });
       const session = result?.data?.session;
 
       if (session) {
-        // Populate the session atom by fetching with the new session token
         await authClient.getSession({
           fetchOptions: {
             headers: { Authorization: `Bearer ${session.token}` },
           },
         });
-        // Trigger nanostore atom refresh (method may not exist on all versions)
         (authClient as any).updateSession?.();
       }
     } catch (err) {
       console.warn('[auth-state] OTT verification failed:', err);
     }
   } else {
-    // No OTT -- hydrate session from stored localStorage cookie
     try {
       await authClient.getSession();
     } catch (err) {
@@ -127,57 +130,68 @@ export async function initAuthState(): Promise<void> {
     }
   }
 
-  // After session hydration, fetch role for the authenticated user
-  const raw = authClient.useSession.get() as any;
-  const userId = raw.data?.user?.id;
-  if (userId) {
-    await fetchUserRole(userId);
+  const raw = authClient.useSession.get() as RawSessionValue;
+  if (raw.data?.user?.id) {
+    await fetchUserRole();
+    cachedRoleUserId = raw.data.user.id;
   }
 }
 
 /**
  * Subscribe to reactive auth state changes.
- * Maps the raw nanostore atom value to the simpler {@link AuthSession} type.
+ * Fixes TOCTOU race via generation counter + AbortController: rapid sign-in/sign-out
+ * cannot produce a stale role for the wrong user.
  *
- * When the user changes (sign-in / sign-out), the role is re-fetched from
- * the Convex userRoles table asynchronously. The first callback fires with
- * the cached role; an updated callback fires after the fetch completes if
- * the role changed.
- *
- * @returns Unsubscribe function -- call in `destroy()` to prevent leaks.
+ * @returns Unsubscribe function.
  */
 export function subscribeAuthState(callback: (state: AuthSession) => void): () => void {
   return authClient.useSession.subscribe((value) => {
-    const raw = value as any;
+    const raw = value as RawSessionValue;
     const rawUser = raw.data?.user;
 
+    // Abort any in-flight role fetch from a previous event
+    _roleAbortController?.abort();
+    _roleAbortController = null;
+
     if (!rawUser) {
-      // Signed out -- clear role cache
+      _roleGeneration++;
       cachedRole = 'free';
       cachedRoleUserId = null;
-      cachedRoleExpiresAt = 0;
       callback({ user: null, isPending: raw.isPending ?? false });
       return;
     }
 
-    // Fire immediately with cached role
+    // User changed (A→B direct switch): reset cached role BEFORE emitting
+    // so user B is never shown user A's role even briefly
+    const userChanged = rawUser.id !== cachedRoleUserId;
+    if (userChanged) {
+      cachedRole = 'free';
+      cachedRoleUserId = rawUser.id;
+    }
+
     callback({
       user: mapRawUser(rawUser),
       isPending: raw.isPending ?? false,
     });
 
-    // If this is a new user (different from cached), fetch role async
-    if (rawUser.id !== cachedRoleUserId) {
-      void fetchUserRole(rawUser.id).then((role) => {
+    if (userChanged) {
+      const gen = ++_roleGeneration;
+      const ac = new AbortController();
+      _roleAbortController = ac;
+
+      fetchUserRole(ac.signal).then((role) => {
+        if (gen !== _roleGeneration) return; // stale — discard
         if (role !== cachedRole || rawUser.id !== cachedRoleUserId) {
           cachedRole = role;
           cachedRoleUserId = rawUser.id;
-          // Re-notify subscriber with updated role
           callback({
             user: mapRawUser(rawUser),
             isPending: raw.isPending ?? false,
           });
         }
+      }).catch((err) => {
+        if (err?.name === 'AbortError') return; // expected during rapid auth transitions
+        console.warn('[auth-state] Role fetch failed:', err);
       });
     }
   });
@@ -185,17 +199,12 @@ export function subscribeAuthState(callback: (state: AuthSession) => void): () =
 
 /**
  * Synchronous snapshot of the current auth state.
- * Useful for one-off reads outside of reactive subscriptions.
- *
- * The role uses the last cached value (populated by initAuthState or
- * subscribeAuthState). If the role has not been fetched yet, defaults to "free".
+ * Role uses the last cached value; defaults to "free" if not yet fetched.
  */
 export function getAuthState(): AuthSession {
-  const raw = authClient.useSession.get() as any;
+  const raw = authClient.useSession.get() as RawSessionValue;
   return {
-    user: raw.data?.user
-      ? mapRawUser(raw.data.user)
-      : null,
+    user: raw.data?.user ? mapRawUser(raw.data.user) : null,
     isPending: raw.isPending ?? false,
   };
 }

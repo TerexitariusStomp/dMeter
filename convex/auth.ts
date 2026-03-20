@@ -9,6 +9,21 @@ import { Resend } from "resend";
 
 const siteUrl = process.env.SITE_URL!;
 
+/** Origins allowed for CORS -- shared with the /api/user-role HTTP action. */
+export const TRUSTED_ORIGINS = [
+  siteUrl,
+  'http://localhost:3000',
+  'https://worldmonitor.app',
+  'https://tech.worldmonitor.app',
+  'https://finance.worldmonitor.app',
+  'https://commodity.worldmonitor.app',
+  'https://happy.worldmonitor.app',
+  'https://dash.better-auth.com',
+  '*.worldmonitor.app',
+  'https://valiant-bison-406.convex.site',
+  'https://tacit-curlew-777.convex.site',
+] as const;
+
 const fromAddress = "World Monitor <noreply@worldmonitor.app>";
 
 // Lazy singleton -- Resend throws if API key is missing at construction time,
@@ -28,19 +43,7 @@ export const authComponent = createClient<DataModel>(components.betterAuth, {
 
 export const createAuthOptions = (ctx: GenericCtx<DataModel>) =>
   ({
-    trustedOrigins: [
-      siteUrl,
-      'http://localhost:3000',
-      'https://worldmonitor.app',
-      'https://tech.worldmonitor.app',
-      'https://finance.worldmonitor.app',
-      'https://commodity.worldmonitor.app',
-      'https://happy.worldmonitor.app',
-      'https://dash.better-auth.com',
-      '*.worldmonitor.app',
-      'https://valiant-bison-406.convex.site',
-      'https://tacit-curlew-777.convex.site',
-    ],
+    trustedOrigins: [...TRUSTED_ORIGINS],
     baseURL: siteUrl,
     database: authComponent.adapter(ctx),
     // NOTE: Do NOT use additionalFields for role — the Convex betterAuth

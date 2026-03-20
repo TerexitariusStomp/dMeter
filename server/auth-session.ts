@@ -17,9 +17,6 @@
 // ---------------------------------------------------------------------------
 
 const CONVEX_SITE_URL = process.env.CONVEX_SITE_URL ?? '';
-const CONVEX_CLOUD_URL = CONVEX_SITE_URL
-  ? CONVEX_SITE_URL.replace('.convex.site', '.convex.cloud')
-  : '';
 
 const CACHE_TTL_MS = 60_000; // 60 seconds
 const CACHE_MAX_ENTRIES = 100;
@@ -87,23 +84,22 @@ export async function validateBearerToken(token: string): Promise<SessionResult>
     const data = await resp.json();
     if (!data?.user?.id) return cacheResult(token, { valid: false });
 
-    // Determine role — prefer get-session response, fallback to userRoles query
+    // Determine role — prefer get-session response, fallback to authenticated /api/user-role
     let role: 'free' | 'pro' = data.user.role === 'pro' ? 'pro' : 'free';
 
-    if (!data.user.role && CONVEX_CLOUD_URL) {
+    if (!data.user.role && CONVEX_SITE_URL) {
       try {
-        const roleResp = await fetch(`${CONVEX_CLOUD_URL}/api/query`, {
+        const roleResp = await fetch(`${CONVEX_SITE_URL}/api/user-role`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            path: 'userRoles:getUserRole',
-            args: { userId: data.user.id },
-          }),
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
         });
         const roleData = await roleResp.json();
-        role = roleData.value?.role === 'pro' ? 'pro' : 'free';
+        role = roleData.role === 'pro' ? 'pro' : 'free';
       } catch {
-        // Role fetch failed — default to free
+        // Role fetch failed — fail closed to free
       }
     }
 
