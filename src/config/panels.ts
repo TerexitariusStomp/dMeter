@@ -957,7 +957,7 @@ export const LAYER_TO_SOURCE: Partial<Record<keyof MapLayers, DataSourceId[]>> =
 // ============================================
 // Maps category keys to panel keys. Only categories with at least one
 // matching panel in the user's active panel settings are shown.
-export const PANEL_CATEGORY_MAP: Record<string, { labelKey: string; panelKeys: string[] }> = {
+export const PANEL_CATEGORY_MAP: Record<string, { labelKey: string; panelKeys: string[]; variants?: string[] }> = {
   // All variants — essential panels
   core: {
     labelKey: 'header.panelCatCore',
