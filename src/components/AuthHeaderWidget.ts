@@ -3,24 +3,22 @@ import { subscribeAuthState } from '@/services/auth-state';
 import type { AuthSession } from '@/services/auth-state';
 import { trackSignOut } from '@/services/analytics';
 
-const DEFAULT_AVATAR_SVG = `<svg class="auth-avatar-default" width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="14" cy="14" r="14" fill="currentColor" opacity="0.15"/>
-  <circle cx="14" cy="11" r="4.5" fill="currentColor" opacity="0.6"/>
-  <path d="M4 24c0-5.523 4.477-10 10-10s10 4.477 10 10" fill="currentColor" opacity="0.4"/>
-</svg>`;
+const AVATAR_COLORS = [
+  '#5B6EE8', '#E85B8A', '#5BC8E8', '#E8A85B',
+  '#8A5BE8', '#5BE87E', '#E8675B', '#5BE8C7',
+];
 
 export class AuthHeaderWidget {
   private container: HTMLElement;
   private unsubscribeAuth: (() => void) | null = null;
   private onSignInClick: () => void;
-  private onSettingsClick: (() => void) | null = null;
   private dropdownOpen = false;
   private outsideClickHandler: ((e: MouseEvent) => void) | null = null;
   private escapeHandler: ((e: KeyboardEvent) => void) | null = null;
 
   constructor(onSignInClick: () => void, onSettingsClick?: () => void) {
+    void onSettingsClick; // Settings accessible via gear icon in header
     this.onSignInClick = onSignInClick;
-    this.onSettingsClick = onSettingsClick ?? null;
     this.container = document.createElement('div');
     this.container.className = 'auth-header-widget';
 
@@ -45,48 +43,62 @@ export class AuthHeaderWidget {
     }
   }
 
+  private getAvatarColor(seed: string): string {
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+      hash = (hash * 31 + seed.charCodeAt(i)) & 0xffff;
+    }
+    return AVATAR_COLORS[hash % AVATAR_COLORS.length]!;
+  }
+
+  private buildAvatar(name: string, email: string, image: string | null | undefined, size: 'sm' | 'lg'): string {
+    const px = size === 'lg' ? 44 : 32;
+    const fs = size === 'lg' ? '16px' : '13px';
+    const color = this.getAvatarColor(email);
+
+    if (image) {
+      return `<img class="auth-avatar-img" src="${this.escapeAttr(image)}" alt="${this.escapeAttr(name ?? '')}" width="${px}" height="${px}" style="width:${px}px;height:${px}px" />`;
+    }
+
+    const initials = this.getInitials(name);
+    const letter = initials !== '?' ? this.escapeHtml(initials) : '?';
+    return `<span class="auth-avatar-initials" style="font-size:${fs};width:${px}px;height:${px}px;background:${color}">${letter}</span>`;
+  }
+
   private render(state: AuthSession): void {
     this.closeDropdown();
 
     if (!state.user) {
       this.container.innerHTML = `<button class="auth-signin-btn">Sign In</button>`;
-      const btn = this.container.querySelector<HTMLButtonElement>('.auth-signin-btn');
-      btn?.addEventListener('click', () => this.onSignInClick());
+      this.container.querySelector<HTMLButtonElement>('.auth-signin-btn')
+        ?.addEventListener('click', () => this.onSignInClick());
       return;
     }
 
     const user = state.user;
-    const initials = this.getInitials(user.name);
-    const avatarContent = user.image
-      ? `<img class="auth-avatar-img" src="${this.escapeAttr(user.image)}" alt="${this.escapeAttr(user.name ?? '')}" width="28" height="28" />`
-      : initials !== '?'
-        ? `<span class="auth-avatar-initials">${this.escapeHtml(initials)}</span>`
-        : DEFAULT_AVATAR_SVG;
-
     const isPro = user.role === 'pro';
-    const tierBadgeClass = isPro ? 'auth-tier-badge auth-tier-badge-pro' : 'auth-tier-badge';
     const tierLabel = isPro ? 'Pro' : 'Free';
+    const tierClass = isPro ? 'auth-tier-badge auth-tier-badge-pro' : 'auth-tier-badge';
+    const avatarSm = this.buildAvatar(user.name, user.email, user.image, 'sm');
+    const avatarLg = this.buildAvatar(user.name, user.email, user.image, 'lg');
+    const color = this.getAvatarColor(user.email);
 
     this.container.innerHTML = `
-      <button class="auth-avatar-btn" aria-label="Account menu" aria-expanded="false">${avatarContent}</button>
+      <button class="auth-avatar-btn" aria-label="Account menu" aria-expanded="false" style="background:${user.image ? 'transparent' : color}">${avatarSm}</button>
       <div class="auth-dropdown" role="menu">
         <div class="auth-dropdown-header">
-          <div class="auth-dropdown-avatar">${avatarContent}</div>
+          <div class="auth-dropdown-avatar-wrap" style="background:${user.image ? 'transparent' : color}">${avatarLg}</div>
           <div class="auth-dropdown-info">
             <strong class="auth-dropdown-name">${this.escapeHtml(user.name ?? 'User')}</strong>
             <span class="auth-dropdown-email">${this.escapeHtml(user.email)}</span>
-            <span class="${tierBadgeClass}">${tierLabel}</span>
+            <span class="${tierClass}">${tierLabel}</span>
           </div>
         </div>
         <div class="auth-dropdown-divider"></div>
         <div class="auth-profile-edit" id="authProfileEdit" style="display:none">
           <div class="auth-profile-edit-field">
-            <label for="authNameInput">Display Name</label>
-            <input id="authNameInput" class="auth-profile-input" type="text" value="${this.escapeAttr(user.name ?? '')}" placeholder="Your name" maxlength="60" />
-          </div>
-          <div class="auth-profile-edit-field">
-            <label for="authAvatarInput">Avatar URL</label>
-            <input id="authAvatarInput" class="auth-profile-input" type="url" value="${this.escapeAttr(user.image ?? '')}" placeholder="https://..." maxlength="500" />
+            <label class="auth-profile-label" for="authNameInput">Display Name</label>
+            <input id="authNameInput" class="auth-profile-input" type="text" value="${this.escapeAttr(user.name ?? '')}" placeholder="Your name" maxlength="60" autocomplete="name" />
           </div>
           <div class="auth-profile-edit-actions">
             <button class="auth-profile-save-btn">Save</button>
@@ -95,55 +107,41 @@ export class AuthHeaderWidget {
           <div class="auth-profile-msg" id="authProfileMsg"></div>
         </div>
         <button class="auth-dropdown-item" id="authEditProfileBtn">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           Edit Profile
         </button>
-        <button class="auth-dropdown-item" id="authSettingsBtn"${this.onSettingsClick ? '' : ' style="display:none"'}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          Settings
-        </button>
         <div class="auth-dropdown-divider"></div>
-        <button class="auth-dropdown-item auth-signout-btn">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        <button class="auth-dropdown-item auth-signout-item">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           Sign Out
         </button>
       </div>
     `;
 
-    const avatarBtn = this.container.querySelector<HTMLButtonElement>('.auth-avatar-btn');
-    avatarBtn?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (this.dropdownOpen) {
-        this.closeDropdown();
-      } else {
-        this.openDropdown();
-      }
-    });
+    this.container.querySelector<HTMLButtonElement>('.auth-avatar-btn')
+      ?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.dropdownOpen ? this.closeDropdown() : this.openDropdown();
+      });
 
-    const editProfileBtn = this.container.querySelector<HTMLButtonElement>('#authEditProfileBtn');
-    editProfileBtn?.addEventListener('click', () => this.toggleEditMode(true));
+    this.container.querySelector<HTMLButtonElement>('#authEditProfileBtn')
+      ?.addEventListener('click', () => this.toggleEditMode(true));
 
-    const cancelBtn = this.container.querySelector<HTMLButtonElement>('.auth-profile-cancel-btn');
-    cancelBtn?.addEventListener('click', () => this.toggleEditMode(false));
+    this.container.querySelector<HTMLButtonElement>('.auth-profile-cancel-btn')
+      ?.addEventListener('click', () => this.toggleEditMode(false));
 
-    const saveBtn = this.container.querySelector<HTMLButtonElement>('.auth-profile-save-btn');
-    saveBtn?.addEventListener('click', () => this.saveProfile());
+    this.container.querySelector<HTMLButtonElement>('.auth-profile-save-btn')
+      ?.addEventListener('click', () => this.saveProfile());
 
-    const settingsBtn = this.container.querySelector<HTMLButtonElement>('#authSettingsBtn');
-    settingsBtn?.addEventListener('click', () => {
-      this.closeDropdown();
-      this.onSettingsClick?.();
-    });
-
-    const signOutBtn = this.container.querySelector<HTMLButtonElement>('.auth-signout-btn');
-    signOutBtn?.addEventListener('click', async () => {
-      trackSignOut();
-      try {
-        await authClient.signOut();
-      } catch (err) {
-        console.warn('[auth-widget] Sign out error:', err);
-      }
-    });
+    this.container.querySelector<HTMLButtonElement>('.auth-signout-item')
+      ?.addEventListener('click', async () => {
+        trackSignOut();
+        try {
+          await authClient.signOut();
+        } catch (err) {
+          console.warn('[auth-widget] Sign out error:', err);
+        }
+      });
   }
 
   private toggleEditMode(show: boolean): void {
@@ -159,13 +157,10 @@ export class AuthHeaderWidget {
 
   private async saveProfile(): Promise<void> {
     const nameInput = this.container.querySelector<HTMLInputElement>('#authNameInput');
-    const avatarInput = this.container.querySelector<HTMLInputElement>('#authAvatarInput');
     const msg = this.container.querySelector<HTMLElement>('#authProfileMsg');
     if (!nameInput) return;
 
     const name = nameInput.value.trim();
-    const image = avatarInput?.value.trim() || null;
-
     if (!name) {
       if (msg) msg.textContent = 'Name cannot be empty.';
       return;
@@ -173,7 +168,7 @@ export class AuthHeaderWidget {
 
     const saveBtn = this.container.querySelector<HTMLButtonElement>('.auth-profile-save-btn');
     if (saveBtn) saveBtn.disabled = true;
-    if (msg) msg.textContent = '';
+    if (msg) { msg.textContent = ''; msg.className = 'auth-profile-msg'; }
 
     const updateUser = (authClient as Record<string, unknown>)['updateUser'];
     if (typeof updateUser !== 'function') {
@@ -182,9 +177,9 @@ export class AuthHeaderWidget {
       return;
     }
     try {
-      await (updateUser as (data: { name: string; image: string | null }) => Promise<unknown>).call(authClient, { name, image });
+      await (updateUser as (data: { name: string }) => Promise<unknown>).call(authClient, { name });
       if (msg) { msg.textContent = 'Saved!'; msg.className = 'auth-profile-msg auth-profile-msg-ok'; }
-      setTimeout(() => this.toggleEditMode(false), 800);
+      setTimeout(() => this.toggleEditMode(false), 900);
     } catch (err) {
       console.warn('[auth-widget] Profile update error:', err);
       if (msg) { msg.textContent = 'Failed to save. Try again.'; msg.className = 'auth-profile-msg auth-profile-msg-err'; }
@@ -197,15 +192,12 @@ export class AuthHeaderWidget {
     const dropdown = this.container.querySelector<HTMLElement>('.auth-dropdown');
     const avatarBtn = this.container.querySelector<HTMLButtonElement>('.auth-avatar-btn');
     if (!dropdown) return;
-
     dropdown.classList.add('open');
     avatarBtn?.setAttribute('aria-expanded', 'true');
     this.dropdownOpen = true;
 
     this.outsideClickHandler = (e: MouseEvent) => {
-      if (!this.container.contains(e.target as Node)) {
-        this.closeDropdown();
-      }
+      if (!this.container.contains(e.target as Node)) this.closeDropdown();
     };
     document.addEventListener('click', this.outsideClickHandler);
 
@@ -237,8 +229,7 @@ export class AuthHeaderWidget {
     const parts = name.trim().split(/\s+/);
     const first = parts[0]?.[0] ?? '?';
     if (parts.length === 1) return first.toUpperCase();
-    const last = parts[parts.length - 1]?.[0] ?? '';
-    return (first + last).toUpperCase();
+    return (first + (parts[parts.length - 1]?.[0] ?? '')).toUpperCase();
   }
 
   private escapeHtml(str: string): string {
