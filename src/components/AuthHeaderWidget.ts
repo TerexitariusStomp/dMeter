@@ -1,6 +1,7 @@
 import { authClient } from '@/services/auth-client';
 import { subscribeAuthState } from '@/services/auth-state';
 import type { AuthSession } from '@/services/auth-state';
+import { trackSignOut } from '@/services/analytics';
 
 const DEFAULT_AVATAR_SVG = `<svg class="auth-avatar-default" width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
   <circle cx="14" cy="14" r="14" fill="currentColor" opacity="0.15"/>
@@ -136,6 +137,7 @@ export class AuthHeaderWidget {
 
     const signOutBtn = this.container.querySelector<HTMLButtonElement>('.auth-signout-btn');
     signOutBtn?.addEventListener('click', async () => {
+      trackSignOut();
       try {
         await authClient.signOut();
       } catch (err) {

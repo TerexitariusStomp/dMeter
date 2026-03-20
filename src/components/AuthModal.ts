@@ -1,6 +1,7 @@
 import { authClient } from '@/services/auth-client';
 import { subscribeAuthState } from '@/services/auth-state';
 import type { AuthSession } from '@/services/auth-state';
+import { trackSignIn, trackSignUp } from '@/services/analytics';
 
 type AuthModalView = 'email' | 'otp';
 
@@ -227,6 +228,12 @@ export class AuthModal {
         return;
       }
       // On success, the auth state subscription will auto-close the modal
+      const isNewUser = (result as any).data?.user?.isNewUser ?? false;
+      if (isNewUser) {
+        trackSignUp('email-otp');
+      } else {
+        trackSignIn('email-otp');
+      }
     } catch (err: any) {
       this.showError(err?.message ?? 'An unexpected error occurred.');
       this.setLoading(false);

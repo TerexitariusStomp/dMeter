@@ -33,7 +33,7 @@ import type { BigMacPanel } from '@/components/BigMacPanel';
 import { isDesktopRuntime, waitForSidecarReady } from '@/services/runtime';
 import { getSecretState } from '@/services/runtime-config';
 import { BETA_MODE } from '@/config/beta';
-import { trackEvent, trackDeeplinkOpened } from '@/services/analytics';
+import { trackEvent, trackDeeplinkOpened, initAuthAnalytics } from '@/services/analytics';
 import { preloadCountryGeometry, getCountryNameByCode } from '@/services/country-geometry';
 import { initI18n } from '@/services/i18n';
 
@@ -586,6 +586,7 @@ export class App {
 
     // Verify OAuth OTT and hydrate auth session BEFORE any UI subscribes to auth state
     await initAuthState();
+    initAuthAnalytics();
 
 
     const geoCoordsPromise: Promise<PreciseCoordinates | null> =

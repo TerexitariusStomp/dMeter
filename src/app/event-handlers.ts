@@ -50,6 +50,7 @@ import {
   trackMapLayerToggle,
   trackPanelToggled,
   trackDownloadClicked,
+  trackGateHit,
 } from '@/services/analytics';
 import { detectPlatform, allButtons, buttonsForPlatform } from '@/components/DownloadBanner';
 import type { Platform } from '@/components/DownloadBanner';
@@ -960,10 +961,11 @@ export class EventHandlerManager implements AppModule {
       headerRight.insertBefore(el, headerRight.firstChild);
     }
 
-    const applyProGate = (isPro: boolean) => {
+    const applyProGate = (isPro: boolean, initial = false) => {
       el.style.display = isPro ? '' : 'none';
+      if (initial && !isPro) trackGateHit('export');
     };
-    applyProGate(getAuthState().user?.role === 'pro');
+    applyProGate(getAuthState().user?.role === 'pro', true);
     this.proGateUnsubscribers.push(subscribeAuthState(state => applyProGate(state.user?.role === 'pro')));
   }
 
@@ -1063,10 +1065,11 @@ export class EventHandlerManager implements AppModule {
       headerRight.insertBefore(el, headerRight.firstChild);
     }
 
-    const applyProGate = (isPro: boolean) => {
+    const applyProGate = (isPro: boolean, initial = false) => {
       el.style.display = isPro ? '' : 'none';
+      if (initial && !isPro) trackGateHit('playback');
     };
-    applyProGate(getAuthState().user?.role === 'pro');
+    applyProGate(getAuthState().user?.role === 'pro', true);
     this.proGateUnsubscribers.push(subscribeAuthState(state => applyProGate(state.user?.role === 'pro')));
   }
 
