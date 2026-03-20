@@ -58,6 +58,10 @@ const RPC_CACHE_TIER: Record<string, CacheTier> = {
 
   '/api/market/v1/list-market-quotes': 'medium',
   '/api/market/v1/list-crypto-quotes': 'medium',
+  '/api/market/v1/list-crypto-sectors': 'slow',
+  '/api/market/v1/list-defi-tokens': 'slow',
+  '/api/market/v1/list-ai-tokens': 'slow',
+  '/api/market/v1/list-other-tokens': 'slow',
   '/api/market/v1/list-commodity-quotes': 'medium',
   '/api/market/v1/list-stablecoin-markets': 'medium',
   '/api/market/v1/get-sector-summary': 'medium',
@@ -116,6 +120,8 @@ const RPC_CACHE_TIER: Record<string, CacheTier> = {
   '/api/trade/v1/get-customs-revenue': 'static',
   '/api/economic/v1/list-world-bank-indicators': 'static',
   '/api/economic/v1/get-energy-capacity': 'static',
+  '/api/economic/v1/list-grocery-basket-prices': 'static',
+  '/api/economic/v1/list-bigmac-prices': 'static',
   '/api/supply-chain/v1/get-critical-minerals': 'daily',
   '/api/military/v1/get-aircraft-details': 'static',
   '/api/military/v1/get-wingbits-status': 'static',
@@ -132,6 +138,7 @@ const RPC_CACHE_TIER: Record<string, CacheTier> = {
 
   '/api/military/v1/list-military-bases': 'static',
   '/api/economic/v1/get-macro-signals': 'medium',
+  '/api/economic/v1/get-national-debt': 'daily',
   '/api/prediction/v1/list-prediction-markets': 'medium',
   '/api/forecast/v1/get-forecasts': 'medium',
   '/api/supply-chain/v1/get-chokepoint-status': 'medium',
