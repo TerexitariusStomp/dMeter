@@ -78,6 +78,10 @@ function emptyBasketSeries(market, basket, range) {
   return { marketCode: market, basketSlug: basket, asOf: String(Date.now()), currencyCode: 'AED', range, essentialsSeries: [], valueSeries: [], upstreamUnavailable: true };
 }
 
+function emptyCategories(market, range) {
+  return { marketCode: market, asOf: String(Date.now()), range, categories: [], upstreamUnavailable: true };
+}
+
 async function run() {
   console.log(`[consumer-prices] seeding market=${MARKET} basket=${BASKET}`);
 
@@ -86,9 +90,11 @@ async function run() {
   const TTL_SPREAD     = 3600;  // 60 min
   const TTL_FRESHNESS  = 600;   // 10 min
   const TTL_SERIES     = 3600;  // 60 min
+  const TTL_CATEGORIES = 1800;  // 30 min
 
   // Fetch all snapshots in parallel
-  const [overview, movers30d, movers7d, spread, freshness, series30d, series7d, series90d] = await Promise.all([
+  const [overview, movers30d, movers7d, spread, freshness, series30d, series7d, series90d,
+         categories30d, categories7d, categories90d] = await Promise.all([
     fetchSnapshot(`/wm/consumer-prices/v1/overview?market=${MARKET}`),
     fetchSnapshot(`/wm/consumer-prices/v1/movers?market=${MARKET}&days=30`),
     fetchSnapshot(`/wm/consumer-prices/v1/movers?market=${MARKET}&days=7`),
@@ -97,6 +103,9 @@ async function run() {
     fetchSnapshot(`/wm/consumer-prices/v1/basket-series?market=${MARKET}&basket=${BASKET}&range=30d`),
     fetchSnapshot(`/wm/consumer-prices/v1/basket-series?market=${MARKET}&basket=${BASKET}&range=7d`),
     fetchSnapshot(`/wm/consumer-prices/v1/basket-series?market=${MARKET}&basket=${BASKET}&range=90d`),
+    fetchSnapshot(`/wm/consumer-prices/v1/categories?market=${MARKET}&range=30d`),
+    fetchSnapshot(`/wm/consumer-prices/v1/categories?market=${MARKET}&range=7d`),
+    fetchSnapshot(`/wm/consumer-prices/v1/categories?market=${MARKET}&range=90d`),
   ]);
 
   const writes = [
@@ -147,6 +156,24 @@ async function run() {
       data: series90d ?? emptyBasketSeries(MARKET, BASKET, '90d'),
       ttl: TTL_SERIES,
       metaKey: `seed-meta:consumer-prices:basket-series:${MARKET}:${BASKET}:90d`,
+    },
+    {
+      key: `consumer-prices:categories:${MARKET}:30d`,
+      data: categories30d ?? emptyCategories(MARKET, '30d'),
+      ttl: TTL_CATEGORIES,
+      metaKey: `seed-meta:consumer-prices:categories:${MARKET}:30d`,
+    },
+    {
+      key: `consumer-prices:categories:${MARKET}:7d`,
+      data: categories7d ?? emptyCategories(MARKET, '7d'),
+      ttl: TTL_CATEGORIES,
+      metaKey: `seed-meta:consumer-prices:categories:${MARKET}:7d`,
+    },
+    {
+      key: `consumer-prices:categories:${MARKET}:90d`,
+      data: categories90d ?? emptyCategories(MARKET, '90d'),
+      ttl: TTL_CATEGORIES,
+      metaKey: `seed-meta:consumer-prices:categories:${MARKET}:90d`,
     },
   ];
 

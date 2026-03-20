@@ -526,3 +526,30 @@ export async function buildBasketSeriesSnapshot(
     upstreamUnavailable: false,
   };
 }
+
+export interface WMCategoriesSnapshot {
+  marketCode: string;
+  asOf: string;
+  range: string;
+  categories: WMCategorySnapshot[];
+  upstreamUnavailable: false;
+}
+
+export async function buildCategoriesSnapshot(marketCode: string, range: string): Promise<WMCategoriesSnapshot> {
+  const now = Date.now();
+
+  const basketIdResult = await query<{ id: string }>(
+    `SELECT b.id FROM baskets b WHERE b.market_code = $1 LIMIT 1`,
+    [marketCode],
+  );
+  const basketId = basketIdResult.rows[0]?.id ?? null;
+  const categories = basketId ? await buildTopCategories(basketId) : [];
+
+  return {
+    marketCode,
+    asOf: String(now),
+    range,
+    categories,
+    upstreamUnavailable: false,
+  };
+}

@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import {
   buildBasketSeriesSnapshot,
+  buildCategoriesSnapshot,
   buildFreshnessSnapshot,
   buildMoversSnapshot,
   buildOverviewSnapshot,
@@ -52,6 +53,17 @@ export async function worldmonitorRoutes(fastify: FastifyInstance) {
     } catch (err) {
       fastify.log.error(err);
       return reply.status(500).send({ error: 'failed to build freshness snapshot' });
+    }
+  });
+
+  fastify.get('/categories', async (request, reply) => {
+    const { market = 'ae', range = '30d' } = request.query as { market?: string; range?: string };
+    try {
+      const data = await buildCategoriesSnapshot(market, range);
+      return reply.send(data);
+    } catch (err) {
+      fastify.log.error(err);
+      return reply.status(500).send({ error: 'failed to build categories snapshot' });
     }
   });
 

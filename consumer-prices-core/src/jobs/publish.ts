@@ -5,6 +5,7 @@
 import { createClient } from 'redis';
 import {
   buildBasketSeriesSnapshot,
+  buildCategoriesSnapshot,
   buildFreshnessSnapshot,
   buildMoversSnapshot,
   buildOverviewSnapshot,
@@ -81,6 +82,15 @@ export async function publishAll() {
         await writeSnapshot(redis, makeKey(['consumer-prices', 'freshness', marketCode]), freshness, 600);
       } catch (err) {
         logger.error(`freshness:${marketCode} failed: ${err}`);
+      }
+
+      for (const range of ['7d', '30d', '90d']) {
+        try {
+          const categories = await buildCategoriesSnapshot(marketCode, range);
+          await writeSnapshot(redis, makeKey(['consumer-prices', 'categories', marketCode, range]), categories, 1800);
+        } catch (err) {
+          logger.error(`categories:${marketCode}:${range} failed: ${err}`);
+        }
       }
 
       for (const basket of baskets.filter((b) => b.marketCode === marketCode)) {
