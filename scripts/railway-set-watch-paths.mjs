@@ -29,6 +29,12 @@ const USES_SHARED_CONFIG = new Set([
   'seed-gulf-quotes', 'seed-market-quotes', 'seed-stablecoin-markets',
 ]);
 
+// Services whose actual script file doesn't match the `seed-<name>.mjs` pattern
+const SERVICE_FILE_OVERRIDES = {
+  'seed-military-maritime': 'seed-military-maritime-news.mjs',
+  'seed-gpsjam': 'fetch-gpsjam.mjs',
+};
+
 function getToken() {
   if (process.env.RAILWAY_TOKEN) return process.env.RAILWAY_TOKEN;
   const cfgPath = join(homedir(), '.railway', 'config.json');
@@ -71,25 +77,28 @@ async function main() {
   // 2. Check each service's watchPatterns and startCommand
   for (const svc of services) {
     const { service } = await gql(token, `
-      query ($id: String!, $envId: String!) {
+      query ($id: String!) {
         service(id: $id) {
-          serviceInstances(first: 1, environmentId: $envId) {
-            edges { node { watchPatterns startCommand } }
+          serviceInstances {
+            edges { node { environmentId watchPatterns startCommand rootDirectory } }
           }
         }
       }
-    `, { id: svc.id, envId: ENV_ID });
+    `, { id: svc.id });
 
-    const instance = service.serviceInstances.edges[0]?.node || {};
+    const instance = (service.serviceInstances.edges.find(e => e.node.environmentId === ENV_ID) || service.serviceInstances.edges[0])?.node || {};
     const currentPatterns = instance.watchPatterns || [];
     const currentStartCmd = instance.startCommand || '';
+    const currentRootDir = instance.rootDirectory || '';
 
     // rootDirectory="scripts" so startCommand must NOT include the scripts/ prefix
-    const expectedStartCmd = `node ${svc.name}.mjs`;
+    const scriptMjs = SERVICE_FILE_OVERRIDES[svc.name] || `${svc.name}.mjs`;
+    const expectedStartCmd = `node ${scriptMjs}`;
     const startCmdOk = currentStartCmd === expectedStartCmd;
+    const rootDirOk = currentRootDir === 'scripts';
 
     // Build expected watch patterns (relative to git repo root)
-    const scriptFile = `scripts/${svc.name}.mjs`;
+    const scriptFile = `scripts/${scriptMjs}`;
     const patterns = [scriptFile, 'scripts/_seed-utils.mjs', 'scripts/package.json'];
 
     if (USES_SHARED_CONFIG.has(svc.name)) {
@@ -102,12 +111,16 @@ async function main() {
 
     const patternsOk = JSON.stringify(currentPatterns.sort()) === JSON.stringify([...patterns].sort());
 
-    if (patternsOk && startCmdOk) {
+    if (patternsOk && startCmdOk && rootDirOk) {
       console.log(`  ${svc.name}: already correct`);
       continue;
     }
 
     console.log(`  ${svc.name}:`);
+    if (!rootDirOk) {
+      console.log(`    rootDirectory current:  ${currentRootDir || '(none)'}`);
+      console.log(`    rootDirectory expected: scripts`);
+    }
     if (!startCmdOk) {
       console.log(`    startCommand current:  ${currentStartCmd || '(none)'}`);
       console.log(`    startCommand expected: ${expectedStartCmd}`);
@@ -124,6 +137,7 @@ async function main() {
 
     // Build update input with only changed fields
     const input = {};
+    if (!rootDirOk) input.rootDirectory = 'scripts';
     if (!patternsOk) input.watchPatterns = patterns;
     if (!startCmdOk) input.startCommand = expectedStartCmd;
 
