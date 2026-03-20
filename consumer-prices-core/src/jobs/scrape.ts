@@ -74,7 +74,7 @@ export async function scrapeRetailer(slug: string) {
 
   const adapter =
     config.adapter === 'exa-search'
-      ? new ExaSearchAdapter(process.env.EXA_API_KEY ?? '')
+      ? new ExaSearchAdapter((process.env.EXA_API_KEYS || process.env.EXA_API_KEY || '').split(/[\n,]+/)[0].trim())
       : new GenericPlaywrightAdapter();
   const ctx: AdapterContext = { config, runId, logger };
 
