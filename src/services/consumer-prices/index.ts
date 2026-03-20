@@ -190,7 +190,7 @@ export async function fetchConsumerPriceMovers(
 
   try {
     return await moversBreaker.execute(
-      () => client.listConsumerPriceMovers({ marketCode, range, categorySlug: categorySlug ?? '', limit: 0 }),
+      () => client.listConsumerPriceMovers({ marketCode, range, categorySlug: categorySlug ?? '', limit: 10 }),
       emptyMovers,
     );
   } catch {
