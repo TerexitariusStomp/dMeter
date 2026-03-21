@@ -70,12 +70,23 @@ import { trackCriticalBannerAction } from '@/services/analytics';
 import { getSecretState } from '@/services/runtime-config';
 import { CustomWidgetPanel } from '@/components/CustomWidgetPanel';
 import { openWidgetChatModal } from '@/components/WidgetChatModal';
-import { isProUser, loadWidgets, saveWidget } from '@/services/widget-store';
+import { isProUser, getProWidgetKey, loadWidgets, saveWidget } from '@/services/widget-store';
 import type { CustomWidgetSpec } from '@/services/widget-store';
+import { initEntitlementSubscription, isEntitled, onEntitlementChange } from '@/services/entitlements';
 import { McpDataPanel } from '@/components/McpDataPanel';
 import { openMcpConnectModal } from '@/components/McpConnectModal';
 import { loadMcpPanels, saveMcpPanel } from '@/services/mcp-store';
 import type { McpPanelSpec } from '@/services/mcp-store';
+
+/**
+ * Checks if the user should have premium panel access.
+ * Entitlement-based check takes priority when data is available;
+ * falls back to legacy API key / localStorage checks.
+ */
+function shouldUnlockPremium(): boolean {
+  if (isEntitled()) return true;
+  return getSecretState('WORLDMONITOR_API_KEY').present || isProUser();
+}
 
 export interface PanelLayoutCallbacks {
   openCountryStory: (code: string, name: string) => void;
@@ -101,6 +112,20 @@ export class PanelLayoutManager implements AppModule {
     this.applyTimeRangeFilterDebounced = debounce(() => {
       this.applyTimeRangeFilterToNewsPanels();
     }, 120);
+
+    // Boot entitlement subscription if we have a user identifier.
+    // Uses localStorage pro key as stand-in until real auth lands (Phase 18).
+    const proKey = getProWidgetKey();
+    if (proKey) {
+      initEntitlementSubscription(proKey).catch(() => {});
+    }
+
+    // Listen for entitlement changes — panels will pick up new state on next page load
+    onEntitlementChange(() => {
+      if (shouldUnlockPremium()) {
+        console.log('[entitlements] Subscription active — panels will unlock on next page load');
+      }
+    });
   }
 
   init(): void {
@@ -528,7 +553,7 @@ export class PanelLayoutManager implements AppModule {
     this.createPanel('heatmap', () => new HeatmapPanel());
     this.createPanel('markets', () => new MarketPanel());
     const stockAnalysisPanel = this.createPanel('stock-analysis', () => new StockAnalysisPanel());
-    if (stockAnalysisPanel && !getSecretState('WORLDMONITOR_API_KEY').present && !isProUser()) {
+    if (stockAnalysisPanel && !shouldUnlockPremium()) {
       stockAnalysisPanel.showLocked([
         'AI stock briefs with technical + news synthesis',
         'Trend scoring from MA, MACD, RSI, and volume structure',
@@ -536,7 +561,7 @@ export class PanelLayoutManager implements AppModule {
       ]);
     }
     const stockBacktestPanel = this.createPanel('stock-backtest', () => new StockBacktestPanel());
-    if (stockBacktestPanel && !getSecretState('WORLDMONITOR_API_KEY').present && !isProUser()) {
+    if (stockBacktestPanel && !shouldUnlockPremium()) {
       stockBacktestPanel.showLocked([
         'Historical replay of premium stock-analysis signals',
         'Win-rate, accuracy, and simulated-return metrics',
@@ -732,13 +757,13 @@ export class PanelLayoutManager implements AppModule {
       }),
     );
 
-    const _wmKeyPresent = getSecretState('WORLDMONITOR_API_KEY').present;
-    const _lockPanels = this.ctx.isDesktopApp && !_wmKeyPresent && !isProUser();
+    const _premium = shouldUnlockPremium();
+    const _lockPanels = this.ctx.isDesktopApp && !_premium;
 
     this.lazyPanel('daily-market-brief', () =>
       import('@/components/DailyMarketBriefPanel').then(m => new m.DailyMarketBriefPanel()),
       undefined,
-      (!_wmKeyPresent && !isProUser()) ? ['Pre-market watchlist priorities', 'Action plan for the session', 'Risk watch tied to current finance headlines'] : undefined,
+      !_premium ? ['Pre-market watchlist priorities', 'Action plan for the session', 'Risk watch tied to current finance headlines'] : undefined,
     );
 
     this.lazyPanel('forecast', () =>
@@ -906,7 +931,7 @@ export class PanelLayoutManager implements AppModule {
       );
     }
 
-    if (isProUser()) {
+    if (shouldUnlockPremium()) {
       for (const spec of loadWidgets()) {
         const panel = new CustomWidgetPanel(spec);
         this.ctx.panels[spec.id] = panel;
@@ -1022,7 +1047,7 @@ export class PanelLayoutManager implements AppModule {
     });
     panelsGrid.appendChild(addPanelBlock);
 
-    if (isProUser()) {
+    if (shouldUnlockPremium()) {
       const proBlock = document.createElement('button');
       proBlock.className = 'add-panel-block ai-widget-block ai-widget-block-pro';
       proBlock.setAttribute('aria-label', t('widgets.createInteractive'));
@@ -1048,7 +1073,7 @@ export class PanelLayoutManager implements AppModule {
       panelsGrid.appendChild(proBlock);
     }
 
-    if (isProUser()) {
+    if (shouldUnlockPremium()) {
       const mcpBlock = document.createElement('button');
       mcpBlock.className = 'add-panel-block mcp-panel-block';
       mcpBlock.setAttribute('aria-label', t('mcp.connectPanel'));
