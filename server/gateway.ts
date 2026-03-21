@@ -16,6 +16,7 @@ import { validateApiKey } from '../api/_api-key.js';
 import { mapErrorToResponse } from './error-mapper';
 import { checkRateLimit, checkEndpointRateLimit, hasEndpointRatePolicy } from './_shared/rate-limit';
 import { drainResponseHeaders } from './_shared/response-headers';
+import { checkEntitlement, getRequiredTier } from './_shared/entitlement-check';
 import type { ServerOptions } from '../src/generated/server/worldmonitor/seismology/v1/service_server';
 
 export const serverOptions: ServerOptions = { onError: mapErrorToResponse };
@@ -173,13 +174,6 @@ const RPC_CACHE_TIER: Record<string, CacheTier> = {
   '/api/aviation/v1/get-youtube-live-stream-info': 'fast',
 };
 
-const PREMIUM_RPC_PATHS = new Set([
-  '/api/market/v1/analyze-stock',
-  '/api/market/v1/get-stock-analysis-history',
-  '/api/market/v1/backtest-stock',
-  '/api/market/v1/list-stored-stock-backtests',
-]);
-
 /**
  * Creates a Vercel Edge handler for a single domain's routes.
  *
@@ -216,9 +210,9 @@ export function createDomainGateway(
       return new Response(null, { status: 204, headers: corsHeaders });
     }
 
-    // API key validation (origin-aware)
+    // API key validation (origin-aware — tier-gated endpoints always require a key)
     const keyCheck = validateApiKey(request, {
-      forceKey: PREMIUM_RPC_PATHS.has(pathname),
+      forceKey: getRequiredTier(pathname) !== null,
     });
     if (keyCheck.required && !keyCheck.valid) {
       return new Response(JSON.stringify({ error: keyCheck.error }), {
@@ -226,6 +220,10 @@ export function createDomainGateway(
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
       });
     }
+
+    // Entitlement check — blocks tier-gated endpoints for users below required tier
+    const entitlementResponse = await checkEntitlement(request, pathname, corsHeaders);
+    if (entitlementResponse) return entitlementResponse;
 
     // IP-based rate limiting — two-phase: endpoint-specific first, then global fallback
     const endpointRlResponse = await checkEndpointRateLimit(request, pathname, corsHeaders);
