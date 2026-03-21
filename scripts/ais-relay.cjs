@@ -3076,6 +3076,37 @@ const THEATER_QUERY_REGIONS = [
   { name: 'PACIFIC', lamin: 4, lamax: 44, lomin: 104, lomax: 133 },
 ];
 
+// In-memory index of recently-seen Wingbits positions, keyed by ICAO24.
+// Populated on every successful bbox response; served for callsign-only lookups.
+// Entries expire after 5 minutes (Wingbits data is live, stale beyond that is misleading).
+const WINGBITS_POS_INDEX = new Map(); // icao24 -> { position, ts }
+const WINGBITS_POS_INDEX_TTL_MS = 5 * 60 * 1000;
+
+function wingbitsIndexUpdate(positions) {
+  const ts = Date.now();
+  for (const p of positions) {
+    if (p.icao24) WINGBITS_POS_INDEX.set(p.icao24, { position: p, ts });
+  }
+  // Prune stale entries to prevent unbounded growth.
+  if (WINGBITS_POS_INDEX.size > 5000) {
+    const cutoff = ts - WINGBITS_POS_INDEX_TTL_MS;
+    for (const [k, v] of WINGBITS_POS_INDEX) {
+      if (v.ts < cutoff) WINGBITS_POS_INDEX.delete(k);
+    }
+  }
+}
+
+function wingbitsIndexLookupCallsign(callsign) {
+  const cutoff = Date.now() - WINGBITS_POS_INDEX_TTL_MS;
+  const results = [];
+  for (const { position, ts } of WINGBITS_POS_INDEX.values()) {
+    if (ts < cutoff) continue;
+    const cs = (position.callsign || '').trim().toUpperCase();
+    if (cs.includes(callsign)) results.push(position);
+  }
+  return results;
+}
+
 async function handleWingbitsTrackRequest(req, res) {
   const apiKey = process.env.WINGBITS_API_KEY;
   if (!apiKey) {
@@ -3085,12 +3116,23 @@ async function handleWingbitsTrackRequest(req, res) {
 
   const url = new URL(req.url, 'http://localhost');
   const params = url.searchParams;
+  const callsignFilter = (params.get('callsign') || '').trim().toUpperCase();
   const laminStr = params.get('lamin');
   const lominStr = params.get('lomin');
   const lamaxStr = params.get('lamax');
   const lomaxStr = params.get('lomax');
 
-  if (!laminStr || !lominStr || !lamaxStr || !lomaxStr) {
+  // For callsign-only searches (no bbox), serve from the in-memory position index populated
+  // by recent bbox responses. A worldwide Wingbits API call is unreliable (too large an area).
+  const isBboxMissing = !laminStr || !lominStr || !lamaxStr || !lomaxStr;
+  if (callsignFilter && isBboxMissing) {
+    const hits = wingbitsIndexLookupCallsign(callsignFilter);
+    return sendCompressed(req, res, 200,
+      { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+      JSON.stringify({ positions: hits, source: 'wingbits' }));
+  }
+
+  if (isBboxMissing) {
     return safeEnd(res, 400, { 'Content-Type': 'application/json' },
       JSON.stringify({ error: 'Missing bbox params: lamin, lomin, lamax, lomax', positions: [] }));
   }
@@ -3142,6 +3184,11 @@ async function handleWingbitsTrackRequest(req, res) {
       for (const f of flightList) {
         const icao24 = f.h || f.icao24 || f.id || '';
         if (!icao24 || seenIds.has(icao24)) continue;
+        // For callsign searches, skip non-matching flights early to keep response small.
+        if (callsignFilter) {
+          const cs = (f.f || f.callsign || f.flight || '').trim().toUpperCase();
+          if (!cs.includes(callsignFilter)) continue;
+        }
         seenIds.add(icao24);
         const lat = f.la ?? f.latitude ?? f.lat ?? 0;
         const lon = f.lo ?? f.longitude ?? f.lon ?? f.lng ?? 0;
@@ -3161,6 +3208,8 @@ async function handleWingbitsTrackRequest(req, res) {
       }
     }
 
+    // Populate in-memory index so callsign-only lookups can resolve without a global API call.
+    wingbitsIndexUpdate(positions);
     logThrottled('log', 'wingbits-track', `[Wingbits Track] ${positions.length} flights for bbox ${lamin},${lomin},${lamax},${lomax}`);
     return sendCompressed(req, res, 200,
       { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=30', 'CDN-Cache-Control': 'public, max-age=15' },

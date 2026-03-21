@@ -21,12 +21,11 @@ import { sparkline } from '@/utils/sparkline';
 
 function formatPositionSource(source: string): string {
   if (source === 'POSITION_SOURCE_WINGBITS') {
-    return '<a href="https://wingbits.com" target="_blank" rel="noopener" style="color:inherit">wingbits.com</a>';
+    return '<a href="https://wingbits.com?utm_source=worldmonitor&utm_medium=referral&utm_campaign=worldmonitor" target="_blank" rel="noopener" style="color:inherit">wingbits.com</a>';
   }
   if (source === 'POSITION_SOURCE_OPENSKY') {
     return '<a href="https://opensky-network.org" target="_blank" rel="noopener" style="color:inherit">opensky-network.org</a>';
   }
-  if (source === 'POSITION_SOURCE_SIMULATED') return 'Simulated';
   return escapeHtml(source);
 }
 
@@ -905,8 +904,14 @@ export class MapPopup {
         if (photoSrc) {
           const photoLink = live.photoLink ? sanitizeUrl(live.photoLink) : '#';
           const credit = live.photoCredit ? `<span class="flight-photo-credit">\u00a9 ${escapeHtml(live.photoCredit)}</span>` : '';
-          photoHtml = `<div class="flight-photo"><a href="${photoLink}" target="_blank" rel="noopener"><img src="${photoSrc}" alt="${escapeHtml(live.callsign)}" loading="lazy" style="width:100%;border-radius:4px;display:block"></a>${credit}</div>`;
+          photoHtml = `<div class="flight-photo"><a href="${photoLink}" target="_blank" rel="noopener"><img src="${photoSrc}" alt="${escapeHtml(live.callsign)}" style="width:100%;border-radius:4px;display:block"></a>${credit}</div>`;
         }
+      }
+
+      // IATA callsign + airline name header
+      if (live.callsignIata) {
+        const name = live.airlineName ? ` <span style="font-size:12px;opacity:0.6;font-weight:400">${escapeHtml(live.airlineName)}</span>` : '';
+        parts.push(`<div style="font-weight:700;font-size:15px;margin:4px 0">${escapeHtml(live.callsignIata)}${name}</div>`);
       }
 
       // Route (FROM → TO)
@@ -959,7 +964,15 @@ export class MapPopup {
         ${statsHtml}
         ${photoHtml}
       `;
+      // Clamp for text content immediately, then re-clamp once the photo is sized.
       this.clampPopupToViewport();
+      if (photoHtml) {
+        const img = section.querySelector<HTMLImageElement>('img');
+        if (img && !img.complete) {
+          img.addEventListener('load', () => { this.clampPopupToViewport(); }, { once: true });
+          img.addEventListener('error', () => { this.clampPopupToViewport(); }, { once: true });
+        }
+      }
     } catch {
       if (section.isConnected) {
         section.innerHTML = '';

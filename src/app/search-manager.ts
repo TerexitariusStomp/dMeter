@@ -25,6 +25,10 @@ import { trackSearchResultSelected, trackCountrySelected } from '@/services/anal
 import { t } from '@/services/i18n';
 import { saveToStorage, setTheme } from '@/utils';
 import { CountryIntelManager } from '@/app/country-intel';
+import type { PositionSample } from '@/services/aviation';
+import { fetchAircraftPositions } from '@/services/aviation';
+import type { MilitaryFlight } from '@/types';
+import { isProUser } from '@/services/widget-store';
 
 export interface SearchManagerCallbacks {
   openCountryBriefByCode: (code: string, country: string) => void;
@@ -207,6 +211,39 @@ export class SearchManager implements AppModule {
     this.ctx.searchModal.setOnSelect((result) => this.handleSearchResult(result));
     this.ctx.searchModal.setOnCommand((cmd) => this.handleCommand(cmd));
 
+    if (isProUser()) {
+      this.ctx.searchModal.setOnFlightSearch((callsign) => {
+        fetchAircraftPositions({ callsign }).then((positions) => {
+          if (!this.ctx.searchModal) return;
+          // Deduplicate by callsign: keep the most recently observed entry per callsign.
+          const seen = new Map<string, PositionSample>();
+          for (const p of positions) {
+            const key = (p.callsign || p.icao24).trim().toUpperCase();
+            const existing = seen.get(key);
+            if (!existing || p.observedAt > existing.observedAt) {
+              seen.set(key, p);
+            }
+          }
+          const items = [...seen.values()].map(p => {
+            const fl = Number.isFinite(p.altitudeFt) ? Math.round(p.altitudeFt / 100) : null;
+            const kts = Number.isFinite(p.groundSpeedKts) ? Math.round(p.groundSpeedKts) : null;
+            return {
+              id: p.icao24,
+              title: (p.callsign || p.icao24).trim().toUpperCase(),
+              subtitle: p.onGround
+                ? t('modals.search.flightOnGround')
+                : fl !== null && kts !== null
+                  ? t('modals.search.flightAirborne', { fl: String(fl), kts: String(kts) })
+                  : fl !== null ? `FL${fl}` : t('modals.search.flightOnGround'),
+              data: { kind: 'adsb' as const, lat: p.lat, lon: p.lon, layer: 'flights' as const },
+            };
+          });
+          this.ctx.searchModal.registerSource('flight', items);
+          this.ctx.searchModal.refreshSearch();
+        }).catch(() => {/* silent — show no results */});
+      });
+    }
+
     this.boundKeydownHandler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
@@ -381,6 +418,13 @@ export class SearchManager implements AppModule {
         this.callbacks.openCountryBriefByCode(code, name);
         break;
       }
+      case 'flight': {
+        const { lat, lon, layer } = result.data as { kind: string; lat: number; lon: number; layer: keyof MapLayers };
+        this.ctx.map?.enableLayer(layer);
+        this.ctx.mapLayers[layer] = true;
+        setTimeout(() => { this.ctx.map?.setCenter(lat, lon, 9); }, 300);
+        break;
+      }
     }
   }
 
@@ -521,6 +565,42 @@ export class SearchManager implements AppModule {
       el.classList.remove('search-highlight');
       this.highlightTimers.delete(el);
     }, 3100));
+  }
+
+  updateFlightSource(adsb: PositionSample[], military: MilitaryFlight[]): void {
+    if (!this.ctx.searchModal || !isProUser()) return;
+    const items = [
+      ...adsb.map(p => {
+        const fl = Number.isFinite(p.altitudeFt) ? Math.round(p.altitudeFt / 100) : null;
+        const kts = Number.isFinite(p.groundSpeedKts) ? Math.round(p.groundSpeedKts) : null;
+        return {
+          id: p.icao24,
+          title: (p.callsign || p.icao24).trim().toUpperCase(),
+          subtitle: p.onGround
+            ? t('modals.search.flightOnGround')
+            : fl !== null && kts !== null
+              ? t('modals.search.flightAirborne', { fl: String(fl), kts: String(kts) })
+              : fl !== null
+                ? `FL${fl}`
+                : t('modals.search.flightOnGround'),
+          data: { kind: 'adsb' as const, lat: p.lat, lon: p.lon, layer: 'flights' as const },
+        };
+      }),
+      ...military.map(f => {
+        const fl = Number.isFinite(f.altitude) ? Math.round(f.altitude / 100) : null;
+        return {
+          id: f.hexCode,
+          title: (f.callsign || f.hexCode).trim().toUpperCase(),
+          subtitle: f.onGround
+            ? t('modals.search.flightMilitaryOnGround', { type: f.aircraftType })
+            : fl !== null
+              ? t('modals.search.flightMilitary', { type: f.aircraftType, fl: String(fl) })
+              : t('modals.search.flightMilitaryOnGround', { type: f.aircraftType }),
+          data: { kind: 'military' as const, lat: f.lat, lon: f.lon, layer: 'military' as const },
+        };
+      }),
+    ];
+    this.ctx.searchModal.registerSource('flight', items);
   }
 
   updateSearchIndex(): void {

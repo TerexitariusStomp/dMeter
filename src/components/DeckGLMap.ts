@@ -214,7 +214,6 @@ function getOverlayColors() {
     cableDegraded: [255, 165, 0, 200] as [number, number, number, number],
     earthquake: [255, 100, 50, 200] as [number, number, number, number],
     vesselMilitary: [255, 100, 100, 220] as [number, number, number, number],
-    flightMilitary: [255, 50, 50, 220] as [number, number, number, number],
     protest: [255, 150, 0, 200] as [number, number, number, number],
     outage: [255, 50, 50, 180] as [number, number, number, number],
     weather: [100, 150, 255, 180] as [number, number, number, number],
@@ -277,6 +276,39 @@ const CONFLICT_COUNTRY_ISO: Record<string, string[]> = {
   sudan: ['SD'],
   myanmar: ['MM'],
 };
+
+// Altitude-based color gradient matching Wingbits' color scheme.
+// Transitions cyan (sea level) → yellow-green → orange → red (cruise altitude).
+const ALTITUDE_COLOR_STOPS: Array<{ alt: number; r: number; g: number; b: number }> = [
+  { alt: 0,      r: 0,   g: 217, b: 255 },
+  { alt: 5000,   r: 50,  g: 250, b: 160 },
+  { alt: 10000,  r: 200, g: 230, b: 60  },
+  { alt: 20000,  r: 255, g: 165, b: 30  },
+  { alt: 30000,  r: 255, g: 100, b: 35  },
+  { alt: 40000,  r: 235, g: 50,  b: 55  },
+  { alt: 45000,  r: 210, g: 40,  b: 70  },
+];
+
+function altitudeToColor(altFt: number): [number, number, number] {
+  const stops = ALTITUDE_COLOR_STOPS;
+  const alt = Number.isFinite(altFt) ? altFt : 0;
+  if (alt <= stops[0]!.alt) return [stops[0]!.r, stops[0]!.g, stops[0]!.b];
+  const last = stops[stops.length - 1]!;
+  if (alt >= last.alt) return [last.r, last.g, last.b];
+  for (let i = 1; i < stops.length; i++) {
+    const hi = stops[i]!;
+    const lo = stops[i - 1]!;
+    if (alt <= hi.alt) {
+      const t = (alt - lo.alt) / (hi.alt - lo.alt);
+      return [
+        Math.round(lo.r + (hi.r - lo.r) * t),
+        Math.round(lo.g + (hi.g - lo.g) * t),
+        Math.round(lo.b + (hi.b - lo.b) * t),
+      ];
+    }
+  }
+  return [last.r, last.g, last.b]; // unreachable: exhaustive bracket search above satisfies TS
+}
 
 function ensureClosedRing(ring: [number, number][]): [number, number][] {
   if (ring.length < 2) return ring;
@@ -490,8 +522,6 @@ export class DeckGLMap {
 
     this.maplibreMap?.on('load', () => {
       localizeMapLabels(this.maplibreMap);
-      this.rebuildTechHQSupercluster();
-      this.rebuildDatacenterSupercluster();
       this.initDeck();
       this.loadCountryBoundaries();
       this.fetchServerBases();
@@ -687,8 +717,6 @@ export class DeckGLMap {
       });
       this.maplibreMap.on('load', () => {
         localizeMapLabels(this.maplibreMap);
-        this.rebuildTechHQSupercluster();
-        this.rebuildDatacenterSupercluster();
         this.initDeck();
         this.loadCountryBoundaries();
         this.fetchServerBases();
@@ -880,6 +908,41 @@ export class DeckGLMap {
       const ts = this.parseTime(getTime(item));
       return ts == null ? true : ts >= cutoff;
     });
+  }
+
+  private _timeFilterCache = new WeakMap<object, { min: number; range: TimeRange; result: unknown[] }>();
+
+  private filterByTimeCached<T>(
+    items: T[],
+    getTime: (item: T) => Date | string | number | undefined | null
+  ): T[] {
+    const min = Math.floor(Date.now() / 60000);
+    const range = this.state.timeRange;
+    const cached = this._timeFilterCache.get(items as object);
+    if (cached && cached.min === min && cached.range === range) return cached.result as T[];
+    const result = this.filterByTime(items, getTime);
+    this._timeFilterCache.set(items as object, { min, range, result });
+    return result;
+  }
+
+  private filterMilitaryFlightClustersByTimeCached(clusters: MilitaryFlightCluster[]): MilitaryFlightCluster[] {
+    const min = Math.floor(Date.now() / 60000);
+    const range = this.state.timeRange;
+    const cached = this._timeFilterCache.get(clusters as object);
+    if (cached && cached.min === min && cached.range === range) return cached.result as MilitaryFlightCluster[];
+    const result = this.filterMilitaryFlightClustersByTime(clusters);
+    this._timeFilterCache.set(clusters as object, { min, range, result });
+    return result;
+  }
+
+  private filterMilitaryVesselClustersByTimeCached(clusters: MilitaryVesselCluster[]): MilitaryVesselCluster[] {
+    const min = Math.floor(Date.now() / 60000);
+    const range = this.state.timeRange;
+    const cached = this._timeFilterCache.get(clusters as object);
+    if (cached && cached.min === min && cached.range === range) return cached.result as MilitaryVesselCluster[];
+    const result = this.filterMilitaryVesselClustersByTime(clusters);
+    this._timeFilterCache.set(clusters as object, { min, range, result });
+    return result;
   }
 
   private getFilteredProtests(): SocialUnrestEvent[] {
@@ -1087,6 +1150,9 @@ export class DeckGLMap {
     this.lastSCBoundsKey = boundsKey;
     this.lastSCMask = layerMask;
 
+    if (useTechHQ && !this.techHQSC) this.rebuildTechHQSupercluster();
+    if (useDatacenterClusters && !this.datacenterSC) this.rebuildDatacenterSupercluster();
+
     if (useProtests && this.protestSC) {
       this.protestClusters = this.protestSC.getClusters(bbox, zoom).map(f => {
         const coords = f.geometry.coordinates as [number, number];
@@ -1274,16 +1340,16 @@ export class DeckGLMap {
     COLORS = getOverlayColors();
     const layers: (Layer | null | false)[] = [];
     const { layers: mapLayers } = this.state;
-    const filteredEarthquakes = mapLayers.natural ? this.filterByTime(this.earthquakes, (eq) => eq.occurredAt) : [];
-    const filteredNaturalEvents = mapLayers.natural ? this.filterByTime(this.naturalEvents, (event) => event.date) : [];
-    const filteredWeatherAlerts = mapLayers.weather ? this.filterByTime(this.weatherAlerts, (alert) => alert.onset) : [];
-    const filteredOutages = mapLayers.outages ? this.filterByTime(this.outages, (outage) => outage.pubDate) : [];
-    const filteredCableAdvisories = mapLayers.cables ? this.filterByTime(this.cableAdvisories, (advisory) => advisory.reported) : [];
-    const filteredFlightDelays = mapLayers.flights ? this.filterByTime(this.flightDelays, (delay) => delay.updatedAt) : [];
-    const filteredMilitaryFlights = mapLayers.military ? this.filterByTime(this.militaryFlights, (flight) => flight.lastSeen) : [];
-    const filteredMilitaryVessels = mapLayers.military ? this.filterByTime(this.militaryVessels, (vessel) => vessel.lastAisUpdate) : [];
-    const filteredMilitaryFlightClusters = mapLayers.military ? this.filterMilitaryFlightClustersByTime(this.militaryFlightClusters) : [];
-    const filteredMilitaryVesselClusters = mapLayers.military ? this.filterMilitaryVesselClustersByTime(this.militaryVesselClusters) : [];
+    const filteredEarthquakes = mapLayers.natural ? this.filterByTimeCached(this.earthquakes, (eq) => eq.occurredAt) : [];
+    const filteredNaturalEvents = mapLayers.natural ? this.filterByTimeCached(this.naturalEvents, (event) => event.date) : [];
+    const filteredWeatherAlerts = mapLayers.weather ? this.filterByTimeCached(this.weatherAlerts, (alert) => alert.onset) : [];
+    const filteredOutages = mapLayers.outages ? this.filterByTimeCached(this.outages, (outage) => outage.pubDate) : [];
+    const filteredCableAdvisories = mapLayers.cables ? this.filterByTimeCached(this.cableAdvisories, (advisory) => advisory.reported) : [];
+    const filteredFlightDelays = mapLayers.flights ? this.filterByTimeCached(this.flightDelays, (delay) => delay.updatedAt) : [];
+    const filteredMilitaryFlights = mapLayers.military ? this.filterByTimeCached(this.militaryFlights, (flight) => flight.lastSeen) : [];
+    const filteredMilitaryVessels = mapLayers.military ? this.filterByTimeCached(this.militaryVessels, (vessel) => vessel.lastAisUpdate) : [];
+    const filteredMilitaryFlightClusters = mapLayers.military ? this.filterMilitaryFlightClustersByTimeCached(this.militaryFlightClusters) : [];
+    const filteredMilitaryVesselClusters = mapLayers.military ? this.filterMilitaryVesselClustersByTimeCached(this.militaryVesselClusters) : [];
     // UCDP is a historical dataset (events aged months); time-range filter always zeroes it out
     const filteredUcdpEvents = mapLayers.ucdpEvents ? this.ucdpEvents : [];
 
@@ -1954,7 +2020,8 @@ export class DeckGLMap {
       getSize: (d) => d.onGround ? 14 : 18,
       getColor: (d) => {
         if (d.onGround) return [120, 120, 120, 160] as [number, number, number, number];
-        return [160, 100, 255, 220] as [number, number, number, number]; // Purple for all airborne
+        const [r, g, b] = altitudeToColor(d.altitudeFt);
+        return [r, g, b, 220] as [number, number, number, number];
       },
       getAngle: (d) => -d.trackDeg,
       sizeMinPixels: 8,
@@ -2433,7 +2500,11 @@ export class DeckGLMap {
       data: flights,
       getPosition: (d) => [d.lon, d.lat],
       getRadius: 8000,
-      getFillColor: COLORS.flightMilitary,
+      getFillColor: (d) => {
+        if (d.onGround) return [120, 120, 120, 160] as [number, number, number, number];
+        const [r, g, b] = altitudeToColor(d.altitude);
+        return [r, g, b, 220] as [number, number, number, number];
+      },
       radiusMinPixels: 4,
       radiusMaxPixels: 12,
       pickable: true,
@@ -4876,6 +4947,7 @@ export class DeckGLMap {
     const sw = bounds.getSouthWest();
     const ne = bounds.getNorthEast();
     const seq = ++this.aircraftFetchSeq;
+    this.setLayerLoading('flights', true);
     fetchAircraftPositions({
       swLat: sw.lat, swLon: sw.lng,
       neLat: ne.lat, neLon: ne.lng,
@@ -4888,9 +4960,11 @@ export class DeckGLMap {
         this.lastAircraftFetchCenter = [center.lng, center.lat];
         this.lastAircraftFetchZoom = this.maplibreMap!.getZoom();
       }
+      this.setLayerReady('flights', positions.length > 0);
       this.render();
     }).catch((err) => {
       console.error('[aircraft] fetch error', err);
+      this.setLayerLoading('flights', false);
     });
   }
 

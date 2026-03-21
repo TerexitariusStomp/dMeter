@@ -10,6 +10,10 @@ import { CHROME_UA } from '../../../_shared/constants';
 
 // 120s for anonymous OpenSky tier (~10 req/min limit); TODO: reduce to 10s on commercial tier
 const CACHE_TTL = 120;
+// Callsign searches hit the relay's in-memory index (5min TTL); cache positive hits 60s,
+// negative hits 10s so a retry after panning into view returns fresh data quickly.
+const CALLSIGN_CACHE_TTL = 60;
+const CALLSIGN_NEGATIVE_TTL = 10;
 
 interface OpenSkyResponse {
     states?: unknown[][];
@@ -39,26 +43,6 @@ function parseOpenSkyStates(states: unknown[][]): PositionSample[] {
         }));
 }
 
-function buildSimulatedPositions(icao24: string, callsign: string, swLat: number, swLon: number, neLat: number, neLon: number): PositionSample[] {
-    const now = Date.now();
-    const latSpan = neLat - swLat;
-    const lonSpan = neLon - swLon;
-    const count = latSpan > 0 && lonSpan > 0 ? Math.floor(Math.random() * 16) + 15 : 10;
-
-    return Array.from({ length: count }, (_, i) => ({
-        icao24: icao24 || `3c${(0x6543 + i).toString(16)}`,
-        callsign: callsign || `SIM${100 + i}`,
-        lat: swLat + Math.random() * (latSpan || 5),
-        lon: swLon + Math.random() * (lonSpan || 5),
-        altitudeM: 8000 + Math.random() * 3000,
-        groundSpeedKts: 400 + Math.random() * 100,
-        trackDeg: Math.random() * 360,
-        verticalRate: (Math.random() - 0.5) * 5,
-        onGround: false,
-        source: 'POSITION_SOURCE_SIMULATED' as const,
-        observedAt: now,
-    }));
-}
 
 const OPENSKY_PUBLIC_BASE = 'https://opensky-network.org/api';
 
@@ -84,11 +68,17 @@ async function fetchOpenSkyAnonymous(req: TrackAircraftRequest): Promise<Positio
 function buildCacheKey(req: TrackAircraftRequest): string {
     if (req.icao24) return `aviation:track:icao:${req.icao24}:v1`;
     if (req.swLat != null && req.neLat != null) {
-        return `aviation:track:${Math.floor(req.swLat)}:${Math.floor(req.swLon)}:${Math.ceil(req.neLat)}:${Math.ceil(req.neLon)}:v1`;
+        return `aviation:track:bbox:${Math.floor(req.swLat)}:${Math.floor(req.swLon)}:${Math.ceil(req.neLat)}:${Math.ceil(req.neLon)}:v1`;
     }
+    if (req.callsign) return `aviation:track:callsign:${req.callsign.toUpperCase()}:v1`;
     return 'aviation:track:all:v1';
 }
 
+// Response-level source values (TrackAircraftResponse.source):
+//   'opensky'           — data from OpenSky via relay
+//   'opensky-anonymous' — data from OpenSky public API (no auth, rate-limited)
+//   'wingbits'          — data from Wingbits via relay
+//   'none'              — all real sources returned empty or failed; positions = []
 export async function trackAircraft(
     _ctx: ServerContext,
     req: TrackAircraftRequest,
@@ -97,8 +87,10 @@ export async function trackAircraft(
 
     let result: { positions: PositionSample[]; source: string } | null = null;
     try {
+        const positiveTtl = req.callsign ? CALLSIGN_CACHE_TTL : CACHE_TTL;
+        const negativeTtl = req.callsign ? CALLSIGN_NEGATIVE_TTL : CACHE_TTL;
         result = await cachedFetchJson<{ positions: PositionSample[]; source: string }>(
-            cacheKey, CACHE_TTL, async () => {
+            cacheKey, positiveTtl, async () => {
                 const relayBase = getRelayBaseUrl();
 
                 // Try relay first if configured
@@ -138,18 +130,29 @@ export async function trackAircraft(
                     console.warn(`[Aviation] Direct OpenSky anonymous failed: ${err instanceof Error ? err.message : err}`);
                 }
 
-                // Try Wingbits relay (bbox only — no global fallback)
-                if (relayBase && req.swLat != null && req.neLat != null) {
+                // Try Wingbits relay. Supports bbox queries and, for callsign-only searches,
+                // a global bbox so we can find the aircraft regardless of position.
+                if (relayBase) {
                     try {
-                        const wbUrl = `${relayBase}/wingbits/track?lamin=${req.swLat}&lomin=${req.swLon}&lamax=${req.neLat}&lomax=${req.neLon}`;
-                        const wbResp = await fetch(wbUrl, {
-                            headers: getRelayHeaders({}),
-                            signal: AbortSignal.timeout(15_000),
-                        });
-                        if (wbResp.ok) {
-                            const wbData = await wbResp.json() as WingbitsRelayResponse;
-                            if (wbData.positions && wbData.positions.length > 0) {
-                                return { positions: wbData.positions, source: 'wingbits' };
+                        let wbUrl: string;
+                        if (req.swLat != null && req.neLat != null) {
+                            wbUrl = `${relayBase}/wingbits/track?lamin=${req.swLat}&lomin=${req.swLon}&lamax=${req.neLat}&lomax=${req.neLon}`;
+                        } else if (req.callsign) {
+                            // Global search — relay uses a worldwide box and filters by callsign.
+                            wbUrl = `${relayBase}/wingbits/track?callsign=${encodeURIComponent(req.callsign)}`;
+                        } else {
+                            wbUrl = '';
+                        }
+                        if (wbUrl) {
+                            const wbResp = await fetch(wbUrl, {
+                                headers: getRelayHeaders({}),
+                                signal: AbortSignal.timeout(15_000),
+                            });
+                            if (wbResp.ok) {
+                                const wbData = await wbResp.json() as WingbitsRelayResponse;
+                                if (wbData.positions && wbData.positions.length > 0) {
+                                    return { positions: wbData.positions, source: 'wingbits' };
+                                }
                             }
                         }
                     } catch (err) {
@@ -158,7 +161,7 @@ export async function trackAircraft(
                 }
 
                 return null; // negative-cached briefly
-            }, CACHE_TTL, // negative TTL same as positive — retry quickly
+            }, negativeTtl,
         );
     } catch {
         /* Redis unavailable — fall through to simulated */
@@ -171,7 +174,5 @@ export async function trackAircraft(
         return { positions, source: result.source, updatedAt: Date.now() };
     }
 
-    // Fallback to simulated data (not cached — random each time)
-    const positions = buildSimulatedPositions(req.icao24, req.callsign, req.swLat, req.swLon, req.neLat, req.neLon);
-    return { positions, source: 'simulated', updatedAt: Date.now() };
+    return { positions: [], source: 'none', updatedAt: Date.now() };
 }
