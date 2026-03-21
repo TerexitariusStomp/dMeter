@@ -8,6 +8,7 @@ import type { PanelConfig } from '@/types';
 import { renderPreferences } from '@/services/preferences-content';
 import { track } from '@/services/analytics';
 import { isEntitled } from '@/services/entitlements';
+import { getSubscription, openBillingPortal } from '@/services/billing';
 
 const GEAR_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
 
@@ -70,6 +71,11 @@ export class UnifiedSettings {
 
       if (target.closest('.upgrade-pro-cta')) {
         this.handleUpgradeClick();
+        return;
+      }
+
+      if (target.closest('.manage-billing-btn')) {
+        openBillingPortal();
         return;
       }
 
@@ -292,12 +298,34 @@ export class UnifiedSettings {
 
   private renderUpgradeSection(): string {
     if (isEntitled()) {
+      const sub = getSubscription();
+      const planName = sub?.displayName ?? 'Pro';
+      const statusColor = sub?.status === 'active' ? '#22c55e' : sub?.status === 'on_hold' ? '#eab308' : '#ef4444';
+      const statusBorderColor = sub?.status === 'active' ? '#22c55e33' : sub?.status === 'on_hold' ? '#eab30833' : '#ef444433';
+      const statusBgColor = sub?.status === 'active' ? '#22c55e0a' : sub?.status === 'on_hold' ? '#eab3080a' : '#ef44440a';
+
+      let statusLine = '';
+      if (sub?.currentPeriodEnd) {
+        const dateStr = new Date(sub.currentPeriodEnd).toLocaleDateString();
+        if (sub.status === 'active') {
+          statusLine = `Renews: ${dateStr}`;
+        } else if (sub.status === 'on_hold') {
+          statusLine = 'On hold -- please update payment method';
+        } else if (sub.status === 'cancelled') {
+          statusLine = `Cancelled -- access until ${dateStr}`;
+        } else if (sub.status === 'expired') {
+          statusLine = 'Expired';
+        }
+      }
+
       return `
-        <div class="upgrade-pro-section upgrade-pro-active" style="margin-top:16px;padding:14px 16px;border:1px solid #22c55e33;border-radius:6px;background:#22c55e0a;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-            <span style="color:#22c55e;font-weight:600;font-size:13px;">You're on Pro</span>
+        <div class="upgrade-pro-section upgrade-pro-active" style="margin-top:16px;padding:14px 16px;border:1px solid ${statusBorderColor};border-radius:6px;background:${statusBgColor};">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:${statusLine ? '8' : '0'}px;">
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${statusColor};flex-shrink:0;"></span>
+            <span style="color:${statusColor};font-weight:600;font-size:13px;">${escapeHtml(planName)}</span>
           </div>
+          ${statusLine ? `<div style="font-size:12px;color:#909090;margin-bottom:10px;padding-left:16px;">${escapeHtml(statusLine)}</div>` : ''}
+          <button class="manage-billing-btn" style="width:100%;padding:8px 16px;background:transparent;color:#909090;border:1px solid #323232;border-radius:4px;font-weight:600;font-size:13px;cursor:pointer;transition:color 0.15s;">Manage Billing</button>
         </div>
       `;
     }

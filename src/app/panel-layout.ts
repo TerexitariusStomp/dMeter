@@ -75,6 +75,8 @@ import { openWidgetChatModal } from '@/components/WidgetChatModal';
 import { isProUser, getProWidgetKey, loadWidgets, saveWidget } from '@/services/widget-store';
 import type { CustomWidgetSpec } from '@/services/widget-store';
 import { initEntitlementSubscription, isEntitled, onEntitlementChange } from '@/services/entitlements';
+import { initSubscriptionWatch } from '@/services/billing';
+import { initPaymentFailureBanner } from '@/components/payment-failure-banner';
 import { handleCheckoutReturn } from '@/services/checkout-return';
 import { initCheckoutOverlay, showCheckoutSuccess } from '@/services/checkout';
 import { McpDataPanel } from '@/components/McpDataPanel';
@@ -127,6 +129,7 @@ export class PanelLayoutManager implements AppModule {
     const proKey = getProWidgetKey();
     if (proKey) {
       initEntitlementSubscription(proKey).catch(() => {});
+      initSubscriptionWatch(proKey).catch(() => {});
     }
 
     // Initialize checkout overlay so payment success triggers the success banner
