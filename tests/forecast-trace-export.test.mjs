@@ -175,10 +175,22 @@ describe('forecast trace artifact builder', () => {
     assert.ok(typeof artifacts.summary.worldStateSummary.simulationSituationCount === 'number');
     assert.equal(artifacts.summary.worldStateSummary.simulationRoundCount, 3);
     assert.ok(typeof artifacts.summary.worldStateSummary.simulationSummary === 'string');
+    assert.ok(typeof artifacts.summary.worldStateSummary.marketSummary === 'string');
     assert.ok(typeof artifacts.summary.worldStateSummary.simulationInputSummary === 'string');
+    assert.ok(typeof artifacts.summary.worldStateSummary.worldSignalCount === 'number');
+    assert.ok(typeof artifacts.summary.worldStateSummary.marketBucketCount === 'number');
+    assert.ok(typeof artifacts.summary.worldStateSummary.transmissionEdgeCount === 'number');
+    assert.ok(typeof artifacts.summary.worldStateSummary.marketConsequenceCount === 'number');
+    assert.ok(typeof artifacts.summary.worldStateSummary.topMarketBucket === 'string');
+    assert.ok(typeof artifacts.summary.worldStateSummary.simulationEnvironmentSummary === 'string');
+    assert.ok(typeof artifacts.summary.worldStateSummary.memoryMutationSummary === 'string');
+    assert.ok(typeof artifacts.summary.worldStateSummary.causalReplaySummary === 'string');
     assert.ok(typeof artifacts.summary.worldStateSummary.simulationActionCount === 'number');
     assert.ok(typeof artifacts.summary.worldStateSummary.simulationInteractionCount === 'number');
     assert.ok(typeof artifacts.summary.worldStateSummary.simulationEffectCount === 'number');
+    assert.ok(typeof artifacts.summary.worldStateSummary.simulationEnvironmentCount === 'number');
+    assert.ok(typeof artifacts.summary.worldStateSummary.memoryMutationCount === 'number');
+    assert.ok(typeof artifacts.summary.worldStateSummary.causalReplayCount === 'number');
     assert.ok(typeof artifacts.summary.worldStateSummary.historyRuns === 'number');
     assert.equal(artifacts.summary.worldStateSummary.candidateStateSummary.forecastCount, 3);
     assert.ok(artifacts.summary.worldStateSummary.candidateStateSummary.situationCount >= artifacts.summary.worldStateSummary.situationCount);
@@ -195,15 +207,32 @@ describe('forecast trace artifact builder', () => {
     assert.ok(Array.isArray(artifacts.worldState.simulationState?.actionLedger));
     assert.ok(Array.isArray(artifacts.worldState.simulationState?.interactionLedger));
     assert.ok(Array.isArray(artifacts.worldState.simulationState?.replayTimeline));
+    assert.ok(Array.isArray(artifacts.worldState.simulationState?.environmentSpec?.situations));
+    assert.ok(Array.isArray(artifacts.worldState.simulationState?.memoryMutations?.situations));
+    assert.ok(Array.isArray(artifacts.worldState.simulationState?.causalGraph?.edges));
+    assert.ok(Array.isArray(artifacts.worldState.simulationState?.causalReplay?.chains));
     assert.ok(Array.isArray(artifacts.worldState.report.situationWatchlist));
     assert.ok(Array.isArray(artifacts.worldState.report.actorWatchlist));
     assert.ok(Array.isArray(artifacts.worldState.report.branchWatchlist));
+    assert.ok(Array.isArray(artifacts.worldState.report.marketWatchlist));
+    assert.ok(Array.isArray(artifacts.worldState.report.transmissionWatchlist));
+    assert.ok(Array.isArray(artifacts.worldState.report.marketConsequenceWatchlist));
     assert.ok(Array.isArray(artifacts.worldState.report.simulationWatchlist));
     assert.ok(Array.isArray(artifacts.worldState.report.interactionWatchlist));
     assert.ok(Array.isArray(artifacts.worldState.report.replayWatchlist));
+    assert.ok(Array.isArray(artifacts.worldState.report.environmentWatchlist));
+    assert.ok(Array.isArray(artifacts.worldState.report.memoryWatchlist));
+    assert.ok(Array.isArray(artifacts.worldState.report.causalReplayWatchlist));
+    assert.ok(Array.isArray(artifacts.worldState.report.causalEdgeWatchlist));
     assert.ok(Array.isArray(artifacts.worldState.report.simulationOutcomeSummaries));
     assert.ok(Array.isArray(artifacts.worldState.report.crossSituationEffects));
+    assert.ok(Array.isArray(artifacts.worldState.report.causalReplayChains));
     assert.ok(Array.isArray(artifacts.worldState.report.replayTimeline));
+    assert.ok(Array.isArray(artifacts.worldState.worldSignals?.signals));
+    assert.ok(Array.isArray(artifacts.worldState.marketState?.buckets));
+    assert.ok(Array.isArray(artifacts.worldState.marketTransmission?.edges));
+    assert.ok(Array.isArray(artifacts.worldState.simulationState?.marketConsequences?.items));
+    assert.ok(typeof artifacts.summary.worldStateSummary.marketInputCoverage?.loadedSourceCount === 'number');
     assert.ok(artifacts.forecasts[0].payload.caseFile.worldState.summary.includes('Iran'));
     assert.equal(artifacts.forecasts[0].payload.caseFile.branches.length, 3);
     assert.equal(artifacts.forecasts[0].payload.traceMeta.narrativeSource, 'fallback');
@@ -337,6 +366,93 @@ describe('forecast trace artifact builder', () => {
     assert.equal(a.caseFile.situationContext.forecastCount, 1);
     assert.ok(!a.scenario.includes('broader cluster'));
     assert.ok(!a.feedSummary.includes('broader'));
+  });
+});
+
+describe('market transmission macro state', () => {
+  it('uses FRED macro series to form world signals, rebalance market buckets, and keep market consequences selective', () => {
+    const fredSeries = (seriesId, observations) => ({
+      seriesId,
+      title: seriesId,
+      observations: observations.map(([date, value]) => ({ date, value })),
+    });
+
+    const conflict = makePrediction('conflict', 'Middle East', 'Hormuz escalation risk', 0.73, 0.64, '7d', [
+      { type: 'cii', value: 'Regional posture elevated', weight: 0.4 },
+      { type: 'news', value: 'Hormuz pressure rising', weight: 0.25 },
+    ]);
+    buildForecastCase(conflict);
+
+    const supply = makePrediction('supply_chain', 'Red Sea', 'Red Sea freight disruption', 0.69, 0.61, '7d', [
+      { type: 'chokepoint', value: 'Red Sea disruption detected', weight: 0.45 },
+      { type: 'shipping', value: 'Freight costs rising', weight: 0.25 },
+    ]);
+    buildForecastCase(supply);
+
+    const political = makePrediction('political', 'United States', 'US sovereign risk repricing', 0.58, 0.56, '30d', [
+      { type: 'macro', value: 'Rates and volatility remain elevated', weight: 0.3 },
+    ]);
+    buildForecastCase(political);
+
+    populateFallbackNarratives([conflict, supply, political]);
+
+    const worldState = buildForecastRunWorldState({
+      predictions: [conflict, supply, political],
+      inputs: {
+        shippingRates: {
+          indices: [
+            { indexId: 'wci-red-sea', name: 'Red Sea Freight Index', changePct: 11.4, spikeAlert: true },
+          ],
+        },
+        commodityQuotes: {
+          quotes: [
+            { symbol: 'CL=F', name: 'WTI Crude Oil', price: 87.4, change: 3.1 },
+          ],
+        },
+        fredSeries: {
+          VIXCLS: fredSeries('VIXCLS', [['2026-02-01', 18.2], ['2026-03-01', 23.4]]),
+          FEDFUNDS: fredSeries('FEDFUNDS', [['2026-02-01', 4.25], ['2026-03-01', 4.50]]),
+          T10Y2Y: fredSeries('T10Y2Y', [['2025-12-01', 0.55], ['2026-03-01', 0.08]]),
+          CPIAUCSL: fredSeries('CPIAUCSL', [
+            ['2025-03-01', 312.0],
+            ['2025-04-01', 312.6],
+            ['2025-05-01', 313.1],
+            ['2025-06-01', 313.8],
+            ['2025-07-01', 314.4],
+            ['2025-08-01', 315.1],
+            ['2025-09-01', 315.8],
+            ['2025-10-01', 316.2],
+            ['2025-11-01', 317.0],
+            ['2025-12-01', 318.2],
+            ['2026-01-01', 319.3],
+            ['2026-02-01', 320.6],
+            ['2026-03-01', 321.8],
+          ]),
+          UNRATE: fredSeries('UNRATE', [['2025-12-01', 3.9], ['2026-03-01', 4.2]]),
+          DGS10: fredSeries('DGS10', [['2026-02-01', 4.02], ['2026-03-01', 4.21]]),
+          WALCL: fredSeries('WALCL', [['2025-12-01', 6950], ['2026-03-01', 6760]]),
+          M2SL: fredSeries('M2SL', [['2025-09-01', 21400], ['2026-03-01', 21880]]),
+          GDP: fredSeries('GDP', [['2025-10-01', 28900], ['2026-01-01', 28940]]),
+          DCOILWTICO: fredSeries('DCOILWTICO', [['2026-01-20', 74.8], ['2026-03-01', 86.6]]),
+        },
+      },
+    });
+
+    const signalTypes = new Set((worldState.worldSignals?.signals || []).map((item) => item.type));
+    assert.ok(signalTypes.has('volatility_shock'));
+    assert.ok(signalTypes.has('yield_curve_stress'));
+    assert.ok(signalTypes.has('inflation_impulse'));
+    assert.ok(signalTypes.has('oil_macro_shock'));
+
+    const buckets = new Map((worldState.marketState?.buckets || []).map((bucket) => [bucket.id, bucket]));
+    assert.ok((buckets.get('energy')?.pressureScore || 0) > 0.4);
+    assert.ok((buckets.get('freight')?.pressureScore || 0) > 0.35);
+    assert.ok((buckets.get('sovereign_risk')?.pressureScore || 0) > 0.25);
+    assert.ok((buckets.get('rates_inflation')?.macroConfirmation || 0) > 0);
+
+    const marketConsequences = worldState.simulationState?.marketConsequences;
+    assert.ok((marketConsequences?.internalCount || 0) >= (marketConsequences?.items?.length || 0));
+    assert.ok((marketConsequences?.items?.length || 0) <= 8);
   });
 });
 
@@ -844,6 +960,10 @@ describe('forecast run world state', () => {
     assert.equal(supplyUnit?.posture, 'contested');
     assert.ok((marketUnit?.postureScore || 0) < 0.77);
     assert.ok((supplyUnit?.postureScore || 0) < 0.77);
+    assert.ok((marketUnit?.marketContext?.confirmationScore || 0) > 0);
+    assert.ok((supplyUnit?.marketContext?.linkedBucketIds || []).length >= 1);
+    assert.ok((worldState.simulationState.marketConsequences?.items || []).length >= 1);
+    assert.ok((worldState.report.marketConsequenceWatchlist || []).length >= 1);
   });
 
   it('builds report outputs from simulation outcomes and cross-situation effects', () => {
@@ -1906,8 +2026,151 @@ describe('forecast run world state', () => {
       priorWorldStates: [priorWorldState],
     });
 
-    assert.equal(worldState.simulationState.version, 2);
+    assert.equal(worldState.simulationState.version, 4);
     assert.ok((worldState.simulationState.situationSimulations || []).every((item) => item.postureScore < 0.99));
+  });
+
+  it('promotes same-macro repeated security spillover into the reportable layer', () => {
+    const effects = buildCrossSituationEffects({
+      situationSimulations: [
+        {
+          situationId: 'sit-brazil',
+          label: 'Brazil conflict situation',
+          dominantDomain: 'conflict',
+          familyId: 'fam-americas-war',
+          familyLabel: 'Americas war theater family',
+          regions: ['Brazil'],
+          actorIds: ['actor-brazil', 'actor-shared'],
+          effectChannels: [{ type: 'security_escalation', count: 3 }],
+          posture: 'escalatory',
+          postureScore: 0.88,
+          totalPressure: 0.92,
+          totalStabilization: 0.18,
+        },
+        {
+          situationId: 'sit-mexico',
+          label: 'Mexico conflict situation',
+          dominantDomain: 'conflict',
+          familyId: 'fam-americas-war',
+          familyLabel: 'Americas war theater family',
+          regions: ['Mexico'],
+          actorIds: ['actor-mexico', 'actor-shared'],
+          effectChannels: [],
+          posture: 'contested',
+          postureScore: 0.46,
+          totalPressure: 0.57,
+          totalStabilization: 0.31,
+        },
+      ],
+      reportableInteractionLedger: [
+        {
+          sourceSituationId: 'sit-brazil',
+          targetSituationId: 'sit-mexico',
+          sourceLabel: 'Brazil conflict situation',
+          targetLabel: 'Mexico conflict situation',
+          strongestChannel: 'security_escalation',
+          interactionType: 'actor_carryover',
+          stage: 'round_1',
+          score: 4.3,
+          confidence: 0.67,
+          actorSpecificity: 0.91,
+          directLinkCount: 1,
+          sharedActor: true,
+          regionLink: false,
+          sourceActorName: 'Named brigade command',
+          targetActorName: 'Named brigade command',
+        },
+        {
+          sourceSituationId: 'sit-brazil',
+          targetSituationId: 'sit-mexico',
+          sourceLabel: 'Brazil conflict situation',
+          targetLabel: 'Mexico conflict situation',
+          strongestChannel: 'security_escalation',
+          interactionType: 'actor_carryover',
+          stage: 'round_2',
+          score: 4.3,
+          confidence: 0.68,
+          actorSpecificity: 0.91,
+          directLinkCount: 1,
+          sharedActor: true,
+          regionLink: false,
+          sourceActorName: 'Named brigade command',
+          targetActorName: 'Named brigade command',
+        },
+      ],
+    });
+
+    assert.equal(effects.length, 1);
+    assert.equal(effects[0].effectClass, 'security_spillover');
+    assert.equal(effects[0].channel, 'security_escalation');
+  });
+
+  it('records blocked effect telemetry on the world state', () => {
+    const worldState = buildForecastRunWorldState({
+      predictions: [
+        makePrediction('political', 'Israel', 'Political instability: Israel', 0.61, 0.5, '30d', []),
+        makePrediction('political', 'Taiwan', 'Political instability: Taiwan', 0.53, 0.45, '30d', []),
+      ],
+      situationClusters: [
+        {
+          id: 'sit-israel',
+          label: 'Israel political situation',
+          forecastIds: ['fc-political-a'],
+          domains: ['political'],
+          regions: ['Israel'],
+          actors: ['Incumbent leadership'],
+          topSignals: [{ type: 'unrest', count: 2 }],
+          forecastCount: 1,
+          avgProbability: 0.61,
+          avgConfidence: 0.5,
+          dominantDomain: 'political',
+          dominantRegion: 'Israel',
+          branchKinds: ['base'],
+          sampleTitles: ['Political instability: Israel'],
+        },
+        {
+          id: 'sit-taiwan',
+          label: 'Taiwan political situation',
+          forecastIds: ['fc-political-b'],
+          domains: ['political'],
+          regions: ['Taiwan'],
+          actors: ['Incumbent leadership'],
+          topSignals: [{ type: 'unrest', count: 2 }],
+          forecastCount: 1,
+          avgProbability: 0.53,
+          avgConfidence: 0.45,
+          dominantDomain: 'political',
+          dominantRegion: 'Taiwan',
+          branchKinds: ['base'],
+          sampleTitles: ['Political instability: Taiwan'],
+        },
+      ],
+      situationFamilies: [
+        {
+          id: 'fam-israel',
+          label: 'Israel political instability family',
+          archetype: 'political_instability',
+          situationIds: ['sit-israel'],
+          dominantDomain: 'political',
+          dominantRegion: 'Israel',
+          forecastCount: 1,
+          situationCount: 1,
+        },
+        {
+          id: 'fam-taiwan',
+          label: 'Taiwan political instability family',
+          archetype: 'political_instability',
+          situationIds: ['sit-taiwan'],
+          dominantDomain: 'political',
+          dominantRegion: 'Taiwan',
+          forecastCount: 1,
+          situationCount: 1,
+        },
+      ],
+    });
+
+    assert.ok(typeof worldState.simulationState.blockedEffectSummary.totalBlocked === 'number');
+    assert.ok(Array.isArray(worldState.report.blockedEffectWatchlist));
   });
 });
 

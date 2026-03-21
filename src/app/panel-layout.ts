@@ -18,6 +18,7 @@ import {
   PredictionPanel,
   MonitorPanel,
   EconomicPanel,
+  ConsumerPricesPanel,
   EnergyComplexPanel,
   GdeltIntelPanel,
   LiveNewsPanel,
@@ -69,7 +70,7 @@ import { trackCriticalBannerAction } from '@/services/analytics';
 import { getSecretState } from '@/services/runtime-config';
 import { CustomWidgetPanel } from '@/components/CustomWidgetPanel';
 import { openWidgetChatModal } from '@/components/WidgetChatModal';
-import { isWidgetFeatureEnabled, isProWidgetEnabled, loadWidgets, saveWidget } from '@/services/widget-store';
+import { isProUser, loadWidgets, saveWidget } from '@/services/widget-store';
 import type { CustomWidgetSpec } from '@/services/widget-store';
 import { McpDataPanel } from '@/components/McpDataPanel';
 import { openMcpConnectModal } from '@/components/McpConnectModal';
@@ -605,6 +606,7 @@ export class PanelLayoutManager implements AppModule {
     this.createNewsPanel('ipo', 'panels.ipo');
     this.createNewsPanel('thinktanks', 'panels.thinktanks');
     this.createPanel('economic', () => new EconomicPanel());
+    this.createPanel('consumer-prices', () => new ConsumerPricesPanel());
 
     this.createPanel('trade-policy', () => new TradePolicyPanel());
     this.createPanel('sanctions-pressure', () => new SanctionsPressurePanel());
@@ -755,7 +757,7 @@ export class PanelLayoutManager implements AppModule {
     );
 
     const _wmKeyPresent = getSecretState('WORLDMONITOR_API_KEY').present;
-    const _lockPanels = this.ctx.isDesktopApp && !_wmKeyPresent;
+    const _lockPanels = this.ctx.isDesktopApp && !_wmKeyPresent && !isProUser();
 
     this.lazyPanel('daily-market-brief', () =>
       import('@/components/DailyMarketBriefPanel').then(m => new m.DailyMarketBriefPanel()),
@@ -928,7 +930,7 @@ export class PanelLayoutManager implements AppModule {
       );
     }
 
-    if (isWidgetFeatureEnabled() || isProWidgetEnabled()) {
+    if (isProUser()) {
       for (const spec of loadWidgets()) {
         const panel = new CustomWidgetPanel(spec);
         this.ctx.panels[spec.id] = panel;
@@ -1044,29 +1046,7 @@ export class PanelLayoutManager implements AppModule {
     });
     panelsGrid.appendChild(addPanelBlock);
 
-    if (isWidgetFeatureEnabled()) {
-      const aiBlock = document.createElement('button');
-      aiBlock.className = 'add-panel-block ai-widget-block';
-      aiBlock.setAttribute('aria-label', t('widgets.createWithAi'));
-      const aiIcon = document.createElement('span');
-      aiIcon.className = 'add-panel-block-icon';
-      aiIcon.textContent = '\u2728';
-      const aiLabel = document.createElement('span');
-      aiLabel.className = 'add-panel-block-label';
-      aiLabel.textContent = t('widgets.createWithAi');
-      aiBlock.appendChild(aiIcon);
-      aiBlock.appendChild(aiLabel);
-      aiBlock.addEventListener('click', () => {
-        openWidgetChatModal({
-          mode: 'create',
-          tier: 'basic',
-          onComplete: (spec) => this.addCustomWidget(spec),
-        });
-      });
-      panelsGrid.appendChild(aiBlock);
-    }
-
-    if (isProWidgetEnabled()) {
+    if (isProUser()) {
       const proBlock = document.createElement('button');
       proBlock.className = 'add-panel-block ai-widget-block ai-widget-block-pro';
       proBlock.setAttribute('aria-label', t('widgets.createInteractive'));
@@ -1092,7 +1072,7 @@ export class PanelLayoutManager implements AppModule {
       panelsGrid.appendChild(proBlock);
     }
 
-    {
+    if (isProUser()) {
       const mcpBlock = document.createElement('button');
       mcpBlock.className = 'add-panel-block mcp-panel-block';
       mcpBlock.setAttribute('aria-label', t('mcp.connectPanel'));

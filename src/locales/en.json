@@ -200,6 +200,8 @@
     "world": "WORLD",
     "tech": "TECH",
     "live": "LIVE",
+    "cached": "CACHED",
+    "unavailable": "UNAVAILABLE",
     "search": "Search",
     "settings": "SETTINGS",
     "sources": "SOURCES",
@@ -351,11 +353,14 @@
     "groceryItem": "Item",
     "bigmac": "Big Mac Index",
     "bigmacDesc": "Big Mac prices across Middle East countries (Big Mac Index)",
+    "bigmacWow": "WoW",
+    "bigmacCountry": "Country",
     "groceryBasketDesc": "Grocery basket price comparison across 24 countries worldwide",
     "gulfIndices": "Gulf Indices",
     "gulfCurrencies": "Gulf Currencies",
     "gulfOil": "Gulf Oil",
-    "airlineIntel": "✈️ Airline Intelligence"
+    "airlineIntel": "✈️ Airline Intelligence",
+    "consumerPrices": "Consumer Prices"
   },
   "commands": {
     "prefixes": {
@@ -940,6 +945,42 @@
       "colFytd": "FY YTD",
       "infoTooltip": "<strong>Trade Policy</strong> WTO baseline and tariff-impact monitoring:<ul><li><strong>Overview</strong>: WTO MFN baseline rates with US effective-rate context when available</li><li><strong>Tariffs</strong>: WTO MFN tariff trends vs the US effective tariff estimate</li><li><strong>Trade Flows</strong>: Export/import volumes with year-over-year changes</li><li><strong>Barriers</strong>: Technical barriers to trade (TBT/SPS notifications)</li><li><strong>Revenue</strong>: Monthly US customs duties revenue (US Treasury MTS data)</li></ul>"
     },
+    "consumerPrices": {
+      "title": "Consumer Prices",
+      "subtitle": "Basket price tracking across key markets",
+      "tabs": {
+        "overview": "Overview",
+        "categories": "Categories",
+        "movers": "Movers",
+        "spread": "Retailer Spread",
+        "health": "Data Health"
+      },
+      "essentialsIndex": "Essentials Index",
+      "valueBasketIndex": "Value Basket",
+      "wowChange": "WoW",
+      "momChange": "MoM",
+      "retailerSpread": "Retailer Spread",
+      "coveragePct": "Coverage",
+      "freshnessLag": "Freshness Lag",
+      "noCategories": "No category data available",
+      "noMovers": "No price movers available",
+      "noSpread": "No retailer spread data available",
+      "noHealth": "No data health information",
+      "upstreamUnavailable": "Consumer price data temporarily unavailable",
+      "allCategories": "All Categories",
+      "risers": "Rising",
+      "fallers": "Falling",
+      "unitPrice": "Unit price",
+      "freshLabel": "Fresh",
+      "staleLabel": "Stale",
+      "laggingLabel": "Lagging",
+      "stalledLabel": "Stalled",
+      "retailer": "Retailer",
+      "lastUpdated": "Last updated",
+      "retailers": "retailers",
+      "items": "items",
+      "infoTooltip": "<strong>Consumer Prices</strong> Real-time basket price tracking:<ul><li><strong>Overview</strong>: Essentials index, value basket, and week-on-week change</li><li><strong>Categories</strong>: Per-category price trends with 30-day range</li><li><strong>Movers</strong>: Biggest rising and falling items this week</li><li><strong>Spread</strong>: Price variance across retailers for the same basket</li></ul>Data sourced from live retailer price scraping."
+    },
     "gdelt": {
       "empty": "No recent articles for this topic"
     },
@@ -1068,6 +1109,9 @@
       "strike": "STRIKE",
       "staleWarning": "Using cached data - live feed temporarily unavailable",
       "updated": "Updated:",
+      "emojiKeyLabel": "Emoji Key",
+      "emojiKeyAir": "Air Assets",
+      "emojiKeyNaval": "Naval Assets",
       "theaters": {
         "iran-theater": "Iran Theater",
         "taiwan-theater": "Taiwan Strait",
@@ -1944,6 +1988,8 @@
       "h3Hex": "H3 Hex"
     },
     "flight": {
+      "scheduled": "Sched",
+      "estimated": "Est",
       "groundStop": "GROUND STOP",
       "groundDelay": "GROUND DELAY PROGRAM",
       "departureDelay": "DEPARTURE DELAYS",
@@ -2560,6 +2606,11 @@
     "retry": "Retry",
     "refresh": "Refresh",
     "all": "All"
+  },
+  "connectivity": {
+    "offlineCached": "Offline — showing cached data from {{freshness}}.",
+    "offlineUnavailable": "Offline — live data is currently unavailable.",
+    "cachedFallback": "Live data unavailable — showing cached data from {{freshness}}."
   },
   "preferences": {
     "display": "Display",
