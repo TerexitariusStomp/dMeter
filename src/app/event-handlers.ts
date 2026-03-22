@@ -2,7 +2,7 @@ import type { AppContext, AppModule } from '@/app/app-context';
 import type { AirlineIntelPanel } from '@/components/AirlineIntelPanel';
 import type { CustomWidgetPanel } from '@/components/CustomWidgetPanel';
 import { openWidgetChatModal } from '@/components/WidgetChatModal';
-import { deleteWidget, getWidget, saveWidget, isProUser } from '@/services/widget-store';
+import { deleteWidget, getWidget, saveWidget } from '@/services/widget-store';
 import type { McpDataPanel } from '@/components/McpDataPanel';
 import { openMcpConnectModal } from '@/components/McpConnectModal';
 import { deleteMcpPanel, getMcpPanel, saveMcpPanel } from '@/services/mcp-store';
@@ -51,6 +51,7 @@ import {
   trackMapLayerToggle,
   trackPanelToggled,
   trackDownloadClicked,
+  trackGateHit,
 } from '@/services/analytics';
 import { detectPlatform, allButtons, buttonsForPlatform } from '@/components/DownloadBanner';
 import type { Platform } from '@/components/DownloadBanner';
@@ -59,8 +60,11 @@ import { getCachedGpsInterference } from '@/services/gps-interference';
 import { dataFreshness } from '@/services/data-freshness';
 import { mlWorker } from '@/services/ml-worker';
 import { UnifiedSettings } from '@/components/UnifiedSettings';
+import { AuthLauncher } from '@/components/AuthLauncher';
+import { AuthHeaderWidget } from '@/components/AuthHeaderWidget';
 import { t } from '@/services/i18n';
 import { TvModeController } from '@/services/tv-mode';
+import { getAuthState, subscribeAuthState } from '@/services/auth-state';
 
 export interface EventHandlerCallbacks {
   updateSearchIndex: () => void;
@@ -100,6 +104,7 @@ export class EventHandlerManager implements AppModule {
   private boundPanelCloseHandler: ((e: Event) => void) | null = null;
   private boundWidgetModifyHandler: ((e: Event) => void) | null = null;
   private boundUndoHandler: ((e: KeyboardEvent) => void) | null = null;
+  private proGateUnsubscribers: Array<() => void> = [];
   private closedPanelStack: string[] = []; // max-items: 20
   private idleTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private snapshotIntervalId: ReturnType<typeof setInterval> | null = null;
@@ -283,10 +288,16 @@ export class EventHandlerManager implements AppModule {
       document.removeEventListener('keydown', this.boundUndoHandler);
       this.boundUndoHandler = null;
     }
+    for (const unsub of this.proGateUnsubscribers) unsub();
+    this.proGateUnsubscribers = [];
     this.ctx.tvMode?.destroy();
     this.ctx.tvMode = null;
     this.ctx.unifiedSettings?.destroy();
     this.ctx.unifiedSettings = null;
+    this.ctx.authHeaderWidget?.destroy();
+    this.ctx.authHeaderWidget = null;
+    this.ctx.authModal?.destroy();
+    this.ctx.authModal = null;
   }
 
   private setupEventListeners(): void {
@@ -321,6 +332,7 @@ export class EventHandlerManager implements AppModule {
     });
 
     this.initDownloadDropdown();
+    this.initFooterDownload();
 
     this.boundStorageHandler = (e: StorageEvent) => {
       if (e.key === STORAGE_KEYS.panels && e.newValue) {
@@ -792,6 +804,28 @@ export class EventHandlerManager implements AppModule {
     document.addEventListener('keydown', this.boundDropdownKeydownHandler);
   }
 
+  private initFooterDownload(): void {
+    const mount = document.getElementById('footerDownloadMount');
+    if (!mount) return;
+    const platform = detectPlatform();
+    const primary = buttonsForPlatform(platform);
+    const btn = primary[0];
+    if (!btn) return;
+    const a = document.createElement('a');
+    a.href = btn.href;
+    a.textContent = t('header.downloadApp');
+    a.className = 'site-footer-download-link';
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      const plat = new URL(btn.href, location.origin).searchParams.get('platform') || 'unknown';
+      trackDownloadClicked(plat);
+      window.open(btn.href, '_blank');
+    });
+    mount.replaceWith(a);
+  }
+
   private setCopyLinkFeedback(button: HTMLElement | null, message: string): void {
     if (!button) return;
     const originalText = button.textContent ?? '';
@@ -922,7 +956,7 @@ export class EventHandlerManager implements AppModule {
   }
 
   setupExportPanel(): void {
-    if (!isProUser()) return;
+    // Always create — show/hide reactively via auth state subscription below.
     this.ctx.exportPanel = new ExportPanel(() => {
       const allCards = this.ctx.correlationEngine?.getAllCards() ?? [];
       const disabledCount = this.ctx.disabledSources.size;
@@ -947,10 +981,18 @@ export class EventHandlerManager implements AppModule {
       };
     });
 
+    const el = this.ctx.exportPanel.getElement();
     const headerRight = this.ctx.container.querySelector('.header-right');
     if (headerRight) {
-      headerRight.insertBefore(this.ctx.exportPanel.getElement(), headerRight.firstChild);
+      headerRight.insertBefore(el, headerRight.firstChild);
     }
+
+    const applyProGate = (isPro: boolean, initial = false) => {
+      el.style.display = isPro ? '' : 'none';
+      if (initial && !isPro) trackGateHit('export');
+    };
+    applyProGate(getAuthState().user?.role === 'pro', true);
+    this.proGateUnsubscribers.push(subscribeAuthState(state => applyProGate(state.user?.role === 'pro')));
   }
 
   setupUnifiedSettings(): void {
@@ -1016,8 +1058,23 @@ export class EventHandlerManager implements AppModule {
     }
   }
 
+  setupAuthWidget(): void {
+    const modal = new AuthLauncher();
+    this.ctx.authModal = modal;
+
+    const widget = new AuthHeaderWidget(
+      () => modal.open(),
+      () => this.ctx.unifiedSettings?.open(),
+    );
+    this.ctx.authHeaderWidget = widget;
+    const mount = document.getElementById('authWidgetMount');
+    if (mount) {
+      mount.appendChild(widget.getElement());
+    }
+  }
+
   setupPlaybackControl(): void {
-    if (!isProUser()) return;
+    // Always create — show/hide reactively via auth state subscription below.
     this.ctx.playbackControl = new PlaybackControl();
     this.ctx.playbackControl.onSnapshot((snapshot) => {
       if (snapshot) {
@@ -1029,10 +1086,18 @@ export class EventHandlerManager implements AppModule {
       }
     });
 
+    const el = this.ctx.playbackControl.getElement();
     const headerRight = this.ctx.container.querySelector('.header-right');
     if (headerRight) {
-      headerRight.insertBefore(this.ctx.playbackControl.getElement(), headerRight.firstChild);
+      headerRight.insertBefore(el, headerRight.firstChild);
     }
+
+    const applyProGate = (isPro: boolean, initial = false) => {
+      el.style.display = isPro ? '' : 'none';
+      if (initial && !isPro) trackGateHit('playback');
+    };
+    applyProGate(getAuthState().user?.role === 'pro', true);
+    this.proGateUnsubscribers.push(subscribeAuthState(state => applyProGate(state.user?.role === 'pro')));
   }
 
   setupSnapshotSaving(): void {

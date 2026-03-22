@@ -224,10 +224,39 @@ export function createDomainGateway(
       forceKey: PREMIUM_RPC_PATHS.has(pathname),
     });
     if (keyCheck.required && !keyCheck.valid) {
-      return new Response(JSON.stringify({ error: keyCheck.error }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
-      });
+      // keyCheck.required is true for ALL paths from desktop/unknown origins,
+      // not just premium paths. The inner PREMIUM_RPC_PATHS check determines
+      // whether to offer Bearer-token fallback (premium only) or reject (non-premium).
+      if (PREMIUM_RPC_PATHS.has(pathname)) {
+        const authHeader = request.headers.get('Authorization');
+        if (authHeader?.startsWith('Bearer ')) {
+          const { validateBearerToken } = await import('./auth-session');
+          const session = await validateBearerToken(authHeader.slice(7));
+          if (!session.valid) {
+            return new Response(JSON.stringify({ error: 'Invalid or expired session' }), {
+              status: 401,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders },
+            });
+          }
+          if (session.role !== 'pro') {
+            return new Response(JSON.stringify({ error: 'Pro subscription required' }), {
+              status: 403,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders },
+            });
+          }
+          // Valid pro session — fall through to route handling
+        } else {
+          return new Response(JSON.stringify({ error: keyCheck.error }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          });
+        }
+      } else {
+        return new Response(JSON.stringify({ error: keyCheck.error }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        });
+      }
     }
 
     // IP-based rate limiting — two-phase: endpoint-specific first, then global fallback
