@@ -4,6 +4,8 @@ import { SITE_VARIANT } from './variant';
 import { isDesktopRuntime } from '@/services/runtime';
 // boundary-ignore: getSecretState is a pure env/keychain probe with no service dependencies
 import { getSecretState } from '@/services/runtime-config';
+// boundary-ignore: isEntitled is a pure state check with no side effects
+import { isEntitled } from '@/services/entitlements';
 
 const _desktop = isDesktopRuntime();
 
@@ -897,6 +899,8 @@ export function getEffectivePanelConfig(key: string, variant: string): PanelConf
  */
 export function isPanelEntitled(key: string, config: PanelConfig): boolean {
   if (!config.premium) return true;
+  // Dodo entitlements unlock all premium panels
+  if (isEntitled()) return true;
   const apiKeyPanels = ['stock-analysis', 'stock-backtest', 'daily-market-brief'];
   if (apiKeyPanels.includes(key)) {
     return getSecretState('WORLDMONITOR_API_KEY').present;
