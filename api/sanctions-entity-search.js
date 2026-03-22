@@ -49,8 +49,12 @@ export default async function handler(req) {
   if (!q || q.length < 2) {
     return jsonResponse({ error: 'q must be at least 2 characters' }, 400);
   }
+  if (q.length > 200) {
+    return jsonResponse({ error: 'q must be at most 200 characters' }, 400);
+  }
 
-  const limit = Math.min(Number(searchParams.get('limit') ?? '10'), MAX_RESULTS);
+  const limitRaw = Number(searchParams.get('limit') ?? '10');
+  const limit = Math.min(Number.isFinite(limitRaw) && limitRaw > 0 ? Math.trunc(limitRaw) : 10, MAX_RESULTS);
 
   try {
     const url = new URL(`${OPENSANCTIONS_BASE}/search/default`);

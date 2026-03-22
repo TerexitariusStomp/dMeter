@@ -536,6 +536,12 @@ runSeed('sanctions', 'pressure', CANONICAL_KEY, fetchSanctionsPressure, {
   validateFn: validate,
   sourceVersion: 'ofac-sls-advanced-xml-v1',
   recordCount: (data) => data.totalCount ?? 0,
+  // Strip internal-only fields before writing the main key so the pressure payload
+  // does not include the entity index (~hundreds of KB) or state snapshot.
+  publishTransform: (data) => {
+    const { _entityIndex: _ei, _state: _s, ...rest } = data;
+    return rest;
+  },
   extraKeys: [
     {
       key: STATE_KEY,
