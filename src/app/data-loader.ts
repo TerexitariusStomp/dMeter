@@ -105,6 +105,14 @@ import { fetchOrefAlerts, startOrefPolling, stopOrefPolling, onOrefAlertsUpdate 
 import { enrichEventsWithExposure } from '@/services/population-exposure';
 import { debounce, getCircuitBreakerCooldownInfo } from '@/utils';
 import { getSecretState, isFeatureAvailable, isFeatureEnabled } from '@/services/runtime-config';
+import { getAuthState } from '@/services/auth-state';
+
+/** True when the user has premium data access — desktop API key OR web Clerk Pro. */
+function hasPremiumAccess(): boolean {
+  if (getSecretState('WORLDMONITOR_API_KEY').present) return true;
+  if (getAuthState().user?.role === 'pro') return true;
+  return false;
+}
 import { isDesktopRuntime, toApiUrl } from '@/services/runtime';
 import { getAiFlowSettings } from '@/services/ai-flow-settings';
 import { t, getCurrentLanguage } from '@/services/i18n';
@@ -240,7 +248,7 @@ export class DataLoaderManager implements AppModule {
   init(): void {
     this.boundMarketWatchlistHandler = () => {
       void this.loadMarkets().then(async () => {
-        if (getSecretState('WORLDMONITOR_API_KEY').present) {
+        if (hasPremiumAccess()) {
           await this.loadStockAnalysis();
           await this.loadStockBacktest();
           await this.loadDailyMarketBrief(true);
@@ -373,10 +381,10 @@ export class DataLoaderManager implements AppModule {
       if (shouldLoadAny(['markets', 'heatmap', 'commodities', 'crypto', 'energy-complex', 'crypto-heatmap', 'defi-tokens', 'ai-tokens', 'other-tokens'])) {
         tasks.push({ name: 'markets', task: runGuarded('markets', () => this.loadMarkets()) });
       }
-      if (getSecretState('WORLDMONITOR_API_KEY').present && shouldLoad('stock-analysis')) {
+      if (hasPremiumAccess() && shouldLoad('stock-analysis')) {
         tasks.push({ name: 'stockAnalysis', task: runGuarded('stockAnalysis', () => this.loadStockAnalysis()) });
       }
-      if (getSecretState('WORLDMONITOR_API_KEY').present && shouldLoad('stock-backtest')) {
+      if (hasPremiumAccess() && shouldLoad('stock-backtest')) {
         tasks.push({ name: 'stockBacktest', task: runGuarded('stockBacktest', () => this.loadStockBacktest()) });
       }
       if (shouldLoad('polymarket')) {
@@ -518,7 +526,7 @@ export class DataLoaderManager implements AppModule {
 
     this.updateSearchIndex();
 
-    if (getSecretState('WORLDMONITOR_API_KEY').present) {
+    if (hasPremiumAccess()) {
       await this.loadDailyMarketBrief();
     }
 
@@ -1362,7 +1370,7 @@ export class DataLoaderManager implements AppModule {
   }
 
   async loadDailyMarketBrief(force = false): Promise<void> {
-    if (!getSecretState('WORLDMONITOR_API_KEY').present) return;
+    if (!hasPremiumAccess()) return;
     if (this.ctx.isDestroyed || this.ctx.inFlight.has('dailyMarketBrief')) return;
 
     this.ctx.inFlight.add('dailyMarketBrief');
