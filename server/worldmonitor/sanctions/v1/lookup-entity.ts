@@ -61,8 +61,8 @@ export const lookupSanctionEntity: SanctionsServiceHandler['lookupSanctionEntity
         scored.push({ score: 80, entry });
         continue;
       }
-      if (tokens.every((t) => haystack.includes(t))) {
-        const pos = haystack.indexOf(tokens[0]);
+      if (tokens.length > 0 && tokens.every((t) => haystack.includes(t))) {
+        const pos = haystack.indexOf(tokens[0] ?? '');
         scored.push({ score: 60 - Math.min(pos, 20), entry });
         continue;
       }
