@@ -4,12 +4,15 @@
 
 export const config = { runtime: 'edge' };
 
-import { applyRateLimit } from './_ip-rate-limit.js';
+import { createIpRateLimiter } from './_ip-rate-limit.js';
 import { jsonResponse } from './_json-response.js';
+import { getClientIp } from './_turnstile.js';
 
 const OPENSANCTIONS_BASE = 'https://api.opensanctions.org';
 const OPENSANCTIONS_TIMEOUT_MS = 8_000;
 const MAX_RESULTS = 20;
+
+const rateLimiter = createIpRateLimiter({ limit: 30, windowMs: 60_000 });
 
 function normalizeEntity(hit) {
   const props = hit.properties ?? {};
@@ -35,8 +38,10 @@ function normalizeEntity(hit) {
 }
 
 export default async function handler(req) {
-  const limitResp = await applyRateLimit(req, { windowMs: 60_000, max: 30, prefix: 'sanctions-search' });
-  if (limitResp) return limitResp;
+  const ip = getClientIp(req);
+  if (rateLimiter.isRateLimited(ip)) {
+    return jsonResponse({ error: 'Too many requests' }, 429);
+  }
 
   const { searchParams } = new URL(req.url);
   const q = (searchParams.get('q') ?? '').trim();
