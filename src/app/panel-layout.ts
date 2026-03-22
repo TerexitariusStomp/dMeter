@@ -72,10 +72,11 @@ import { trackCriticalBannerAction } from '@/services/analytics';
 import { getSecretState } from '@/services/runtime-config';
 import { CustomWidgetPanel } from '@/components/CustomWidgetPanel';
 import { openWidgetChatModal } from '@/components/WidgetChatModal';
-import { isProUser, getProWidgetKey, loadWidgets, saveWidget } from '@/services/widget-store';
+import { isProUser, loadWidgets, saveWidget } from '@/services/widget-store';
 import type { CustomWidgetSpec } from '@/services/widget-store';
 import { initEntitlementSubscription, isEntitled, onEntitlementChange } from '@/services/entitlements';
 import { initSubscriptionWatch, destroySubscriptionWatch } from '@/services/billing';
+import { getUserId } from '@/services/user-identity';
 import { initPaymentFailureBanner } from '@/components/payment-failure-banner';
 import { handleCheckoutReturn } from '@/services/checkout-return';
 import { initCheckoutOverlay, showCheckoutSuccess } from '@/services/checkout';
@@ -124,12 +125,11 @@ export class PanelLayoutManager implements AppModule {
       showCheckoutSuccess();
     }
 
-    // Boot entitlement subscription if we have a user identifier.
-    // Uses localStorage pro key as stand-in until real auth lands (Phase 18).
-    const proKey = getProWidgetKey();
-    if (proKey) {
-      initEntitlementSubscription(proKey).catch(() => {});
-      initSubscriptionWatch(proKey).catch(() => {});
+    // Boot entitlement + billing subscriptions if we have a user identifier.
+    const userId = getUserId();
+    if (userId) {
+      initEntitlementSubscription(userId).catch(() => {});
+      initSubscriptionWatch(userId).catch(() => {});
       initPaymentFailureBanner();
     }
 
