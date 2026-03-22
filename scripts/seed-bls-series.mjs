@@ -63,7 +63,7 @@ async function fetchBlsSeries(seriesId) {
       periodName: String(d.periodName ?? ''),
       value: String(d.value ?? ''),
     }))
-    .filter((d) => d.year && d.value !== '-')
+    .filter((d) => d.year && d.value && d.value !== '-')
     .reverse(); // oldest first
 
   return { observations };
@@ -118,14 +118,16 @@ async function afterPublish(data, _meta) {
   }
 }
 
-runSeed('economic', 'bls-series', CANONICAL_KEY, fetchAllSeries, {
-  validateFn: validate,
-  ttlSeconds: CACHE_TTL,
-  sourceVersion: 'bls-public-api-v2',
-  publishTransform,
-  afterPublish,
-}).catch((err) => {
-  const _cause = err.cause ? ` (cause: ${err.cause.message || err.cause.code || err.cause})` : '';
-  console.error('FATAL:', (err.message || err) + _cause);
-  process.exit(1);
-});
+if (process.argv[1]?.endsWith('seed-bls-series.mjs')) {
+  runSeed('economic', 'bls-series', CANONICAL_KEY, fetchAllSeries, {
+    validateFn: validate,
+    ttlSeconds: CACHE_TTL,
+    sourceVersion: 'bls-public-api-v2',
+    publishTransform,
+    afterPublish,
+  }).catch((err) => {
+    const _cause = err.cause ? ` (cause: ${err.cause.message || err.cause.code || err.cause})` : '';
+    console.error('FATAL:', (err.message || err) + _cause);
+    process.exit(1);
+  });
+}
