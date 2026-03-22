@@ -1,29 +1,28 @@
 /**
  * Server-side session validation for the Vercel edge gateway.
  *
- * Validates bearer tokens by calling the Convex `/api/auth/get-session`
- * endpoint with an `Authorization: Bearer` header. Falls back to the `userRoles:getUserRole`
- * Convex query when the role is not present in the get-session response.
+ * Validates Clerk-issued bearer tokens using local JWT verification
+ * with jose + cached JWKS. No Convex round-trip needed.
  *
- * Results are cached in-memory with a 60-second TTL to reduce repeated
- * calls to Convex for the same session token.
- *
- * This module must NOT import anything from `src/` — it runs in the
+ * This module must NOT import anything from `src/` -- it runs in the
  * Vercel edge runtime, not the browser.
  */
 
-// ---------------------------------------------------------------------------
-// Config
-// ---------------------------------------------------------------------------
+import { createRemoteJWKSet, jwtVerify } from 'jose';
 
-const CONVEX_SITE_URL = process.env.CONVEX_SITE_URL ?? '';
+// Clerk JWT issuer domain -- set in Vercel env vars
+const CLERK_JWT_ISSUER_DOMAIN = process.env.CLERK_JWT_ISSUER_DOMAIN ?? '';
 
-const CACHE_TTL_MS = 60_000; // 60 seconds
-const CACHE_MAX_ENTRIES = 100;
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+// Module-scope JWKS resolver -- cached across warm invocations.
+// jose handles key rotation and caching internally.
+let _jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
+function getJWKS() {
+  if (!_jwks && CLERK_JWT_ISSUER_DOMAIN) {
+    const jwksUrl = new URL('/.well-known/jwks.json', CLERK_JWT_ISSUER_DOMAIN);
+    _jwks = createRemoteJWKSet(jwksUrl);
+  }
+  return _jwks;
+}
 
 export interface SessionResult {
   valid: boolean;
@@ -31,81 +30,30 @@ export interface SessionResult {
   role?: 'free' | 'pro';
 }
 
-// ---------------------------------------------------------------------------
-// In-memory cache -- persists across warm invocations within the same Vercel
-// edge isolate. TTL ensures staleness is bounded.
-// ---------------------------------------------------------------------------
-
-const sessionCache = new Map<string, { data: SessionResult; expiresAt: number }>();
-
-function cacheResult(token: string, result: SessionResult): SessionResult {
-  sessionCache.set(token, { data: result, expiresAt: Date.now() + CACHE_TTL_MS });
-
-  // Prevent unbounded cache growth — evict oldest entry when cap is exceeded
-  if (sessionCache.size > CACHE_MAX_ENTRIES) {
-    const oldest = sessionCache.keys().next().value;
-    if (oldest !== undefined) sessionCache.delete(oldest);
-  }
-
-  return result;
-}
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
 /**
- * Validate a bearer token by calling the Convex get-session endpoint.
- *
- * Returns `{ valid: true, userId, role }` on success, or `{ valid: false }`
- * when the token is invalid, expired, or a network error occurs.
- *
- * Network errors are NOT cached so the next request can retry.
+ * Validate a Clerk-issued bearer token using local JWKS verification.
+ * Extracts `sub` (user ID) and `plan` (entitlement) from verified claims.
+ * Fails closed: invalid/expired/unverifiable tokens return { valid: false }.
  */
 export async function validateBearerToken(token: string): Promise<SessionResult> {
-  // Check cache first
-  const cached = sessionCache.get(token);
-  if (cached && cached.expiresAt > Date.now()) return cached.data;
-
-  // No Convex URL configured — cannot validate
-  if (!CONVEX_SITE_URL) return { valid: false };
+  const jwks = getJWKS();
+  if (!jwks) return { valid: false };
 
   try {
-    // Call Convex get-session with the session token as a Bearer header
-    const resp = await fetch(`${CONVEX_SITE_URL}/api/auth/get-session`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
+    const { payload } = await jwtVerify(token, jwks, {
+      issuer: CLERK_JWT_ISSUER_DOMAIN,
     });
 
-    if (!resp.ok) return cacheResult(token, { valid: false });
+    const userId = payload.sub;
+    if (!userId) return { valid: false };
 
-    const data = await resp.json();
-    if (!data?.user?.id) return cacheResult(token, { valid: false });
+    // Normalize plan claim -- unknown/missing = free (never pro)
+    const rawPlan = (payload as Record<string, unknown>).plan;
+    const role: 'free' | 'pro' = rawPlan === 'pro' ? 'pro' : 'free';
 
-    // Determine role — prefer get-session response, fallback to authenticated /api/user-role
-    let role: 'free' | 'pro' = data.user.role === 'pro' ? 'pro' : 'free';
-
-    if (!data.user.role && CONVEX_SITE_URL) {
-      try {
-        const roleResp = await fetch(`${CONVEX_SITE_URL}/api/user-role`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-        const roleData = await roleResp.json();
-        role = roleData.role === 'pro' ? 'pro' : 'free';
-      } catch {
-        // Role fetch failed — fail closed to free
-      }
-    }
-
-    return cacheResult(token, { valid: true, userId: data.user.id as string, role });
+    return { valid: true, userId, role };
   } catch {
-    // Network error — do NOT cache so the next request can retry
+    // Signature verification failed, expired, wrong issuer, etc.
     return { valid: false };
   }
 }

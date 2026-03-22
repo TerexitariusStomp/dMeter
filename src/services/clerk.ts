@@ -1,8 +1,16 @@
-import Clerk from '@clerk/clerk-js';
+/**
+ * Clerk JS initialization and thin wrapper.
+ *
+ * Uses dynamic import so the module is safe to import in Node.js test
+ * environments where @clerk/clerk-js (browser-only) is not available.
+ */
 
-const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ClerkInstance = any;
 
-let clerkInstance: Clerk | null = null;
+const PUBLISHABLE_KEY = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_CLERK_PUBLISHABLE_KEY) as string | undefined;
+
+let clerkInstance: ClerkInstance | null = null;
 let loadPromise: Promise<void> | null = null;
 
 /** Initialize Clerk. Call once at app startup. */
@@ -14,6 +22,7 @@ export async function initClerk(): Promise<void> {
     return;
   }
   loadPromise = (async () => {
+    const { Clerk } = await import('@clerk/clerk-js');
     const clerk = new Clerk(PUBLISHABLE_KEY);
     await clerk.load();
     clerkInstance = clerk;
@@ -22,7 +31,7 @@ export async function initClerk(): Promise<void> {
 }
 
 /** Get the initialized Clerk instance. Returns null if not loaded. */
-export function getClerk(): Clerk | null {
+export function getClerk(): ClerkInstance | null {
   return clerkInstance;
 }
 
@@ -78,7 +87,7 @@ export function subscribeClerk(callback: () => void): () => void {
  * Mount Clerk's UserButton component into a DOM element.
  * Returns an unmount function.
  */
-export function mountUserButton(el: HTMLElement): () => void {
+export function mountUserButton(el: HTMLDivElement): () => void {
   if (!clerkInstance) return () => {};
   clerkInstance.mountUserButton(el, {
     afterSignOutUrl: window.location.href,

@@ -1,5 +1,5 @@
 import { SITE_VARIANT } from '@/config/variant';
-import { getSessionBearerToken } from '@/services/auth-token';
+import { getClerkToken } from '@/services/clerk';
 
 const ENV = (() => {
   try {
@@ -792,10 +792,10 @@ export function installWebApiRedirect(): void {
    * user has an active session and no existing auth header is present.
    * Returns the original init unchanged for non-premium paths (zero overhead).
    */
-  const enrichInitForPremium = (pathWithQuery: string, init?: RequestInit): RequestInit | undefined => {
+  const enrichInitForPremium = async (pathWithQuery: string, init?: RequestInit): Promise<RequestInit | undefined> => {
     const path = pathWithQuery.split('?')[0] ?? pathWithQuery;
     if (!WEB_PREMIUM_API_PATHS.has(path)) return init;
-    const token = getSessionBearerToken();
+    const token = await getClerkToken();
     if (!token) return init;
     const headers = new Headers(init?.headers);
     // Don't overwrite existing auth headers (API key users keep their flow)
@@ -806,19 +806,19 @@ export function installWebApiRedirect(): void {
 
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     if (typeof input === 'string' && shouldRedirectPath(input)) {
-      const enriched = enrichInitForPremium(input, init);
+      const enriched = await enrichInitForPremium(input, init);
       return fetchWithRedirectFallback(`${API_BASE}${input}`, input, enriched);
     }
     if (input instanceof URL && input.origin === window.location.origin && shouldRedirectPath(`${input.pathname}${input.search}`)) {
       const pathAndSearch = `${input.pathname}${input.search}`;
-      const enriched = enrichInitForPremium(pathAndSearch, init);
+      const enriched = await enrichInitForPremium(pathAndSearch, init);
       return fetchWithRedirectFallback(new URL(`${API_BASE}${pathAndSearch}`), input, enriched);
     }
     if (input instanceof Request) {
       const u = new URL(input.url);
       if (u.origin === window.location.origin && shouldRedirectPath(`${u.pathname}${u.search}`)) {
         const pathAndSearch = `${u.pathname}${u.search}`;
-        const enriched = enrichInitForPremium(pathAndSearch, init);
+        const enriched = await enrichInitForPremium(pathAndSearch, init);
         return fetchWithRedirectFallback(
           new Request(`${API_BASE}${pathAndSearch}`, input),
           input.clone(),

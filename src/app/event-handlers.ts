@@ -58,7 +58,7 @@ import { invokeTauri } from '@/services/tauri-bridge';
 import { dataFreshness } from '@/services/data-freshness';
 import { mlWorker } from '@/services/ml-worker';
 import { UnifiedSettings } from '@/components/UnifiedSettings';
-import { AuthModal } from '@/components/AuthModal';
+import { AuthLauncher } from '@/components/AuthLauncher';
 import { AuthHeaderWidget } from '@/components/AuthHeaderWidget';
 import { t } from '@/services/i18n';
 import { TvModeController } from '@/services/tv-mode';
@@ -1034,7 +1034,7 @@ export class EventHandlerManager implements AppModule {
   }
 
   setupAuthWidget(): void {
-    const modal = new AuthModal();
+    const modal = new AuthLauncher();
     this.ctx.authModal = modal;
 
     const widget = new AuthHeaderWidget(
