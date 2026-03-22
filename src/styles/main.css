@@ -20707,6 +20707,36 @@ body.has-breaking-alert .panels-grid {
   margin: 0;
 }
 
+.mcp-panel-visualizing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 120px;
+  opacity: 0.7;
+}
+
+.mcp-vis-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.mcp-panel-widget {
+  padding: 0 !important;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.mcp-panel-widget iframe {
+  width: 100%;
+  min-height: 260px;
+  border: none;
+  display: block;
+  flex: 1;
+}
+
 /* ── MCP Presets ───────────────────────────────────── */
 .mcp-presets-section {
   display: flex;

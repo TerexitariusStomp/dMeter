@@ -91,7 +91,7 @@ const WEB_PREMIUM_PANELS = new Set([
   'daily-market-brief',
 ]);
 
-export interface PanelLayoutCallbacks {
+export interface PanelLayoutManagerCallbacks {
   openCountryStory: (code: string, name: string) => void;
   openCountryBrief: (code: string) => void;
   loadAllData: () => Promise<void>;
@@ -101,7 +101,7 @@ export interface PanelLayoutCallbacks {
 
 export class PanelLayoutManager implements AppModule {
   private ctx: AppContext;
-  private callbacks: PanelLayoutCallbacks;
+  private callbacks: PanelLayoutManagerCallbacks;
   private panelDragCleanupHandlers: Array<() => void> = [];
   private resolvedPanelOrder: string[] = [];
   private bottomSetMemory: Set<string> = new Set();
@@ -111,7 +111,7 @@ export class PanelLayoutManager implements AppModule {
   private unsubscribeAuth: (() => void) | null = null;
   private proBlockUnsubscribe: (() => void) | null = null;
 
-  constructor(ctx: AppContext, callbacks: PanelLayoutCallbacks) {
+  constructor(ctx: AppContext, callbacks: PanelLayoutManagerCallbacks) {
     this.ctx = ctx;
     this.callbacks = callbacks;
     this.applyTimeRangeFilterDebounced = debounce(() => {
@@ -553,9 +553,13 @@ export class PanelLayoutManager implements AppModule {
     return Object.prototype.hasOwnProperty.call(this.ctx.panelSettings, key);
   }
 
+  private static readonly NEWS_PANEL_TOOLTIPS: Record<string, string> = {
+    centralbanks: t('components.centralBankWatch.infoTooltip'),
+  };
+
   private createNewsPanel(key: string, labelKey: string): NewsPanel | null {
     if (!this.shouldCreatePanel(key)) return null;
-    const panel = new NewsPanel(key, t(labelKey));
+    const panel = new NewsPanel(key, t(labelKey), PanelLayoutManager.NEWS_PANEL_TOOLTIPS[key]);
     this.attachRelatedAssetHandlers(panel);
     this.ctx.newsPanels[key] = panel;
     this.ctx.panels[key] = panel;
@@ -653,7 +657,8 @@ export class PanelLayoutManager implements AppModule {
       if (!this.ctx.panelSettings[panelKey] && !this.ctx.panelSettings[key]) continue;
       const panelConfig = this.ctx.panelSettings[panelKey] ?? this.ctx.panelSettings[key] ?? ALL_PANELS[panelKey] ?? ALL_PANELS[key];
       const label = panelConfig?.name ?? key.charAt(0).toUpperCase() + key.slice(1);
-      const panel = new NewsPanel(panelKey, label);
+      const tooltip = PanelLayoutManager.NEWS_PANEL_TOOLTIPS[panelKey] ?? PanelLayoutManager.NEWS_PANEL_TOOLTIPS[key];
+      const panel = new NewsPanel(panelKey, label, tooltip);
       this.attachRelatedAssetHandlers(panel);
       this.ctx.newsPanels[key] = panel;
       this.ctx.panels[panelKey] = panel;
@@ -1158,7 +1163,7 @@ export class PanelLayoutManager implements AppModule {
       const configured = new Set(Object.keys(ALL_PANELS).filter(k => k !== 'map'));
       const created = new Set(Object.keys(this.ctx.panels));
       const extra = [...created].filter(k => !configured.has(k) && k !== 'deduction' && k !== 'runtime-config' && !k.startsWith('cw-') && !k.startsWith('mcp-'));
-      if (extra.length) console.warn('[PanelLayout] Panels created but not in ALL_PANELS:', extra);
+      if (extra.length) console.warn('[PanelLayoutManager] Panels created but not in ALL_PANELS:', extra);
     }
   }
 
