@@ -1582,7 +1582,7 @@ const _cryptoCfg = requireShared('crypto.json');
 const CRYPTO_IDS = _cryptoCfg.ids;
 const CRYPTO_META = _cryptoCfg.meta;
 const CRYPTO_PAPRIKA_MAP = _cryptoCfg.coinpaprika;
-const CRYPTO_SEED_TTL = 3600; // 1h
+const CRYPTO_SEED_TTL = 7200; // 2h — 1h buffer over 5min cron cadence (was 1h = 55min buffer)
 
 async function fetchCryptoCoinPaprika() {
   const data = await cyberHttpGetJson('https://api.coinpaprika.com/v1/tickers?quotes=USD', { Accept: 'application/json' }, 15000);
@@ -1628,7 +1628,7 @@ async function seedCryptoQuotes() {
 // Stablecoin Markets — CoinGecko → CoinPaprika fallback
 const STABLECOIN_IDS = 'tether,usd-coin,dai,first-digital-usd,ethena-usde';
 const STABLECOIN_PAPRIKA_MAP = { tether: 'usdt-tether', 'usd-coin': 'usdc-usd-coin', dai: 'dai-dai', 'first-digital-usd': 'fdusd-first-digital-usd', 'ethena-usde': 'usde-ethena-usde' };
-const STABLECOIN_SEED_TTL = 3600; // 1h
+const STABLECOIN_SEED_TTL = 7200; // 2h — 1h buffer over 5min cron cadence (was 1h = 55min buffer)
 
 async function fetchStablecoinCoinPaprika() {
   const data = await cyberHttpGetJson('https://api.coinpaprika.com/v1/tickers?quotes=USD', { Accept: 'application/json' }, 15000);
@@ -1678,7 +1678,7 @@ async function seedStablecoinMarkets() {
 // Crypto Sectors Heatmap — CoinGecko sector averages
 const _sectorsCfg = requireShared('crypto-sectors.json');
 const SECTORS_LIST = _sectorsCfg.sectors;
-const SECTORS_SEED_TTL = 3600; // 1h
+const SECTORS_SEED_TTL = 7200; // 2h — 1h buffer over 5min cron cadence (was 1h = 55min buffer)
 
 async function seedCryptoSectors() {
   const allIds = [...new Set(SECTORS_LIST.flatMap((s) => s.tokens))];
@@ -3076,6 +3076,37 @@ const THEATER_QUERY_REGIONS = [
   { name: 'PACIFIC', lamin: 4, lamax: 44, lomin: 104, lomax: 133 },
 ];
 
+// In-memory index of recently-seen Wingbits positions, keyed by ICAO24.
+// Populated on every successful bbox response; served for callsign-only lookups.
+// Entries expire after 5 minutes (Wingbits data is live, stale beyond that is misleading).
+const WINGBITS_POS_INDEX = new Map(); // icao24 -> { position, ts }
+const WINGBITS_POS_INDEX_TTL_MS = 5 * 60 * 1000;
+
+function wingbitsIndexUpdate(positions) {
+  const ts = Date.now();
+  for (const p of positions) {
+    if (p.icao24) WINGBITS_POS_INDEX.set(p.icao24, { position: p, ts });
+  }
+  // Prune stale entries to prevent unbounded growth.
+  if (WINGBITS_POS_INDEX.size > 5000) {
+    const cutoff = ts - WINGBITS_POS_INDEX_TTL_MS;
+    for (const [k, v] of WINGBITS_POS_INDEX) {
+      if (v.ts < cutoff) WINGBITS_POS_INDEX.delete(k);
+    }
+  }
+}
+
+function wingbitsIndexLookupCallsign(callsign) {
+  const cutoff = Date.now() - WINGBITS_POS_INDEX_TTL_MS;
+  const results = [];
+  for (const { position, ts } of WINGBITS_POS_INDEX.values()) {
+    if (ts < cutoff) continue;
+    const cs = (position.callsign || '').trim().toUpperCase();
+    if (cs.includes(callsign)) results.push(position);
+  }
+  return results;
+}
+
 async function handleWingbitsTrackRequest(req, res) {
   const apiKey = process.env.WINGBITS_API_KEY;
   if (!apiKey) {
@@ -3085,12 +3116,78 @@ async function handleWingbitsTrackRequest(req, res) {
 
   const url = new URL(req.url, 'http://localhost');
   const params = url.searchParams;
+  const callsignFilter = (params.get('callsign') || '').trim().toUpperCase();
   const laminStr = params.get('lamin');
   const lominStr = params.get('lomin');
   const lamaxStr = params.get('lamax');
   const lomaxStr = params.get('lomax');
 
-  if (!laminStr || !lominStr || !lamaxStr || !lomaxStr) {
+  // For callsign-only searches (no bbox), serve from the in-memory position index populated
+  // by recent bbox responses. On index miss, fall back to a global Wingbits API call.
+  const isBboxMissing = !laminStr || !lominStr || !lamaxStr || !lomaxStr;
+  if (callsignFilter && isBboxMissing) {
+    const hits = wingbitsIndexLookupCallsign(callsignFilter);
+    if (hits.length > 0) {
+      return sendCompressed(req, res, 200,
+        { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+        JSON.stringify({ positions: hits, source: 'wingbits' }));
+    }
+    // Index miss — flight not in any recent viewport. Try a global Wingbits API call.
+    try {
+      const globalAreas = [{ alias: 'global', by: 'box', la: 0, lo: 0, w: 21600, h: 10800, unit: 'nm' }];
+      const gbResp = await fetch('https://customer-api.wingbits.com/v1/flights', {
+        method: 'POST',
+        headers: { 'x-api-key': apiKey, Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': CHROME_UA },
+        body: JSON.stringify(globalAreas),
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (gbResp.ok) {
+        const gbData = await gbResp.json();
+        if (Array.isArray(gbData)) {
+          const now = Date.now();
+          const positions = [];
+          const seenIds = new Set();
+          for (const areaResult of gbData) {
+            const flightList = Array.isArray(areaResult.data) ? areaResult.data
+              : Array.isArray(areaResult.flights) ? areaResult.flights
+              : Array.isArray(areaResult) ? areaResult : [];
+            for (const f of flightList) {
+              const icao24 = f.h || f.icao24 || f.id || '';
+              if (!icao24 || seenIds.has(icao24)) continue;
+              const cs = (f.f || f.callsign || f.flight || '').trim().toUpperCase();
+              if (!cs.includes(callsignFilter)) continue;
+              seenIds.add(icao24);
+              positions.push({
+                icao24,
+                callsign: (f.f || f.callsign || f.flight || '').trim(),
+                lat: f.la ?? f.latitude ?? f.lat ?? 0,
+                lon: f.lo ?? f.longitude ?? f.lon ?? f.lng ?? 0,
+                altitudeM: (f.ab ?? f.altitude ?? f.alt ?? 0) * 0.3048,
+                groundSpeedKts: f.gs ?? f.groundSpeed ?? f.speed ?? 0,
+                trackDeg: f.th ?? f.heading ?? f.track ?? 0,
+                verticalRate: 0,
+                onGround: f.og ?? f.gr ?? f.onGround ?? false,
+                source: 'POSITION_SOURCE_WINGBITS',
+                observedAt: f.ra ? new Date(f.ra).getTime() : now,
+              });
+            }
+          }
+          wingbitsIndexUpdate(positions);
+          logThrottled('log', 'wingbits-callsign-global', `[Wingbits Track] global callsign fallback: ${positions.length} hits for "${callsignFilter}"`);
+          return sendCompressed(req, res, 200,
+            { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+            JSON.stringify({ positions, source: 'wingbits' }));
+        }
+      }
+    } catch (err) {
+      console.warn(`[Wingbits Track] Global callsign fallback failed: ${err?.message || err}`);
+    }
+    return sendCompressed(req, res, 200,
+      { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+      JSON.stringify({ positions: [], source: 'wingbits' }));
+  }
+
+  if (isBboxMissing) {
     return safeEnd(res, 400, { 'Content-Type': 'application/json' },
       JSON.stringify({ error: 'Missing bbox params: lamin, lomin, lamax, lomax', positions: [] }));
   }
@@ -3142,6 +3239,11 @@ async function handleWingbitsTrackRequest(req, res) {
       for (const f of flightList) {
         const icao24 = f.h || f.icao24 || f.id || '';
         if (!icao24 || seenIds.has(icao24)) continue;
+        // For callsign searches, skip non-matching flights early to keep response small.
+        if (callsignFilter) {
+          const cs = (f.f || f.callsign || f.flight || '').trim().toUpperCase();
+          if (!cs.includes(callsignFilter)) continue;
+        }
         seenIds.add(icao24);
         const lat = f.la ?? f.latitude ?? f.lat ?? 0;
         const lon = f.lo ?? f.longitude ?? f.lon ?? f.lng ?? 0;
@@ -3161,6 +3263,8 @@ async function handleWingbitsTrackRequest(req, res) {
       }
     }
 
+    // Populate in-memory index so callsign-only lookups can resolve without a global API call.
+    wingbitsIndexUpdate(positions);
     logThrottled('log', 'wingbits-track', `[Wingbits Track] ${positions.length} flights for bbox ${lamin},${lomin},${lamax},${lomax}`);
     return sendCompressed(req, res, 200,
       { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=30', 'CDN-Cache-Control': 'public, max-age=15' },

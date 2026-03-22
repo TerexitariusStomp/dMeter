@@ -6,8 +6,9 @@ import { deleteWidget, getWidget, saveWidget, isProUser } from '@/services/widge
 import type { McpDataPanel } from '@/components/McpDataPanel';
 import { openMcpConnectModal } from '@/components/McpConnectModal';
 import { deleteMcpPanel, getMcpPanel, saveMcpPanel } from '@/services/mcp-store';
-import type { PanelConfig, MapLayers } from '@/types';
+import type { PanelConfig, MapLayers, MilitaryFlight } from '@/types';
 import type { MapView } from '@/components';
+import type { PositionSample } from '@/services/aviation';
 import type { ClusteredEvent } from '@/types';
 import type { DashboardSnapshot } from '@/services/storage';
 import {
@@ -55,6 +56,7 @@ import {
 import { detectPlatform, allButtons, buttonsForPlatform } from '@/components/DownloadBanner';
 import type { Platform } from '@/components/DownloadBanner';
 import { invokeTauri } from '@/services/tauri-bridge';
+import { getCachedGpsInterference } from '@/services/gps-interference';
 import { dataFreshness } from '@/services/data-freshness';
 import { mlWorker } from '@/services/ml-worker';
 import { UnifiedSettings } from '@/components/UnifiedSettings';
@@ -66,6 +68,7 @@ import { getAuthState, subscribeAuthState } from '@/services/auth-state';
 
 export interface EventHandlerCallbacks {
   updateSearchIndex: () => void;
+  updateFlightSource?: (adsb: PositionSample[], military: MilitaryFlight[]) => void;
   loadAllData: () => Promise<void>;
   flushStaleRefreshes: () => void;
   setHiddenSince: (ts: number) => void;
@@ -75,6 +78,7 @@ export interface EventHandlerCallbacks {
   ensureCorrectZones: () => void;
   refreshOpenCountryBrief?: () => void;
   stopLayerActivity?: (layer: keyof MapLayers) => void;
+  mountLiveNewsIfReady?: () => void;
 }
 
 export class EventHandlerManager implements AppModule {
@@ -340,8 +344,12 @@ export class EventHandlerManager implements AppModule {
       }
       if (e.key === STORAGE_KEYS.liveChannels && e.newValue) {
         const panel = this.ctx.panels['live-news'];
-        if (panel && typeof (panel as unknown as { refreshChannelsFromStorage?: () => void }).refreshChannelsFromStorage === 'function') {
-          (panel as unknown as { refreshChannelsFromStorage: () => void }).refreshChannelsFromStorage();
+        if (panel) {
+          if (typeof (panel as unknown as { refreshChannelsFromStorage?: () => void }).refreshChannelsFromStorage === 'function') {
+            (panel as unknown as { refreshChannelsFromStorage: () => void }).refreshChannelsFromStorage();
+          }
+        } else {
+          this.callbacks.mountLiveNewsIfReady?.();
         }
       }
     };
@@ -949,12 +957,29 @@ export class EventHandlerManager implements AppModule {
 
   setupExportPanel(): void {
     if (!isProUser()) return;
-    this.ctx.exportPanel = new ExportPanel(() => ({
-      news: this.ctx.latestClusters.length > 0 ? this.ctx.latestClusters : this.ctx.allNews,
-      markets: this.ctx.latestMarkets,
-      predictions: this.ctx.latestPredictions,
-      timestamp: Date.now(),
-    }));
+    this.ctx.exportPanel = new ExportPanel(() => {
+      const allCards = this.ctx.correlationEngine?.getAllCards() ?? [];
+      const disabledCount = this.ctx.disabledSources.size;
+      return {
+        meta: {
+          exportedAt: new Date().toISOString(),
+          note: disabledCount > 0
+            ? `Export reflects currently enabled sources only. ${disabledCount} source(s) are disabled and not included.`
+            : 'Export reflects all active sources.',
+        },
+        timestamp: Date.now(),
+        news: this.ctx.allNews,
+        newsClusters: this.ctx.latestClusters.length > 0 ? this.ctx.latestClusters : undefined,
+        newsByCategory: this.ctx.newsByCategory,
+        markets: this.ctx.latestMarkets,
+        predictions: this.ctx.latestPredictions,
+        intelligence: this.ctx.intelligenceCache,
+        cyberThreats: this.ctx.cyberThreatsCache ?? undefined,
+        gpsJamming: getCachedGpsInterference() ?? undefined,
+        convergenceCards: allCards.map(({ assessment: _a, ...card }) => card),
+        monitors: this.ctx.monitors.length > 0 ? this.ctx.monitors : undefined,
+      };
+    });
 
     const el = this.ctx.exportPanel.getElement();
     const headerRight = this.ctx.container.querySelector('.header-right');
@@ -1160,11 +1185,13 @@ export class EventHandlerManager implements AppModule {
       }
     });
 
-    // Forward live aircraft positions from map to AirlineIntelPanel + cache
+    // Forward live aircraft positions from map to AirlineIntelPanel + cache + search index
     this.ctx.map?.setOnAircraftPositionsUpdate((positions) => {
       this.ctx.intelligenceCache.aircraftPositions = positions;
       const airlineIntel = this.ctx.panels['airline-intel'] as AirlineIntelPanel | undefined;
       airlineIntel?.updateLivePositions(positions);
+      const military = this.ctx.intelligenceCache.military?.flights ?? [];
+      this.callbacks.updateFlightSource?.(positions, military);
     });
   }
 

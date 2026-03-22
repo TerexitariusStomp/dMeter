@@ -178,7 +178,7 @@
       "protestsDetected": "{{count}} active protests detected",
       "aircraftTracked": "{{count}} military aircraft tracked",
       "vesselsTracked": "{{count}} military vessels tracked",
-      "internetOutages": "{{count}} internet outages",
+      "internetOutages": "{{count}} internet disruptions",
       "recentEarthquakes": "{{count}} recent earthquakes",
       "stockIndex": "Stock index: {{value}}",
       "recentHeadlines": "**Recent headlines:**",
@@ -343,6 +343,12 @@
     "producthunt": "Product Hunt",
     "events": "Tech Events",
     "serviceStatus": "Service Status",
+    "internetDisruptions": "Internet Disruptions",
+    "internetDisruptionsTabs": {
+      "outages": "Outages",
+      "ddos": "DDoS",
+      "anomalies": "Anomalies"
+    },
     "techReadiness": "Tech Readiness Index",
     "gccInvestments": "GCC Investments",
     "geoHubs": "Geopolitical Hubs",
@@ -393,12 +399,14 @@
       "layers": "Type \"military\" or \"finance\" for layer presets",
       "time": "Type \"1h\", \"24h\", or \"7d\" to filter by time",
       "settings": "Type \"dark mode\", \"settings\", or \"fullscreen\"",
+      "flight": "Search live flights by callsign (PRO)",
       "mapExample": "iran",
       "panelExample": "news",
       "briefExample": "brief china",
       "layersExample": "military layers",
       "timeExample": "24h",
-      "settingsExample": "dark mode"
+      "settingsExample": "dark mode",
+      "flightExample": "UAE528"
     },
     "keywords": {
       "military": "military",
@@ -494,8 +502,15 @@
         "startup": "Startup",
         "techevent": "Tech Event",
         "techhq": "Tech HQ",
-        "accelerator": "Accelerator"
-      }
+        "accelerator": "Accelerator",
+        "flight": "Flight"
+      },
+      "flightOnGround": "On ground",
+      "flightAirborne": "FL{{fl}} · {{kts}} kts",
+      "flightMilitary": "Military · {{type}} · FL{{fl}}",
+      "flightMilitaryOnGround": "Military · {{type}} · on ground",
+      "flightSearchHint": "Press Enter or click to look up live position",
+      "flightNotFound": "No live position found for {{callsign}}"
     },
     "signal": {
       "title": "INTELLIGENCE FINDING",
@@ -742,7 +757,7 @@
         "aircraftTracked": "{{count}} military aircraft tracked",
         "vesselsTracked": "{{count}} military vessels tracked",
         "activeStrikes": "{{count}} active strikes detected",
-        "internetOutages": "{{count}} internet outages",
+        "internetOutages": "{{count}} internet disruptions",
         "recentEarthquakes": "{{count}} recent earthquakes",
         "stockIndex": "Stock index: {{value}}",
         "recentHeadlines": "**Recent headlines:**"
@@ -1139,7 +1154,7 @@
       "nuclear": "Nuclear"
     },
     "community": {
-      "joinDiscussion": "Join Discord",
+      "joinDiscussion": "Help Shape What's Next",
       "openDiscussion": "Join Discord",
       "dontShowAgain": "Don't show again",
       "sectionLabel": "Community"
@@ -1204,7 +1219,7 @@
         "cloudRegions": "Cloud Regions",
         "aiDataCenters": "AI Data Centers",
         "underseaCables": "Undersea Cables",
-        "internetOutages": "Internet Outages",
+        "internetOutages": "Internet Disruptions",
         "cyberThreats": "Cyber Threats",
         "techEvents": "Tech Events",
         "naturalEvents": "Natural Events",
@@ -1267,7 +1282,7 @@
         "disruption": "Disruption",
         "advisory": "Advisory",
         "repairShip": "Repair Ship",
-        "internetOutage": "Internet Outage",
+        "internetOutage": "Internet Disruption",
         "medium": "medium",
         "news": "News",
         "undisclosed": "Undisclosed",
@@ -1842,6 +1857,14 @@
     "languageSelector": {
       "selectLanguage": "Select Language",
       "mapLabelsFallbackVi": "Map labels currently fall back to English for Vietnamese."
+    },
+    "internetDisruptions": {
+      "noOutages": "No active outages detected",
+      "noDdos": "No DDoS data available",
+      "noAnomalies": "No traffic anomalies detected",
+      "byProtocol": "Attack Protocol",
+      "byVector": "Attack Vector",
+      "topTargets": "Top Target Countries"
     },
     "serviceStatus": {
       "checkingServices": "Checking services...",

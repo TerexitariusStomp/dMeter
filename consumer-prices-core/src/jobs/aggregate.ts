@@ -1,9 +1,11 @@
 /**
  * Aggregate job: computes basket indices from latest price observations.
+ * Runs as an independent Railway cron service (02:15 UTC daily) after scrape.
  * Produces Fixed Basket Index and Value Basket Index per methodology.
  */
 import { query, closePool } from '../db/client.js';
 import { loadAllBasketConfigs } from '../config/loader.js';
+import { validateAll } from './validate.js';
 
 const logger = {
   info: (msg: string, ...args: unknown[]) => console.log(`[aggregate] ${msg}`, ...args),
@@ -149,13 +151,34 @@ async function writeComputedIndex(
   metricKey: string,
   metricValue: number,
 ) {
-  await query(
-    `INSERT INTO computed_indices (basket_id, retailer_id, category, metric_date, metric_key, metric_value, methodology_version)
-     VALUES ($1,$2,$3,NOW()::date,$4,$5,'1')
-     ON CONFLICT (basket_id, retailer_id, category, metric_date, metric_key)
-     DO UPDATE SET metric_value = EXCLUDED.metric_value, methodology_version = EXCLUDED.methodology_version`,
-    [basketId, retailerId, category, metricKey, metricValue],
-  );
+  // ON CONFLICT must reference the exact partial index predicate matching the row being inserted.
+  // The original constraint fires only when both retailer_id and category are NOT NULL.
+  // Partial indices (005_computed_indices_null_idx) handle the two NULL cases.
+  if (retailerId === null && category === null) {
+    await query(
+      `INSERT INTO computed_indices (basket_id, retailer_id, category, metric_date, metric_key, metric_value, methodology_version)
+       VALUES ($1, NULL, NULL, NOW()::date, $2, $3, '1')
+       ON CONFLICT (basket_id, metric_date, metric_key) WHERE retailer_id IS NULL AND category IS NULL
+       DO UPDATE SET metric_value = EXCLUDED.metric_value, methodology_version = EXCLUDED.methodology_version`,
+      [basketId, metricKey, metricValue],
+    );
+  } else if (retailerId === null) {
+    await query(
+      `INSERT INTO computed_indices (basket_id, retailer_id, category, metric_date, metric_key, metric_value, methodology_version)
+       VALUES ($1, NULL, $2, NOW()::date, $3, $4, '1')
+       ON CONFLICT (basket_id, category, metric_date, metric_key) WHERE retailer_id IS NULL AND category IS NOT NULL
+       DO UPDATE SET metric_value = EXCLUDED.metric_value, methodology_version = EXCLUDED.methodology_version`,
+      [basketId, category, metricKey, metricValue],
+    );
+  } else {
+    await query(
+      `INSERT INTO computed_indices (basket_id, retailer_id, category, metric_date, metric_key, metric_value, methodology_version)
+       VALUES ($1, $2, $3, NOW()::date, $4, $5, '1')
+       ON CONFLICT (basket_id, retailer_id, category, metric_date, metric_key)
+       DO UPDATE SET metric_value = EXCLUDED.metric_value, methodology_version = EXCLUDED.methodology_version`,
+      [basketId, retailerId, category, metricKey, metricValue],
+    );
+  }
 }
 
 export async function aggregateBasket(basketSlug: string, marketCode: string) {
@@ -194,14 +217,29 @@ export async function aggregateBasket(basketSlug: string, marketCode: string) {
   await writeComputedIndex(basketId, null, null, 'coverage_pct', coveragePct);
 
   // Retailer spread: (most expensive basket - cheapest basket) / cheapest × 100
-  const retailerTotals = new Map<string, number>();
+  // Only compare retailers on the INTERSECTION of basket items they all carry.
+  // Also deduplicate: per (retailer, basketItem) take cheapest price to avoid
+  // inflating totals when multiple SKUs are matched to the same basket item.
+  const byRetailerItem = new Map<string, Map<string, number>>();
   for (const r of rows) {
-    retailerTotals.set(r.retailerSlug, (retailerTotals.get(r.retailerSlug) ?? 0) + r.price);
+    if (!byRetailerItem.has(r.retailerSlug)) byRetailerItem.set(r.retailerSlug, new Map());
+    const itemMap = byRetailerItem.get(r.retailerSlug)!;
+    const existing = itemMap.get(r.basketItemId);
+    if (existing === undefined || r.price < existing) itemMap.set(r.basketItemId, r.price);
   }
-  if (retailerTotals.size >= 2) {
-    const totals = [...retailerTotals.values()];
-    const spreadPct = ((Math.max(...totals) - Math.min(...totals)) / Math.min(...totals)) * 100;
-    await writeComputedIndex(basketId, null, null, 'retailer_spread_pct', Math.round(spreadPct * 10) / 10);
+  const retailerSlugs = [...byRetailerItem.keys()];
+  if (retailerSlugs.length >= 2) {
+    // Find basket items covered by every retailer
+    const commonItemIds = [...byRetailerItem.get(retailerSlugs[0])!.keys()].filter((itemId) =>
+      retailerSlugs.every((slug) => byRetailerItem.get(slug)!.has(itemId)),
+    );
+    if (commonItemIds.length > 0) {
+      const retailerTotals = retailerSlugs.map((slug) =>
+        commonItemIds.reduce((sum, id) => sum + byRetailerItem.get(slug)!.get(id)!, 0),
+      );
+      const spreadPct = ((Math.max(...retailerTotals) - Math.min(...retailerTotals)) / Math.min(...retailerTotals)) * 100;
+      await writeComputedIndex(basketId, null, null, 'retailer_spread_pct', Math.round(spreadPct * 10) / 10);
+    }
   }
 
   // Per-category indices for buildTopCategories snapshot
@@ -226,11 +264,23 @@ export async function aggregateBasket(basketSlug: string, marketCode: string) {
 
 export async function aggregateAll() {
   const configs = loadAllBasketConfigs();
+  let failed = 0;
   for (const c of configs) {
-    await aggregateBasket(c.slug, c.marketCode);
+    try {
+      await aggregateBasket(c.slug, c.marketCode);
+    } catch (err) {
+      logger.warn(`aggregateBasket ${c.slug}:${c.marketCode} failed: ${err}`);
+      failed++;
+    }
   }
+  if (failed > 0) throw new Error(`${failed}/${configs.length} basket(s) failed`);
+}
+
+export async function validateAndAggregateAll() {
+  await validateAll();
+  await aggregateAll();
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  aggregateAll().finally(() => closePool()).catch(console.error);
+  validateAndAggregateAll().finally(() => closePool()).catch(console.error);
 }

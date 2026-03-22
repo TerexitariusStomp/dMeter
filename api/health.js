@@ -91,7 +91,7 @@ const SEED_META = {
   earthquakes:      { key: 'seed-meta:seismology:earthquakes',  maxStaleMin: 30 },
   wildfires:        { key: 'seed-meta:wildfire:fires',          maxStaleMin: 120 },
   outages:          { key: 'seed-meta:infra:outages',           maxStaleMin: 30 },
-  climateAnomalies: { key: 'seed-meta:climate:anomalies',       maxStaleMin: 120 },
+  climateAnomalies: { key: 'seed-meta:climate:anomalies',       maxStaleMin: 120 }, // runs as independent Railway cron (0 */2 * * *)
   unrestEvents:     { key: 'seed-meta:unrest:events',           maxStaleMin: 75 },
   cyberThreats:     { key: 'seed-meta:cyber:threats',           maxStaleMin: 480 },
   cryptoQuotes:     { key: 'seed-meta:market:crypto',           maxStaleMin: 30 },
@@ -109,13 +109,11 @@ const SEED_META = {
   // serviceStatuses: moved to ON_DEMAND — RPC-populated, no dedicated seed, goes stale when no users visit
   cableHealth:      { key: 'seed-meta:cable-health',              maxStaleMin: 90 }, // ais-relay warm-ping runs every 30min; 90min = 3× interval catches missed pings without false positives
   macroSignals:     { key: 'seed-meta:economic:macro-signals',    maxStaleMin: 20 },
-  bisPolicy:        { key: 'seed-meta:economic:bis:policy',       maxStaleMin: 10080 },
-  bisExchange:      { key: 'seed-meta:economic:bis:eer',          maxStaleMin: 10080 },
-  bisCredit:        { key: 'seed-meta:economic:bis:credit',       maxStaleMin: 10080 },
+  bisPolicy:        { key: 'seed-meta:economic:bis',              maxStaleMin: 10080 }, // runSeed('economic','bis',...) writes seed-meta:economic:bis
   shippingRates:    { key: 'seed-meta:supply_chain:shipping',     maxStaleMin: 420 },
   chokepoints:      { key: 'seed-meta:supply_chain:chokepoints',  maxStaleMin: 60 },
-  minerals:         { key: 'seed-meta:supply_chain:minerals',     maxStaleMin: 10080 },
-  giving:           { key: 'seed-meta:giving:summary',            maxStaleMin: 10080 },
+  // minerals + giving: on-demand cachedFetchJson only, no seed-meta writer — freshness checked via TTL
+  // bisExchange + bisCredit: extras written by same BIS script via writeExtraKey, no dedicated seed-meta
   gpsjam:           { key: 'seed-meta:intelligence:gpsjam',       maxStaleMin: 720 },
   positiveGeoEvents:{ key: 'seed-meta:positive-events:geo',       maxStaleMin: 60 },
   riskScores:       { key: 'seed-meta:intelligence:risk-scores',  maxStaleMin: 30 }, // CII warm-ping every 8min; 30min = ~3.5x interval,
@@ -151,12 +149,16 @@ const SEED_META = {
   thermalEscalation:   { key: 'seed-meta:thermal:escalation',                 maxStaleMin: 240 },
   nationalDebt:        { key: 'seed-meta:economic:national-debt',              maxStaleMin: 10080 }, // 7 days — monthly seed
   tariffTrendsUs:      { key: 'seed-meta:trade:tariffs:v1:840:all:10',        maxStaleMin: 900 },
-  consumerPricesOverview:   { key: 'seed-meta:consumer-prices:overview:ae',     maxStaleMin: 90 }, // seed TTL=30min; 3× interval
-  consumerPricesCategories: { key: 'seed-meta:consumer-prices:categories:ae:30d',            maxStaleMin: 90 },
-  consumerPricesMovers:     { key: 'seed-meta:consumer-prices:movers:ae:30d',               maxStaleMin: 90 },
-  consumerPricesSpread:     { key: 'seed-meta:consumer-prices:retailer-spread:ae:essentials-ae', maxStaleMin: 120 }, // TTL=60min; 2× interval
-  consumerPricesFreshness:  { key: 'seed-meta:consumer-prices:freshness:ae',    maxStaleMin: 30  }, // TTL=10min; 3× interval
-  tokenPanels:       { key: 'seed-meta:market:token-panels',                   maxStaleMin: 90 }, // cron every 30min; 3× interval
+  // publish.ts runs once daily (02:30 UTC); seed-meta TTL=52h — maxStaleMin must cover the full 24h cycle
+  consumerPricesOverview:   { key: 'seed-meta:consumer-prices:overview:ae',     maxStaleMin: 1500 }, // 25h = 24h cadence + 1h grace
+  consumerPricesCategories: { key: 'seed-meta:consumer-prices:categories:ae:30d',            maxStaleMin: 1500 },
+  consumerPricesMovers:     { key: 'seed-meta:consumer-prices:movers:ae:30d',               maxStaleMin: 1500 },
+  consumerPricesSpread:     { key: 'seed-meta:consumer-prices:retailer-spread:ae:essentials-ae', maxStaleMin: 1500 },
+  consumerPricesFreshness:  { key: 'seed-meta:consumer-prices:freshness:ae',    maxStaleMin: 1500 },
+  // defiTokens/aiTokens/otherTokens all share one seed run (seed-token-panels cron, every 30min)
+  defiTokens:        { key: 'seed-meta:market:token-panels', maxStaleMin: 90 },
+  aiTokens:          { key: 'seed-meta:market:token-panels', maxStaleMin: 90 },
+  otherTokens:       { key: 'seed-meta:market:token-panels', maxStaleMin: 90 },
 };
 
 // Standalone keys that are populated on-demand by RPC handlers (not seeds).

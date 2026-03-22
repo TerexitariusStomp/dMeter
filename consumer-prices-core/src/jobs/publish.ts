@@ -1,5 +1,6 @@
 /**
  * Publish job: builds compact WorldMonitor snapshot payloads and writes to Redis.
+ * Runs as an independent Railway cron service (02:30 UTC daily) after aggregate.
  * This is the handoff point between consumer-prices-core and WorldMonitor.
  */
 import {
@@ -92,7 +93,7 @@ export async function publishAll() {
     const advanceSeedMeta =
       freshnessSnapshot != null &&
       freshnessSnapshot.retailers.some(
-        (r) => r.freshnessMin > 0 && r.freshnessMin < FRESH_DATA_THRESHOLD_MIN,
+        (r) => r.freshnessMin >= 0 && r.freshnessMin < FRESH_DATA_THRESHOLD_MIN,
       );
     logger.info(`Publishing snapshots for market: ${marketCode} (freshData=${advanceSeedMeta})`);
 

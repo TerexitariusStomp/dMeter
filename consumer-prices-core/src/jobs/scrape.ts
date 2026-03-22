@@ -94,6 +94,11 @@ export async function scrapeRetailer(slug: string) {
       const fetchResult = await adapter.fetchTarget(ctx, target);
       const products = await adapter.parseListing(ctx, fetchResult);
 
+      if (products.length === 0) {
+        logger.warn(`  [${target.id}] parsed 0 products — counting as error`);
+        errorsCount++;
+        continue;
+      }
       logger.info(`  [${target.id}] parsed ${products.length} products`);
 
       for (const product of products) {
@@ -196,8 +201,26 @@ export async function scrapeAll() {
   }
 }
 
-if (process.argv[2]) {
-  scrapeRetailer(process.argv[2]).finally(() => closePool()).catch(console.error);
-} else {
-  scrapeAll().finally(() => closePool()).catch(console.error);
+async function main() {
+  try {
+    if (process.argv[2]) {
+      await scrapeRetailer(process.argv[2]);
+    } else {
+      await scrapeAll();
+    }
+  } catch (err) {
+    console.error('[scrape] fatal:', err);
+    process.exitCode = 1;
+  } finally {
+    // Race closePool against a 5s timeout — mirrors the teardown() fix in playwright.ts.
+    // Without a bound, a hung pg pool would keep main() pending indefinitely,
+    // delaying process.exit() and stalling the && chain (aggregate, publish).
+    const poolTimeout = new Promise<void>(r => setTimeout(r, 5000));
+    await Promise.race([closePool().catch(() => {}), poolTimeout]);
+  }
 }
+
+// process.exit() is required to flush lingering Playwright/Chromium handles
+// that would otherwise prevent the process from exiting naturally.
+// process.exitCode preserves failure signaling set in the catch block above.
+main().catch(() => { process.exitCode = 1; }).then(() => process.exit(process.exitCode ?? 0));
