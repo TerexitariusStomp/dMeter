@@ -48,6 +48,25 @@ export interface ProgramSanctionsPressure {
   newEntryCount: number;
 }
 
+export interface LookupSanctionEntityRequest {
+  q: string;
+  maxResults: number;
+}
+
+export interface LookupSanctionEntityResponse {
+  results: SanctionEntityMatch[];
+  total: number;
+  source: string;
+}
+
+export interface SanctionEntityMatch {
+  id: string;
+  name: string;
+  entityType: string;
+  countryCodes: string[];
+  programs: string[];
+}
+
 export type SanctionsEntityType = "SANCTIONS_ENTITY_TYPE_UNSPECIFIED" | "SANCTIONS_ENTITY_TYPE_ENTITY" | "SANCTIONS_ENTITY_TYPE_INDIVIDUAL" | "SANCTIONS_ENTITY_TYPE_VESSEL" | "SANCTIONS_ENTITY_TYPE_AIRCRAFT";
 
 export interface FieldViolation {
@@ -92,25 +111,6 @@ export interface RouteDescriptor {
   method: string;
   path: string;
   handler: (req: Request) => Promise<Response>;
-}
-
-export interface LookupSanctionEntityRequest {
-  q: string;
-  maxResults: number;
-}
-
-export interface SanctionEntityMatch {
-  id: string;
-  name: string;
-  entityType: string;
-  countryCodes: string[];
-  programs: string[];
-}
-
-export interface LookupSanctionEntityResponse {
-  results: SanctionEntityMatch[];
-  total: number;
-  source: string;
 }
 
 export interface SanctionsServiceHandler {
@@ -180,7 +180,7 @@ export function createSanctionsServiceRoutes(
           const params = url.searchParams;
           const body: LookupSanctionEntityRequest = {
             q: params.get("q") ?? "",
-            maxResults: Number(params.get("max_results") ?? "10"),
+            maxResults: Number(params.get("max_results") ?? "0"),
           };
           if (options?.validateRequest) {
             const bodyViolations = options.validateRequest("lookupSanctionEntity", body);
