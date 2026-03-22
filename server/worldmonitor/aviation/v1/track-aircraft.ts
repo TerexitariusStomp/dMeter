@@ -92,71 +92,82 @@ export async function trackAircraft(
         result = await cachedFetchJson<{ positions: PositionSample[]; source: string }>(
             cacheKey, positiveTtl, async () => {
                 const relayBase = getRelayBaseUrl();
+                const isCallsignOnly = !!req.callsign && req.swLat == null && req.icao24 == null;
 
-                // Try relay first if configured
-                if (relayBase) {
+                // For callsign-only searches, try Wingbits first — commercial flights like UAE20
+                // are Wingbits-exclusive and not visible in OpenSky. Trying OpenSky first wastes
+                // time and may return an early hit with no callsign match.
+                if (isCallsignOnly && relayBase) {
                     try {
-                        let osUrl: string;
-                        if (req.swLat != null && req.neLat != null) {
-                            osUrl = `${relayBase}/opensky/states/all?lamin=${req.swLat}&lomin=${req.swLon}&lamax=${req.neLat}&lomax=${req.neLon}`;
-                        } else if (req.icao24) {
-                            osUrl = `${relayBase}/opensky/states/all?icao24=${req.icao24}`;
-                        } else {
-                            osUrl = `${relayBase}/opensky/states/all`;
-                        }
-
-                        const resp = await fetch(osUrl, {
+                        const wbUrl = `${relayBase}/wingbits/track?callsign=${encodeURIComponent(req.callsign)}`;
+                        const wbResp = await fetch(wbUrl, {
                             headers: getRelayHeaders({}),
-                            signal: AbortSignal.timeout(10_000),
+                            signal: AbortSignal.timeout(20_000),
                         });
+                        if (wbResp.ok) {
+                            const wbData = await wbResp.json() as WingbitsRelayResponse;
+                            if (wbData.positions && wbData.positions.length > 0) {
+                                return { positions: wbData.positions, source: 'wingbits' };
+                            }
+                        }
+                    } catch (err) {
+                        console.warn(`[Aviation] Wingbits callsign relay failed: ${err instanceof Error ? err.message : err}`);
+                    }
+                }
 
+                // For bbox queries: run OpenSky relay and Wingbits relay in parallel.
+                // Sequential was 10s + 6s + 15s = 31s worst-case, exceeding Vercel's 25s limit.
+                // Parallel caps at 10s and gives merged coverage from both sources.
+                if (!isCallsignOnly && relayBase && req.swLat != null && req.neLat != null) {
+                    const osUrl = `${relayBase}/opensky/states/all?lamin=${req.swLat}&lomin=${req.swLon}&lamax=${req.neLat}&lomax=${req.neLon}`;
+                    const wbUrl = `${relayBase}/wingbits/track?lamin=${req.swLat}&lomin=${req.swLon}&lamax=${req.neLat}&lomax=${req.neLon}`;
+
+                    const [osResult, wbResult] = await Promise.allSettled([
+                        fetch(osUrl, { headers: getRelayHeaders({}), signal: AbortSignal.timeout(10_000) })
+                            .then(r => r.ok ? r.json() as Promise<OpenSkyResponse> : Promise.resolve(null))
+                            .then(d => d ? parseOpenSkyStates(d.states ?? []) : [])
+                            .catch(() => [] as PositionSample[]),
+                        fetch(wbUrl, { headers: getRelayHeaders({}), signal: AbortSignal.timeout(10_000) })
+                            .then(r => r.ok ? r.json() as Promise<WingbitsRelayResponse> : Promise.resolve(null))
+                            .then(d => d?.positions ?? [])
+                            .catch(() => [] as PositionSample[]),
+                    ]);
+
+                    const osPositions = osResult.status === 'fulfilled' ? osResult.value : [];
+                    const wbPositions = wbResult.status === 'fulfilled' ? wbResult.value : [];
+
+                    // Merge: Wingbits preferred for duplicates (more accurate for commercial flights).
+                    const seenIcao = new Set(wbPositions.map(p => p.icao24));
+                    const merged = [...wbPositions, ...osPositions.filter(p => !seenIcao.has(p.icao24))];
+                    if (merged.length > 0) {
+                        const source = wbPositions.length > 0 && osPositions.length > 0 ? 'wingbits'
+                            : wbPositions.length > 0 ? 'wingbits' : 'opensky';
+                        return { positions: merged, source };
+                    }
+
+                    // Both relay sources empty — try OpenSky anonymous as last resort
+                    try {
+                        const directPositions = await fetchOpenSkyAnonymous(req);
+                        if (directPositions.length > 0) {
+                            return { positions: directPositions, source: 'opensky-anonymous' };
+                        }
+                    } catch (err) {
+                        console.warn(`[Aviation] OpenSky anonymous failed: ${err instanceof Error ? err.message : err}`);
+                    }
+                }
+
+                // For icao24-only queries, try OpenSky relay then Wingbits
+                if (!isCallsignOnly && relayBase && req.icao24) {
+                    try {
+                        const osUrl = `${relayBase}/opensky/states/all?icao24=${req.icao24}`;
+                        const resp = await fetch(osUrl, { headers: getRelayHeaders({}), signal: AbortSignal.timeout(8_000) });
                         if (resp.ok) {
                             const data = await resp.json() as OpenSkyResponse;
                             const positions = parseOpenSkyStates(data.states ?? []);
                             if (positions.length > 0) return { positions, source: 'opensky' };
                         }
                     } catch (err) {
-                        console.warn(`[Aviation] Relay failed: ${err instanceof Error ? err.message : err}`);
-                    }
-                }
-
-                // Try direct OpenSky anonymous API (no auth needed, ~10 req/min limit)
-                try {
-                    const directPositions = await fetchOpenSkyAnonymous(req);
-                    if (directPositions.length > 0) {
-                        return { positions: directPositions, source: 'opensky-anonymous' };
-                    }
-                } catch (err) {
-                    console.warn(`[Aviation] Direct OpenSky anonymous failed: ${err instanceof Error ? err.message : err}`);
-                }
-
-                // Try Wingbits relay. Supports bbox queries and, for callsign-only searches,
-                // a global bbox so we can find the aircraft regardless of position.
-                if (relayBase) {
-                    try {
-                        let wbUrl: string;
-                        if (req.swLat != null && req.neLat != null) {
-                            wbUrl = `${relayBase}/wingbits/track?lamin=${req.swLat}&lomin=${req.swLon}&lamax=${req.neLat}&lomax=${req.neLon}`;
-                        } else if (req.callsign) {
-                            // Global search — relay uses a worldwide box and filters by callsign.
-                            wbUrl = `${relayBase}/wingbits/track?callsign=${encodeURIComponent(req.callsign)}`;
-                        } else {
-                            wbUrl = '';
-                        }
-                        if (wbUrl) {
-                            const wbResp = await fetch(wbUrl, {
-                                headers: getRelayHeaders({}),
-                                signal: AbortSignal.timeout(15_000),
-                            });
-                            if (wbResp.ok) {
-                                const wbData = await wbResp.json() as WingbitsRelayResponse;
-                                if (wbData.positions && wbData.positions.length > 0) {
-                                    return { positions: wbData.positions, source: 'wingbits' };
-                                }
-                            }
-                        }
-                    } catch (err) {
-                        console.warn(`[Aviation] Wingbits relay failed: ${err instanceof Error ? err.message : err}`);
+                        console.warn(`[Aviation] Relay icao24 failed: ${err instanceof Error ? err.message : err}`);
                     }
                 }
 
