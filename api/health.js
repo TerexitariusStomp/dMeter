@@ -35,6 +35,7 @@ const BOOTSTRAP_KEYS = {
   forecasts:         'forecast:predictions:v2',
   securityAdvisories: 'intelligence:advisories-bootstrap:v1',
   customsRevenue:    'trade:customs-revenue:v1',
+  blsSeries:         'bls:series:v1',
   sanctionsPressure: 'sanctions:pressure:v1',
   radiationWatch:    'radiation:observations:v1',
   consumerPricesOverview:   'consumer-prices:overview:ae',
@@ -144,6 +145,7 @@ const SEED_META = {
   usniFleet:           { key: 'seed-meta:military:usni-fleet',               maxStaleMin: 480 },
   securityAdvisories:  { key: 'seed-meta:intelligence:advisories',           maxStaleMin: 120 },
   customsRevenue:      { key: 'seed-meta:trade:customs-revenue',              maxStaleMin: 1440 },
+  blsSeries:           { key: 'seed-meta:economic:bls-series',                maxStaleMin: 1440 }, // daily seed
   sanctionsPressure:   { key: 'seed-meta:sanctions:pressure',                 maxStaleMin: 720 },
   radiationWatch:      { key: 'seed-meta:radiation:observations',             maxStaleMin: 30 },
   groceryBasket:       { key: 'seed-meta:economic:grocery-basket',            maxStaleMin: 10080 }, // weekly seed; 10080 = 7 days
