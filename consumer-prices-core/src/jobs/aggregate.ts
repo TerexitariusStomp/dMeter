@@ -5,6 +5,7 @@
  */
 import { query, closePool } from '../db/client.js';
 import { loadAllBasketConfigs } from '../config/loader.js';
+import { validateAll } from './validate.js';
 
 const logger = {
   info: (msg: string, ...args: unknown[]) => console.log(`[aggregate] ${msg}`, ...args),
@@ -150,13 +151,34 @@ async function writeComputedIndex(
   metricKey: string,
   metricValue: number,
 ) {
-  await query(
-    `INSERT INTO computed_indices (basket_id, retailer_id, category, metric_date, metric_key, metric_value, methodology_version)
-     VALUES ($1,$2,$3,NOW()::date,$4,$5,'1')
-     ON CONFLICT (basket_id, retailer_id, category, metric_date, metric_key)
-     DO UPDATE SET metric_value = EXCLUDED.metric_value, methodology_version = EXCLUDED.methodology_version`,
-    [basketId, retailerId, category, metricKey, metricValue],
-  );
+  // ON CONFLICT must reference the exact partial index predicate matching the row being inserted.
+  // The original constraint fires only when both retailer_id and category are NOT NULL.
+  // Partial indices (005_computed_indices_null_idx) handle the two NULL cases.
+  if (retailerId === null && category === null) {
+    await query(
+      `INSERT INTO computed_indices (basket_id, retailer_id, category, metric_date, metric_key, metric_value, methodology_version)
+       VALUES ($1, NULL, NULL, NOW()::date, $2, $3, '1')
+       ON CONFLICT (basket_id, metric_date, metric_key) WHERE retailer_id IS NULL AND category IS NULL
+       DO UPDATE SET metric_value = EXCLUDED.metric_value, methodology_version = EXCLUDED.methodology_version`,
+      [basketId, metricKey, metricValue],
+    );
+  } else if (retailerId === null) {
+    await query(
+      `INSERT INTO computed_indices (basket_id, retailer_id, category, metric_date, metric_key, metric_value, methodology_version)
+       VALUES ($1, NULL, $2, NOW()::date, $3, $4, '1')
+       ON CONFLICT (basket_id, category, metric_date, metric_key) WHERE retailer_id IS NULL AND category IS NOT NULL
+       DO UPDATE SET metric_value = EXCLUDED.metric_value, methodology_version = EXCLUDED.methodology_version`,
+      [basketId, category, metricKey, metricValue],
+    );
+  } else {
+    await query(
+      `INSERT INTO computed_indices (basket_id, retailer_id, category, metric_date, metric_key, metric_value, methodology_version)
+       VALUES ($1, $2, $3, NOW()::date, $4, $5, '1')
+       ON CONFLICT (basket_id, retailer_id, category, metric_date, metric_key)
+       DO UPDATE SET metric_value = EXCLUDED.metric_value, methodology_version = EXCLUDED.methodology_version`,
+      [basketId, retailerId, category, metricKey, metricValue],
+    );
+  }
 }
 
 export async function aggregateBasket(basketSlug: string, marketCode: string) {
@@ -254,6 +276,11 @@ export async function aggregateAll() {
   if (failed > 0) throw new Error(`${failed}/${configs.length} basket(s) failed`);
 }
 
+export async function validateAndAggregateAll() {
+  await validateAll();
+  await aggregateAll();
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
-  aggregateAll().finally(() => closePool()).catch(console.error);
+  validateAndAggregateAll().finally(() => closePool()).catch(console.error);
 }
