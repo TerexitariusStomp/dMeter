@@ -382,17 +382,17 @@ export interface GetGdeltTopicTimelineRequest {
   topic: string;
 }
 
-export interface GdeltTimelinePoint {
-  date: string;
-  value: number;
-}
-
 export interface GetGdeltTopicTimelineResponse {
   topic: string;
   tone: GdeltTimelinePoint[];
   vol: GdeltTimelinePoint[];
   fetchedAt: string;
   error: string;
+}
+
+export interface GdeltTimelinePoint {
+  date: string;
+  value: number;
 }
 
 export type SeverityLevel = "SEVERITY_LEVEL_UNSPECIFIED" | "SEVERITY_LEVEL_LOW" | "SEVERITY_LEVEL_MEDIUM" | "SEVERITY_LEVEL_HIGH";
@@ -1133,18 +1133,15 @@ export function createIntelligenceServiceRoutes(
       handler: async (req: Request): Promise<Response> => {
         try {
           const pathParams: Record<string, string> = {};
-          const url = new URL(req.url);
+          const url = new URL(req.url, "http://localhost");
+          const params = url.searchParams;
           const body: GetGdeltTopicTimelineRequest = {
-            topic: url.searchParams.get("topic") ?? "",
+            topic: params.get("topic") ?? "",
           };
-
           if (options?.validateRequest) {
             const bodyViolations = options.validateRequest("getGdeltTopicTimeline", body);
-            if (bodyViolations && bodyViolations.length > 0) {
-              return new Response(JSON.stringify({ violations: bodyViolations }), {
-                status: 400,
-                headers: { "Content-Type": "application/json" },
-              });
+            if (bodyViolations) {
+              throw new ValidationError(bodyViolations);
             }
           }
 
