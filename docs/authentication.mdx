@@ -3,7 +3,7 @@ title: "Authentication & Panel Gating"
 description: "How user authentication, premium panel gating, and server-side session enforcement work in WorldMonitor."
 ---
 
-WorldMonitor uses [better-auth](https://better-auth.com) with a Convex database backend for authentication. The auth system gates premium panels behind sign-in and tier checks, and enforces session-based access on server-side API endpoints.
+WorldMonitor uses [Clerk](https://clerk.com) for authentication. The auth system gates premium panels behind sign-in and tier checks, and enforces session-based access on server-side API endpoints via local JWT verification.
 
 ---
 
@@ -11,22 +11,20 @@ WorldMonitor uses [better-auth](https://better-auth.com) with a Convex database 
 
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
-| Auth server | better-auth + `@convex-dev/better-auth` | Email OTP sign-in, session management |
-| Auth routes | Convex HTTP router | `/api/auth/*` endpoints on `*.convex.site` |
-| Auth client | `better-auth/client` + `crossDomainClient` + `emailOTPClient` | Browser session persistence across subdomains |
-| Email | Resend | OTP verification codes |
+| Auth provider | Clerk | Sign-in (email, social), session management, hosted UI |
+| JWT verification | jose + Clerk JWKS | Server-side bearer token validation (no round-trip) |
+| Convex integration | Clerk JWT template (`convex`) | Convex auth with `applicationID: "convex"` |
+| Auth state | `auth-state.ts` | Reactive browser auth state, role caching |
 
 ### Key Files
 
 | File | Purpose |
 |------|---------|
-| `convex/auth.ts` | Server auth config — plugins, email templates, trusted origins |
-| `convex/http.ts` | Mounts auth routes on Convex HTTP router |
-| `src/services/auth-client.ts` | Browser auth client (crossDomain + convex plugins) |
+| `convex/auth.config.ts` | Convex auth provider config — Clerk JWT issuer + applicationID |
+| `src/services/clerk.ts` | Clerk instance init, `getClerkToken()` for Convex JWT template |
 | `src/services/auth-state.ts` | Reactive auth state, role fetching, session hydration |
-| `src/services/auth-token.ts` | Extracts session token from localStorage for API calls |
-| `src/components/AuthModal.ts` | Email OTP sign-in UI (enter email, verify code) |
-| `src/components/AuthHeaderWidget.ts` | Header sign-in button, user dropdown |
+| `src/components/AuthHeaderWidget.ts` | Header sign-in button, Clerk UserButton |
+| `server/auth-session.ts` | Server-side JWT validation with jose + cached JWKS |
 
 ---
 
@@ -38,7 +36,7 @@ Premium panels show a CTA overlay instead of content until the user meets the ac
 
 | Reason | What the user sees | Resolution |
 |--------|-------------------|------------|
-| `ANONYMOUS` | "Sign In to Unlock" | Sign in or create account (email OTP) |
+| `ANONYMOUS` | "Sign In to Unlock" | Sign in via Clerk |
 | `FREE_TIER` | "Upgrade to Pro" | Upgrade subscription |
 | `NONE` | Normal panel content | Already unlocked |
 
@@ -84,7 +82,7 @@ const WEB_PREMIUM_API_PATHS = new Set([
 ]);
 ```
 
-When a fetch request matches a path in this set and the user has a session, the client automatically injects `Authorization: Bearer <token>`.
+When a fetch request matches a path in this set and the user has a Clerk session, the client automatically injects `Authorization: Bearer <token>`.
 
 **Server gateway** — `server/gateway.ts` (`PREMIUM_RPC_PATHS`):
 
@@ -98,7 +96,7 @@ const PREMIUM_RPC_PATHS = new Set([
 ]);
 ```
 
-The gateway validates the bearer token and checks `session.role === 'pro'`. Returns 403 if the user isn't pro.
+The gateway validates the bearer token via local JWKS verification (jose) and checks `session.role === 'pro'`. Returns 403 if the user isn't pro.
 
 ### Currently Gated Panels
 
@@ -119,9 +117,14 @@ Desktop users with a valid `WORLDMONITOR_API_KEY` in the Tauri keychain bypass a
 The Vercel API gateway accepts two forms of authentication for premium endpoints:
 
 1. **Static API key** — `X-WorldMonitor-Key` header (existing flow, unchanged)
-2. **Bearer token** — `Authorization: Bearer <session_token>` (new, for web users)
+2. **Bearer token** — `Authorization: Bearer <clerk_jwt>` (for web users)
 
-The gateway tries the API key first. If that fails on a premium endpoint, it falls back to bearer token validation via the Convex auth backend. Non-premium endpoints don't require any authentication from web origins.
+The gateway tries the API key first. If that fails on a premium endpoint, it falls back to bearer token validation using local JWKS verification via `server/auth-session.ts`. The JWT is verified against:
+- **Issuer**: `CLERK_JWT_ISSUER_DOMAIN`
+- **Audience**: `convex` (matches the Clerk JWT template)
+- **Signature**: RSA256 via Clerk's published JWKS
+
+Non-premium endpoints don't require any authentication from web origins.
 
 ---
 
@@ -129,9 +132,8 @@ The gateway tries the API key first. If that fails on a premium endpoint, it fal
 
 | Variable | Where | Purpose |
 |----------|-------|---------|
-| `BETTER_AUTH_SECRET` | Convex | Signs session tokens |
-| `SITE_URL` | Convex | Base URL for email links (e.g. `https://worldmonitor.app`) |
-| `RESEND_API_KEY` | Convex | Sends OTP verification codes |
+| `CLERK_JWT_ISSUER_DOMAIN` | Convex + Vercel | Clerk issuer domain for JWT verification |
+| `VITE_CLERK_PUBLISHABLE_KEY` | Vercel | Client-side Clerk publishable key |
 | `CONVEX_SITE_URL` | Vercel | Server-side Convex URL for session validation |
 | `VITE_CONVEX_SITE_URL` | Vercel | Client-side Convex URL (Vite requires `VITE_` prefix) |
 
@@ -139,6 +141,6 @@ The gateway tries the API key first. If that fails on a premium endpoint, it fal
 
 ## User Roles
 
-Roles are stored in the `userRoles` Convex table (not in better-auth's user table — the Convex component validator rejects additional fields). The client fetches the role from `userRoles:getUserRole` and caches it per session.
+User roles (`pro` / `free`) are stored as a `plan` claim in the Clerk JWT. The server extracts this from the verified token payload. Unknown or missing `plan` values default to `free` (fail closed — never pro).
 
-To assign the `pro` role to a user, update their entry in the Convex dashboard's `userRoles` table directly.
+On the client side, `getAuthState().user?.role` exposes the role. Both `isProUser()` and `hasPremiumAccess()` check this alongside legacy API key gates.

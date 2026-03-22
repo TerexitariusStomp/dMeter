@@ -42,6 +42,7 @@ export async function validateBearerToken(token: string): Promise<SessionResult>
   try {
     const { payload } = await jwtVerify(token, jwks, {
       issuer: CLERK_JWT_ISSUER_DOMAIN,
+      audience: 'convex',
     });
 
     const userId = payload.sub;
