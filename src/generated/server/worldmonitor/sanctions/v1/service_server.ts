@@ -94,8 +94,28 @@ export interface RouteDescriptor {
   handler: (req: Request) => Promise<Response>;
 }
 
+export interface LookupSanctionEntityRequest {
+  q: string;
+  maxResults: number;
+}
+
+export interface SanctionEntityMatch {
+  id: string;
+  name: string;
+  entityType: string;
+  countryCodes: string[];
+  programs: string[];
+}
+
+export interface LookupSanctionEntityResponse {
+  results: SanctionEntityMatch[];
+  total: number;
+  source: string;
+}
+
 export interface SanctionsServiceHandler {
   listSanctionsPressure(ctx: ServerContext, req: ListSanctionsPressureRequest): Promise<ListSanctionsPressureResponse>;
+  lookupSanctionEntity(ctx: ServerContext, req: LookupSanctionEntityRequest): Promise<LookupSanctionEntityResponse>;
 }
 
 export function createSanctionsServiceRoutes(
@@ -129,6 +149,54 @@ export function createSanctionsServiceRoutes(
 
           const result = await handler.listSanctionsPressure(ctx, body);
           return new Response(JSON.stringify(result as ListSanctionsPressureResponse), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        } catch (err: unknown) {
+          if (err instanceof ValidationError) {
+            return new Response(JSON.stringify({ violations: err.violations }), {
+              status: 400,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+          if (options?.onError) {
+            return options.onError(err, req);
+          }
+          const message = err instanceof Error ? err.message : String(err);
+          return new Response(JSON.stringify({ message }), {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+      },
+    },
+    {
+      method: "GET",
+      path: "/api/sanctions/v1/lookup-sanction-entity",
+      handler: async (req: Request): Promise<Response> => {
+        try {
+          const pathParams: Record<string, string> = {};
+          const url = new URL(req.url, "http://localhost");
+          const params = url.searchParams;
+          const body: LookupSanctionEntityRequest = {
+            q: params.get("q") ?? "",
+            maxResults: Number(params.get("max_results") ?? "10"),
+          };
+          if (options?.validateRequest) {
+            const bodyViolations = options.validateRequest("lookupSanctionEntity", body);
+            if (bodyViolations) {
+              throw new ValidationError(bodyViolations);
+            }
+          }
+
+          const ctx: ServerContext = {
+            request: req,
+            pathParams,
+            headers: Object.fromEntries(req.headers.entries()),
+          };
+
+          const result = await handler.lookupSanctionEntity(ctx, body);
+          return new Response(JSON.stringify(result as LookupSanctionEntityResponse), {
             status: 200,
             headers: { "Content-Type": "application/json" },
           });
