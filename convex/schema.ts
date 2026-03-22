@@ -27,8 +27,4 @@ export default defineSchema({
     name: v.string(),
     value: v.number(),
   }).index("by_name", ["name"]),
-  userRoles: defineTable({
-    userId: v.string(),
-    role: v.string(), // "free" | "pro"
-  }).index("by_userId", ["userId"]),
 });
