@@ -390,6 +390,9 @@ export class DataLoaderManager implements AppModule {
       if (hasPremiumAccess() && shouldLoad('stock-backtest')) {
         tasks.push({ name: 'stockBacktest', task: runGuarded('stockBacktest', () => this.loadStockBacktest()) });
       }
+      if (hasPremiumAccess() && shouldLoad('daily-market-brief')) {
+        tasks.push({ name: 'dailyMarketBrief', task: runGuarded('dailyMarketBrief', () => this.loadDailyMarketBrief()) });
+      }
       if (shouldLoad('polymarket')) {
         tasks.push({ name: 'predictions', task: runGuarded('predictions', () => this.loadPredictions()) });
       }

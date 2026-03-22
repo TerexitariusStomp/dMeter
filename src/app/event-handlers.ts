@@ -2,7 +2,7 @@ import type { AppContext, AppModule } from '@/app/app-context';
 import type { AirlineIntelPanel } from '@/components/AirlineIntelPanel';
 import type { CustomWidgetPanel } from '@/components/CustomWidgetPanel';
 import { openWidgetChatModal } from '@/components/WidgetChatModal';
-import { deleteWidget, getWidget, saveWidget, isProUser } from '@/services/widget-store';
+import { deleteWidget, getWidget, saveWidget } from '@/services/widget-store';
 import type { McpDataPanel } from '@/components/McpDataPanel';
 import { openMcpConnectModal } from '@/components/McpConnectModal';
 import { deleteMcpPanel, getMcpPanel, saveMcpPanel } from '@/services/mcp-store';
@@ -956,7 +956,7 @@ export class EventHandlerManager implements AppModule {
   }
 
   setupExportPanel(): void {
-    if (!isProUser()) return;
+    // Always create — show/hide reactively via auth state subscription below.
     this.ctx.exportPanel = new ExportPanel(() => {
       const allCards = this.ctx.correlationEngine?.getAllCards() ?? [];
       const disabledCount = this.ctx.disabledSources.size;
@@ -1074,7 +1074,7 @@ export class EventHandlerManager implements AppModule {
   }
 
   setupPlaybackControl(): void {
-    if (!isProUser()) return;
+    // Always create — show/hide reactively via auth state subscription below.
     this.ctx.playbackControl = new PlaybackControl();
     this.ctx.playbackControl.onSnapshot((snapshot) => {
       if (snapshot) {
