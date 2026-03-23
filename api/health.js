@@ -49,6 +49,7 @@ const BOOTSTRAP_KEYS = {
   defiTokens:        'market:defi-tokens:v1',
   aiTokens:          'market:ai-tokens:v1',
   otherTokens:       'market:other-tokens:v1',
+  fredBatch:         'economic:fred:v1:FEDFUNDS:0',
 };
 
 const STANDALONE_KEYS = {
@@ -85,7 +86,9 @@ const STANDALONE_KEYS = {
   chokepointTransits:    'supply_chain:chokepoint_transits:v1',
   transitSummaries:      'supply_chain:transit-summaries:v1',
   thermalEscalation:     'thermal:escalation:v1',
-  tariffTrendsUs:        'trade:tariffs:v1:840:all:10',
+  tariffTrendsUs:           'trade:tariffs:v1:840:all:10',
+  militaryForecastInputs:   'military:forecast-inputs:stale:v1',
+  gscpi:                    'economic:fred:v1:GSCPI:0',
 };
 
 const SEED_META = {
@@ -94,14 +97,14 @@ const SEED_META = {
   outages:          { key: 'seed-meta:infra:outages',           maxStaleMin: 30 },
   climateAnomalies: { key: 'seed-meta:climate:anomalies',       maxStaleMin: 120 }, // runs as independent Railway cron (0 */2 * * *)
   unrestEvents:     { key: 'seed-meta:unrest:events',           maxStaleMin: 120 }, // 45min cron; 120 = 2h grace (was 75 = 30min buffer, too tight)
-  cyberThreats:     { key: 'seed-meta:cyber:threats',           maxStaleMin: 480 },
+  cyberThreats:     { key: 'seed-meta:cyber:threats',           maxStaleMin: 240 }, // 2h interval; 240min = 2x interval
   cryptoQuotes:     { key: 'seed-meta:market:crypto',           maxStaleMin: 30 },
   etfFlows:         { key: 'seed-meta:market:etf-flows',        maxStaleMin: 60 },
   gulfQuotes:       { key: 'seed-meta:market:gulf-quotes',      maxStaleMin: 30 },
   stablecoinMarkets:{ key: 'seed-meta:market:stablecoins',      maxStaleMin: 60 },
   naturalEvents:    { key: 'seed-meta:natural:events',          maxStaleMin: 360 }, // 2h cron; 3x interval; was 120 (TTL was 60min — panel went dark before health alarmed)
   flightDelays:     { key: 'seed-meta:aviation:faa',            maxStaleMin: 90 }, // CACHE_TTL=7200s; matches notamClosures from same cron
-  notamClosures:    { key: 'seed-meta:aviation:notam',          maxStaleMin: 90 },
+  notamClosures:    { key: 'seed-meta:aviation:notam',          maxStaleMin: 240 }, // 2h interval; 240min = 2x interval
   predictions:      { key: 'seed-meta:prediction:markets',      maxStaleMin: 90 },
   insights:         { key: 'seed-meta:news:insights',           maxStaleMin: 30 },
   marketQuotes:     { key: 'seed-meta:market:stocks',         maxStaleMin: 30 },
@@ -121,8 +124,7 @@ const SEED_META = {
   iranEvents:       { key: 'seed-meta:conflict:iran-events',      maxStaleMin: 10080 },
   ucdpEvents:       { key: 'seed-meta:conflict:ucdp-events',      maxStaleMin: 420 },
   militaryFlights:  { key: 'seed-meta:military:flights',           maxStaleMin: 30 }, // cron ~10min (LIVE_TTL=600s); 30min = 3x interval,
-  militaryForecastInputs: { key: 'seed-meta:military-forecast-inputs', maxStaleMin: 30 }, // same cron as militaryFlights,
-  satellites:       { key: 'seed-meta:intelligence:satellites',    maxStaleMin: 180 },
+  satellites:       { key: 'seed-meta:intelligence:satellites',    maxStaleMin: 240 }, // CelesTrak every 120min; 240min = absorbs one missed cycle
   weatherAlerts:    { key: 'seed-meta:weather:alerts',             maxStaleMin: 30 },
   spending:         { key: 'seed-meta:economic:spending',          maxStaleMin: 120 },
   techEvents:       { key: 'seed-meta:research:tech-events',       maxStaleMin: 480 },
@@ -133,7 +135,7 @@ const SEED_META = {
   progressData:     { key: 'seed-meta:economic:worldbank-progress:v1',     maxStaleMin: 10080 },
   renewableEnergy:  { key: 'seed-meta:economic:worldbank-renewable:v1',    maxStaleMin: 10080 },
   intlDelays:       { key: 'seed-meta:aviation:intl',           maxStaleMin: 90 },
-  faaDelays:        { key: 'seed-meta:aviation:faa',            maxStaleMin: 90 }, // same key as flightDelays; CACHE_TTL=7200s
+  // faaDelays shares seed-meta key with flightDelays — no duplicate entry needed here
   theaterPosture:   { key: 'seed-meta:theater-posture',         maxStaleMin: 60 },
   correlationCards: { key: 'seed-meta:correlation:cards',       maxStaleMin: 15 },
   portwatch:           { key: 'seed-meta:supply_chain:portwatch',            maxStaleMin: 720 },
@@ -161,6 +163,8 @@ const SEED_META = {
   defiTokens:        { key: 'seed-meta:market:token-panels', maxStaleMin: 90 },
   aiTokens:          { key: 'seed-meta:market:token-panels', maxStaleMin: 90 },
   otherTokens:       { key: 'seed-meta:market:token-panels', maxStaleMin: 90 },
+  fredBatch:         { key: 'seed-meta:economic:fred:v1:FEDFUNDS:0', maxStaleMin: 1500 }, // daily cron
+  gscpi:             { key: 'seed-meta:economic:gscpi',               maxStaleMin: 2880 }, // 24h interval; 2880min = 48h = 2x interval
 };
 
 // Standalone keys that are populated on-demand by RPC handlers (not seeds).
@@ -173,6 +177,7 @@ const ON_DEMAND_KEYS = new Set([
   'cyberThreatsRpc', 'militaryBases', 'temporalAnomalies', 'displacement',
   'corridorrisk', // intermediate key; data flows through transit-summaries:v1
   'serviceStatuses', // RPC-populated; seed-meta written on fresh fetch only, goes stale between visits
+  'militaryForecastInputs', // intermediate seed-to-seed pipeline key; only populated after seed-military-flights runs
 ]);
 
 // Keys where 0 records is a valid healthy state (e.g. no airports closed).
@@ -221,7 +226,8 @@ function dataSize(parsed) {
                       'chokepoints', 'minerals', 'anomalies', 'flows', 'bases', 'flights',
                       'theaters', 'fleets', 'warnings', 'closures', 'cables',
                       'airports', 'closedIcaos', 'categories', 'regions', 'entries', 'satellites',
-                      'sectors', 'statuses', 'scores', 'topics', 'advisories', 'months']) {
+                      'sectors', 'statuses', 'scores', 'topics', 'advisories', 'months',
+                      'observations', 'datapoints', 'clusters']) {
       if (Array.isArray(parsed[k])) return parsed[k].length;
     }
     return Object.keys(parsed).length;
