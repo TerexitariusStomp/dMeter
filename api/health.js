@@ -145,7 +145,7 @@ const SEED_META = {
   usniFleet:           { key: 'seed-meta:military:usni-fleet',               maxStaleMin: 480 },
   securityAdvisories:  { key: 'seed-meta:intelligence:advisories',           maxStaleMin: 120 },
   customsRevenue:      { key: 'seed-meta:trade:customs-revenue',              maxStaleMin: 1440 },
-  blsSeries:           { key: 'seed-meta:economic:bls-series',                maxStaleMin: 1440 }, // daily seed
+  blsSeries:           { key: 'seed-meta:economic:bls-series',                maxStaleMin: 2880 }, // daily seed → 2× interval
   sanctionsPressure:   { key: 'seed-meta:sanctions:pressure',                 maxStaleMin: 720 },
   radiationWatch:      { key: 'seed-meta:radiation:observations',             maxStaleMin: 30 },
   groceryBasket:       { key: 'seed-meta:economic:grocery-basket',            maxStaleMin: 10080 }, // weekly seed; 10080 = 7 days

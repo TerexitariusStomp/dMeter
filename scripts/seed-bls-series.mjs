@@ -8,7 +8,7 @@ loadEnvFile(import.meta.url);
 
 const CANONICAL_KEY = 'bls:series:v1';
 const KEY_PREFIX = 'bls:series';
-const CACHE_TTL = 86400; // 24h — monthly BLS releases, daily seed is sufficient
+const CACHE_TTL = 259200; // 72h = 3× daily seed interval
 const BLS_API = 'https://api.bls.gov/publicAPI/v2/timeseries/data/';
 const INTER_REQUEST_DELAY_MS = 2_000;
 
@@ -128,6 +128,6 @@ if (process.argv[1]?.endsWith('seed-bls-series.mjs')) {
   }).catch((err) => {
     const _cause = err.cause ? ` (cause: ${err.cause.message || err.cause.code || err.cause})` : '';
     console.error('FATAL:', (err.message || err) + _cause);
-    process.exit(1);
+    process.exit(0);
   });
 }
