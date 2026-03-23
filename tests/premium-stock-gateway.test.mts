@@ -11,7 +11,7 @@ afterEach(() => {
 });
 
 describe('premium stock gateway enforcement', () => {
-  it('allows trusted browser origins without a key (client-side isProUser gate controls access)', async () => {
+  it('requires credentials for premium endpoints regardless of origin', async () => {
     const handler = createDomainGateway([
       {
         method: 'GET',
@@ -27,13 +27,13 @@ describe('premium stock gateway enforcement', () => {
 
     process.env.WORLDMONITOR_VALID_KEYS = 'real-key-123';
 
-    // Trusted browser origin (worldmonitor.app) — no key needed; isProUser() is the client-side gate
+    // Trusted browser origin without credentials — 401 (Origin is spoofable, not a security boundary)
     const browserNoKey = await handler(new Request('https://worldmonitor.app/api/market/v1/analyze-stock?symbol=AAPL', {
       headers: { Origin: 'https://worldmonitor.app' },
     }));
-    assert.equal(browserNoKey.status, 200);
+    assert.equal(browserNoKey.status, 401);
 
-    // Trusted browser origin with a valid key — also allowed
+    // Trusted browser origin with a valid key — allowed
     const browserWithKey = await handler(new Request('https://worldmonitor.app/api/market/v1/analyze-stock?symbol=AAPL', {
       headers: {
         Origin: 'https://worldmonitor.app',
@@ -48,7 +48,7 @@ describe('premium stock gateway enforcement', () => {
     }));
     assert.equal(unknownNoKey.status, 403);
 
-    // Public endpoint — always accessible from trusted origin
+    // Public endpoint — always accessible from trusted origin (no credentials needed)
     const publicAllowed = await handler(new Request('https://worldmonitor.app/api/market/v1/list-market-quotes?symbols=AAPL', {
       headers: { Origin: 'https://worldmonitor.app' },
     }));
