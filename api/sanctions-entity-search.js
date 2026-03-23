@@ -80,7 +80,7 @@ export default async function handler(req) {
       results,
       total: data.total?.value ?? results.length,
       source: 'opensanctions',
-    }, 200, { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=120' });
+    }, 200, { 'Cache-Control': 'no-store' });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return jsonResponse({ results: [], total: 0, source: 'opensanctions', error: message }, 200);
