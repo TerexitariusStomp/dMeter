@@ -175,14 +175,12 @@ const RPC_CACHE_TIER: Record<string, CacheTier> = {
   '/api/aviation/v1/get-youtube-live-stream-info': 'fast',
 };
 
-// TODO(payment-pr): PREMIUM_RPC_PATHS is intentionally empty until the payment/pro-user
-// system is implemented. The original set of stock analysis paths used forceKey=true,
-// which broke web pro users because isTrustedBrowserOrigin() is header-only (Origin can be
-// spoofed) and the web client has no mechanism to forward a server-validated entitlement.
-// When the payment PR lands, re-populate this set and have the web client send a
-// server-validated pro token (e.g. X-WorldMonitor-Key) so the entitlement check is
-// meaningful. Until then, access is gated client-side by isProUser() + WORLDMONITOR_API_KEY.
-const PREMIUM_RPC_PATHS = new Set<string>();
+const PREMIUM_RPC_PATHS = new Set<string>([
+  '/api/market/v1/analyze-stock',
+  '/api/market/v1/get-stock-analysis-history',
+  '/api/market/v1/backtest-stock',
+  '/api/market/v1/list-stored-stock-backtests',
+]);
 
 /**
  * Creates a Vercel Edge handler for a single domain's routes.
@@ -221,14 +219,43 @@ export function createDomainGateway(
     }
 
     // API key validation (origin-aware)
+    // Trusted browser origins bypass forceKey for premium paths — the client-side
+    // isProUser() gate controls access from the web app. Bearer token validation
+    // below handles server-side entitlement checks when a token IS present.
+    const origin = request.headers.get('Origin') || '';
+    const isTrustedOrigin = Boolean(origin) && !isDisallowedOrigin(request);
     const keyCheck = validateApiKey(request, {
-      forceKey: PREMIUM_RPC_PATHS.has(pathname),
+      forceKey: PREMIUM_RPC_PATHS.has(pathname) && !isTrustedOrigin,
     });
     if (keyCheck.required && !keyCheck.valid) {
       return new Response(JSON.stringify({ error: keyCheck.error }), {
         status: 401,
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
       });
+    }
+
+    // Bearer token enforcement for premium endpoints.
+    // When an Authorization header IS present on a premium path, validate the JWT
+    // and check the tier. This runs after the API-key block so it applies to both
+    // trusted-origin (no forceKey) and external (forceKey) paths.
+    if (PREMIUM_RPC_PATHS.has(pathname)) {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader?.startsWith('Bearer ')) {
+        const { validateBearerToken } = await import('./auth-session');
+        const session = await validateBearerToken(authHeader.slice(7));
+        if (!session.valid) {
+          return new Response(JSON.stringify({ error: 'Invalid or expired session' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          });
+        }
+        if (session.role !== 'pro') {
+          return new Response(JSON.stringify({ error: 'Pro subscription required' }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          });
+        }
+      }
     }
 
     // IP-based rate limiting — two-phase: endpoint-specific first, then global fallback

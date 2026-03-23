@@ -16,6 +16,7 @@ import {
 import { sanitizeLayersForVariant } from '@/config/map-layer-definitions';
 import type { MapVariant } from '@/config/map-layer-definitions';
 import { initDB, cleanOldSnapshots, isAisConfigured, initAisStream, isOutagesConfigured, disconnectAisStream } from '@/services';
+import { isProUser } from '@/services/widget-store';
 import { mlWorker } from '@/services/ml-worker';
 import { getAiFlowSettings, subscribeAiFlowChange, isHeadlineMemoryEnabled } from '@/services/ai-flow-settings';
 import { startLearning } from '@/services/country-instability';
@@ -35,9 +36,9 @@ import type { BigMacPanel } from '@/components/BigMacPanel';
 import type { ConsumerPricesPanel } from '@/components/ConsumerPricesPanel';
 import { isDesktopRuntime, waitForSidecarReady } from '@/services/runtime';
 import { getSecretState } from '@/services/runtime-config';
-import { isProUser } from '@/services/widget-store';
+import { getAuthState } from '@/services/auth-state';
 import { BETA_MODE } from '@/config/beta';
-import { trackEvent, trackDeeplinkOpened } from '@/services/analytics';
+import { trackEvent, trackDeeplinkOpened, initAuthAnalytics } from '@/services/analytics';
 import { preloadCountryGeometry, getCountryNameByCode } from '@/services/country-geometry';
 import { initI18n, t } from '@/services/i18n';
 
@@ -53,6 +54,7 @@ import { DataLoaderManager } from '@/app/data-loader';
 import { EventHandlerManager } from '@/app/event-handlers';
 import { resolveUserRegion, resolvePreciseUserCoordinates, type PreciseCoordinates } from '@/utils/user-location';
 import { showProBanner } from '@/components/ProBanner';
+import { initAuthState } from '@/services/auth-state';
 import {
   CorrelationEngine,
   militaryAdapter,
@@ -281,7 +283,7 @@ export class App {
     if (shouldPrime('supply-chain')) {
       primeTask('supplyChain', () => this.dataLoader.loadSupplyChain());
     }
-    const _wmAccess = getSecretState('WORLDMONITOR_API_KEY').present || isProUser();
+    const _wmAccess = getSecretState('WORLDMONITOR_API_KEY').present || getAuthState().user?.role === 'pro';
     if (_wmAccess) {
       if (shouldPrime('stock-analysis')) {
         primeTask('stockAnalysis', () => this.dataLoader.loadStockAnalysis());
@@ -636,6 +638,8 @@ export class App {
       digestPanel: null,
       speciesPanel: null,
       renewablePanel: null,
+      authModal: null,
+      authHeaderWidget: null,
       tvMode: null,
       happyAllItems: [],
       isDestroyed: false,
@@ -759,6 +763,11 @@ export class App {
     await fetchBootstrapData();
     this.bootstrapHydrationState = getBootstrapHydrationState();
 
+    // Verify OAuth OTT and hydrate auth session BEFORE any UI subscribes to auth state
+    await initAuthState();
+    initAuthAnalytics();
+
+
     const geoCoordsPromise: Promise<PreciseCoordinates | null> =
       this.state.isMobile && this.state.initialUrlState?.lat === undefined && this.state.initialUrlState?.lon === undefined
         ? resolvePreciseUserCoordinates(5000)
@@ -824,6 +833,7 @@ export class App {
     correlationEngine.registerAdapter(disasterAdapter);
     this.state.correlationEngine = correlationEngine;
     this.eventHandlers.setupUnifiedSettings();
+    this.eventHandlers.setupAuthWidget();
 
     // Phase 4: SearchManager, MapLayerHandlers, CountryIntel
     this.searchManager.init();
@@ -1022,19 +1032,19 @@ export class App {
         'stock-analysis',
         () => this.dataLoader.loadStockAnalysis(),
         REFRESH_INTERVALS.stockAnalysis,
-        () => (getSecretState('WORLDMONITOR_API_KEY').present || isProUser()) && this.isPanelNearViewport('stock-analysis'),
+        () => (getSecretState('WORLDMONITOR_API_KEY').present || getAuthState().user?.role === 'pro') && this.isPanelNearViewport('stock-analysis'),
       );
       this.refreshScheduler.scheduleRefresh(
         'daily-market-brief',
         () => this.dataLoader.loadDailyMarketBrief(),
         REFRESH_INTERVALS.dailyMarketBrief,
-        () => (getSecretState('WORLDMONITOR_API_KEY').present || isProUser()) && this.isPanelNearViewport('daily-market-brief'),
+        () => (getSecretState('WORLDMONITOR_API_KEY').present || getAuthState().user?.role === 'pro') && this.isPanelNearViewport('daily-market-brief'),
       );
       this.refreshScheduler.scheduleRefresh(
         'stock-backtest',
         () => this.dataLoader.loadStockBacktest(),
         REFRESH_INTERVALS.stockBacktest,
-        () => (getSecretState('WORLDMONITOR_API_KEY').present || isProUser()) && this.isPanelNearViewport('stock-backtest'),
+        () => (getSecretState('WORLDMONITOR_API_KEY').present || getAuthState().user?.role === 'pro') && this.isPanelNearViewport('stock-backtest'),
       );
     }
 
