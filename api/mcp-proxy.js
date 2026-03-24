@@ -12,11 +12,16 @@ const MCP_PROTOCOL_VERSION = '2025-03-26';
 const BLOCKED_HOST_PATTERNS = [
   /^localhost$/i,
   /^127\./,
+  /^0\.0\.0\.0$/,       // unspecified IPv4 — routes to loopback on many systems
+  /^0+$/,               // zero in various forms
   /^10\./,
   /^172\.(1[6-9]|2\d|3[01])\./,
   /^192\.168\./,
-  /^169\.254\./,   // link-local + cloud metadata (AWS/GCP/Azure)
+  /^169\.254\./,         // link-local + cloud metadata (AWS/GCP/Azure)
   /^::1$/,
+  /^::$/,                // unspecified IPv6
+  /^::ffff:/i,           // IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1)
+  /^\[/,                 // bracket-wrapped IPv6 in hostname
   /^fd[0-9a-f]{2}:/i,
   /^fe80:/i,
 ];
