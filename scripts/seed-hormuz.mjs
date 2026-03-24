@@ -84,9 +84,7 @@ async function fetchPbiCharts() {
   if (!modelId) throw new Error('Could not find Power BI modelId');
   console.log(`  Model ID: ${modelId}, containers: ${allContainers.length}`);
 
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - 30);
-  cutoff.setHours(0, 0, 0, 0);
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
   const charts = [];
 
@@ -171,7 +169,7 @@ async function fetchPbiCharts() {
       .filter(Boolean)
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    console.log(`  ${cfg.label}: ${series.length} points (last 30 days)`);
+    console.log(`  ${cfg.label}: ${series.length} points (last 24h)`);
     charts.push({ label: cfg.label, title: cfg.title, series });
   }
 

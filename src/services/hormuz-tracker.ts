@@ -22,27 +22,15 @@ export interface HormuzTrackerData {
   attribution: { source: string; url: string };
 }
 
-let cachedData: HormuzTrackerData | null = null;
-let cachedAt = 0;
-const CACHE_TTL = 30 * 60 * 1000; // 30 min
-
 export async function fetchHormuzTracker(): Promise<HormuzTrackerData | null> {
-  const now = Date.now();
-  if (cachedData && now - cachedAt < CACHE_TTL) return cachedData;
-
   try {
     const resp = await fetch(toApiUrl('/api/supply-chain/hormuz-tracker'), {
       signal: AbortSignal.timeout(15_000),
     });
-    if (!resp.ok) return cachedData;
-
+    if (!resp.ok) return null;
     const raw = (await resp.json()) as HormuzTrackerData;
-    if (!raw.attribution) return cachedData;
-
-    cachedData = raw;
-    cachedAt = now;
-    return cachedData;
+    return raw.attribution ? raw : null;
   } catch {
-    return cachedData;
+    return null;
   }
 }
