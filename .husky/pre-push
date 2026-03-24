@@ -47,6 +47,19 @@ if git diff --name-only origin/main -- scripts/package.json | grep -q .; then
   fi
 fi
 
+echo "Checking for untracked TypeScript source files..."
+UNTRACKED_TS=$(git ls-files --others --exclude-standard 'src/**/*.ts' 'src/**/*.tsx' 2>/dev/null)
+if [ -n "$UNTRACKED_TS" ]; then
+  echo ""
+  echo "============================================================"
+  echo "ERROR: Untracked TypeScript files found in src/:"
+  echo "$UNTRACKED_TS"
+  echo "These files are visible to tsc locally but NOT on CI."
+  echo "Either commit them or move them out of the repo."
+  echo "============================================================"
+  exit 1
+fi
+
 echo "Running type check..."
 npm run typecheck || exit 1
 
