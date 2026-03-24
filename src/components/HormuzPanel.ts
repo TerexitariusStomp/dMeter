@@ -43,7 +43,7 @@ function barChart(series: HormuzSeries[], color: string, chartIdx: number, width
 }
 
 function renderChart(chart: HormuzChart, idx: number): string {
-  const color = CHART_COLORS[idx % CHART_COLORS.length];
+  const color = CHART_COLORS[idx % CHART_COLORS.length] ?? '#3498db';
   const last = chart.series[chart.series.length - 1];
   const lastVal = last ? last.value.toFixed(0) : 'N/A';
   const lastDate = last ? last.date.slice(5) : '';
