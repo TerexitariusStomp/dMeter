@@ -1,6 +1,6 @@
 import { toApiUrl } from '@/services/runtime';
 
-export interface HormuzDataPoint {
+export interface HormuzSeries {
   date: string;
   value: number;
 }
@@ -8,7 +8,7 @@ export interface HormuzDataPoint {
 export interface HormuzChart {
   label: string;
   title: string;
-  series: HormuzDataPoint[];
+  series: HormuzSeries[];
 }
 
 export interface HormuzTrackerData {

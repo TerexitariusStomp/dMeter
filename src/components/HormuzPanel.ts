@@ -1,7 +1,7 @@
 import { Panel } from './Panel';
 import { escapeHtml } from '@/utils/sanitize';
 import { fetchHormuzTracker } from '@/services/hormuz-tracker';
-import type { HormuzTrackerData, HormuzChart, HormuzDataPoint } from '@/services/hormuz-tracker';
+import type { HormuzTrackerData, HormuzChart, HormuzSeries } from '@/services/hormuz-tracker';
 
 function statusColor(status: string): string {
   switch (status) {
@@ -16,7 +16,7 @@ function statusLabel(status: string): string {
   return status.toUpperCase();
 }
 
-function barChart(series: HormuzDataPoint[], width = 280, height = 48): string {
+function barChart(series: HormuzSeries[], width = 280, height = 48): string {
   if (!series.length) return `<div style="height:${height}px;display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:10px">No data</div>`;
 
   const max = Math.max(...series.map(p => p.value), 1);
