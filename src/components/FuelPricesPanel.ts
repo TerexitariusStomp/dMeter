@@ -20,7 +20,7 @@ export class FuelPricesPanel extends Panel {
         if (!this.element?.isConnected) return;
         this.renderIndex(hydrated);
         void client.listFuelPrices({}).then(data => {
-          if (!this.element?.isConnected) return;
+          if (!this.element?.isConnected || !data.countries?.length) return;
           this.renderIndex(data);
         }).catch(() => {});
         return;

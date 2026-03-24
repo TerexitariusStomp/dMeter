@@ -163,6 +163,8 @@ export class MacroSignalsPanel extends Panel {
       if (!this.data) {
         console.warn('[MacroSignals] Fetch error:', err);
         this.error = t('common.noDataShort');
+      } else {
+        return false;
       }
     }
     this.loading = false;

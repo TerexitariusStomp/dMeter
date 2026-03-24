@@ -53,10 +53,12 @@ export class StablecoinPanel extends Panel {
       const client = new MarketServiceClient(getRpcBaseUrl(), { fetch: (...args) => globalThis.fetch(...args) });
       const fresh = await client.listStablecoinMarkets({ coins: [] });
       if (!this.element?.isConnected) return;
-      this.data = fresh;
-      this.error = null;
-      this.loading = false;
-      this.renderPanel();
+      if (fresh.stablecoins?.length || !this.data) {
+        this.data = fresh;
+        this.error = null;
+        this.loading = false;
+        this.renderPanel();
+      }
     } catch (err) {
       if (this.isAbortError(err)) return;
       if (!this.element?.isConnected) return;
