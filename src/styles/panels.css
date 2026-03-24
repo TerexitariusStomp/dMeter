@@ -1559,6 +1559,10 @@
   opacity: 0.4;
 }
 
+.wc-content-dragging .wc-row {
+  user-select: none;
+}
+
 .wc-row.wc-drag-over-above {
   border-top: 2px solid var(--accent);
 }
