@@ -1,6 +1,6 @@
 import { Panel } from './Panel';
 import { escapeHtml } from '@/utils/sanitize';
-import type { HormuzTrackerData, HormuzSeries } from '@/services/hormuz-tracker';
+import type { HormuzTrackerData, HormuzChart, HormuzSeries } from '@/services/hormuz-tracker';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string } | undefined> & { open: { label: string; color: string } } = {
   closed:    { label: 'CLOSED',    color: '#e74c3c' },
@@ -47,7 +47,7 @@ export class HormuzPanel extends Panel {
     const sc = STATUS_CONFIG[data.status] ?? STATUS_CONFIG.open;
 
     const chartsHtml = data.charts
-      .map((chart) => {
+      .map((chart: HormuzChart) => {
         const lastVal = chart.series.length ? (chart.series[chart.series.length - 1]?.value ?? null) : null;
         const valStr  = lastVal !== null ? (lastVal === 0 ? '0' : lastVal.toFixed(1)) : '—';
         return `
