@@ -139,9 +139,10 @@ const SYMBOL_MAP = { '£': 'GBP', '€': 'EUR', '¥': 'JPY', '₩': 'KRW', '₹'
 // e.g. IDR 4 = $0.0003 (nonsense), NGN 20 = $0.01 (nonsense), KRW 5 = $0.004 (nonsense)
 const CURRENCY_MIN = { NGN: 50, IDR: 500, ARS: 50, KRW: 1000, ZAR: 2, PKR: 20, LBP: 1000 };
 
-// Maximum plausible USD price per item — catches bulk/wholesale products (e.g. 25lb salt bag)
-// Applied only to USD-denominated countries; other currencies vary too widely in purchasing power
-const ITEM_USD_MAX = { sugar: 8, salt: 5, rice: 6, pasta: 4, potatoes: 6, oil: 15, flour: 8, eggs: 12, milk: 8, bread: 8 };
+// Maximum plausible USD price per item — catches bulk/wholesale/specialty products.
+// Set to ~2× the most expensive legitimate retail price globally for each item.
+// Previous caps were too loose (e.g. sugar: 8 allowed 5.99 EUR organic sugar from carrefour.fr).
+const ITEM_USD_MAX = { sugar: 3.5, salt: 2.5, rice: 6, pasta: 3.5, potatoes: 6, oil: 10, flour: 4.5, eggs: 12, milk: 5, bread: 6 };
 
 // Pattern order matters: try currency-FIRST (e.g. "GBP 1.50") before number-first
 // to avoid matching pack sizes / weights that precede a currency token (e.g. "12 SAR" in "eggs 12 SAR 8.99")
@@ -216,6 +217,18 @@ async function fetchGroceryBasketPrices(prevSnapshot) {
   const routeUpdates = new Map();
   const routeDeletes = new Set();
   console.log(`  [routes] loaded ${learnedRoutes.size} learned routes`);
+
+  // Evict all learned routes for "oil" — query changed from "sunflower cooking oil" to "canola oil".
+  // Old cached URLs may point to sunflower/vegetable oil pages; force fresh EXA discovery.
+  const oilRouteKeys = config.countries.map(c => `${c.code}:oil`);
+  const oilEvictions = new Set(oilRouteKeys.filter(k => learnedRoutes.has(k)));
+  if (oilEvictions.size > 0) {
+    console.log(`  [routes] evicting ${oilEvictions.size} stale oil routes (query changed to canola oil)`);
+    await bulkWriteLearnedRoutes('grocery-basket', new Map(), oilEvictions).catch(err =>
+      console.warn(`  [routes] oil eviction failed (non-fatal): ${err.message}`)
+    );
+    for (const k of oilEvictions) learnedRoutes.delete(k);
+  }
 
   for (const country of config.countries) {
     console.log(`\n  Processing ${country.flag} ${country.name} (${country.currency})...`);
@@ -327,6 +340,40 @@ async function fetchGroceryBasketPrices(prevSnapshot) {
     console.warn(`  [routes] write failed (non-fatal): ${err.message}`)
   );
 
+  // Cross-country outlier gate — reject per-item prices > 4× the median USD price
+  // across all countries for that item. Prevents bad scrapes (bulk/wholesale/specialty)
+  // from distorting per-row colouring and basket totals.
+  // Also evicts the learned route from Redis so the bad URL isn't replayed next seed.
+  const itemIds = config.items.map(i => i.id);
+  const outlierEvictions = new Set();
+  for (const itemId of itemIds) {
+    const pricePoints = countriesResult
+      .map(c => c.items.find(i => i.itemId === itemId)?.usdPrice)
+      .filter(p => p != null && p > 0);
+    if (pricePoints.length < 3) continue; // need ≥ 3 data points for meaningful median
+    pricePoints.sort((a, b) => a - b);
+    const median = pricePoints[Math.floor(pricePoints.length / 2)];
+    const ceiling = median * 4;
+    for (const country of countriesResult) {
+      const item = country.items.find(i => i.itemId === itemId);
+      if (!item?.usdPrice || item.usdPrice <= ceiling) continue;
+      console.warn(`  [outlier] ${country.code}/${itemId}: $${item.usdPrice.toFixed(2)} > 4× median $${median.toFixed(2)} — clearing + evicting learned route`);
+      item.available = false;
+      item.localPrice = null;
+      item.usdPrice = null;
+      outlierEvictions.add(`${country.code}:${itemId}`);
+    }
+  }
+  if (outlierEvictions.size > 0) {
+    await bulkWriteLearnedRoutes('grocery-basket', new Map(), outlierEvictions).catch(err =>
+      console.warn(`  [routes] outlier eviction write failed (non-fatal): ${err.message}`)
+    );
+  }
+  // Recompute totals after outlier pass
+  for (const country of countriesResult) {
+    country.totalUsd = +country.items.reduce((s, ip) => s + (ip.usdPrice ?? 0), 0).toFixed(2);
+  }
+
   // Only rank countries with enough items found — a country with 4/10 items
   // could appear "cheapest" purely due to missing data, not actual prices.
   const MIN_ITEMS_FOR_RANKING = Math.ceil(config.items.length * 0.7); // ≥ 70% coverage
@@ -370,7 +417,13 @@ const prevSnapshot = await readSeedSnapshot(CANONICAL_KEY);
 
 await runSeed('economic', 'grocery-basket', CANONICAL_KEY, () => fetchGroceryBasketPrices(prevSnapshot), {
   ttlSeconds: CACHE_TTL,
-  validateFn: (data) => data?.countries?.length > 0,
+  validateFn: (data) => {
+    if (!data?.countries?.length) return false;
+    const minItems = Math.ceil(config.items.length * 0.4); // 40% item coverage per country
+    const covered = data.countries.filter(c => c.items.filter(i => i.available).length >= minItems);
+    if (covered.length < 5) { console.warn(`  [validate] only ${covered.length} countries with ≥40% item coverage — rejecting`); return false; }
+    return true;
+  },
   recordCount: (data) => data?.countries?.length || 0,
   extraKeys: prevSnapshot ? [{
     key: `${CANONICAL_KEY}:prev`,
