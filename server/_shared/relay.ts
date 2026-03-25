@@ -4,8 +4,8 @@ export function getRelayBaseUrl(): string | null {
   const relayUrl = process.env.WS_RELAY_URL;
   if (!relayUrl) return null;
   // Always upgrade to HTTPS — cleartext relay connections are not permitted.
-  const httpUrl = relayUrl.replace(/^wss:\/\//, 'https://');
-  const secured = httpUrl.startsWith('https://') ? httpUrl : 'https://' + httpUrl.replace(/^[a-z]+:\/\//, '');
+  const httpUrl = relayUrl.replace(/^wss:\/\//i, 'https://');
+  const secured = /^https:\/\//i.test(httpUrl) ? httpUrl : 'https://' + httpUrl.replace(/^[a-zA-Z]+:\/\//, '');
   return secured.replace(/\/$/, '');
 }
 

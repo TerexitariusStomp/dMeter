@@ -9,10 +9,10 @@ export function getRelayBaseUrl() {
   if (!relayUrl) return null;
   // Always upgrade to HTTPS — cleartext relay connections are not permitted.
   // Normalize any WebSocket scheme to https://.
-  const httpUrl = relayUrl.replace(/^wss:\/\//, 'https://');
+  const httpUrl = relayUrl.replace(/^wss:\/\//i, 'https://');
   // If the env var was already https:// or got converted above, we're done.
   // Otherwise force https:// for any remaining non-secure scheme.
-  const secured = httpUrl.startsWith('https://') ? httpUrl : 'https://' + httpUrl.replace(/^[a-z]+:\/\//, '');
+  const secured = /^https:\/\//i.test(httpUrl) ? httpUrl : 'https://' + httpUrl.replace(/^[a-zA-Z]+:\/\//, '');
   return secured.replace(/\/$/, '');
 }
 

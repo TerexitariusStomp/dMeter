@@ -221,8 +221,10 @@ export function createDomainGateway(
       corsHeaders = getCorsHeaders(request);
     } catch {
       // Never fall back to wildcard CORS — that would bypass the origin allowlist.
-      // Use the hardcoded production origin as a safe default.
-      corsHeaders = { 'Access-Control-Allow-Origin': 'https://worldmonitor.app', 'Vary': 'Origin' };
+      // By this point, disallowed origins have already been rejected above, so echoing
+      // the request origin is safe and handles all variant domains correctly.
+      const fallbackOrigin = request.headers.get('origin') || 'https://worldmonitor.app';
+      corsHeaders = { 'Access-Control-Allow-Origin': fallbackOrigin, 'Vary': 'Origin' };
     }
 
     // OPTIONS preflight

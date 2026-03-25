@@ -21,8 +21,8 @@ const BLOCKED_HOST_PATTERNS = [
   /^::1$/,
   /^::$/,                // unspecified IPv6
   /^::ffff:/i,           // IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1)
-  /^\[/,                 // bracket-wrapped IPv6 in hostname
-  /^fd[0-9a-f]{2}:/i,
+  /^\[/,                 // bracket-wrapped IPv6 (unreachable via URL.hostname — URL parser strips brackets; guards raw-string callers)
+  /^f[cd][0-9a-f]{2}:/i, // RFC 4193 ULA: full fc00::/7 range (fc + fd prefixes)
   /^fe80:/i,
 ];
 
