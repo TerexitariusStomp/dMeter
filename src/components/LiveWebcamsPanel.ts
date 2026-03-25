@@ -122,6 +122,7 @@ export class LiveWebcamsPanel extends Panel {
   private readonly forceSingleView = !isDesktopRuntime() && isMobileDevice();
   private readonly EMBED_READY_TIMEOUT_MS = 15000;
   private boundEmbedMessageHandler: (e: MessageEvent) => void;
+  private localSidecarOrigin: string | null = null;
 
   constructor() {
     super({ id: 'live-webcams', title: t('panels.liveWebcams'), className: 'panel-wide', closable: true });
@@ -141,6 +142,7 @@ export class LiveWebcamsPanel extends Panel {
       this.alwaysOn = alwaysOn;
       this.applyIdleMode();
     });
+    this.localSidecarOrigin = isDesktopRuntime() ? `http://localhost:${getLocalApiPort()}` : null;
     this.boundEmbedMessageHandler = (e) => this.handleEmbedMessage(e);
     window.addEventListener('message', this.boundEmbedMessageHandler);
     this.render();
@@ -426,8 +428,7 @@ export class LiveWebcamsPanel extends Panel {
     if (!iframe) return;
 
     // Validate origin: only accept messages from YouTube, Windy, or the local sidecar.
-    const localOrigin = isDesktopRuntime() ? `http://localhost:${getLocalApiPort()}` : null;
-    if (!LiveWebcamsPanel.TRUSTED_ORIGINS.has(e.origin) && e.origin !== localOrigin) return;
+    if (!LiveWebcamsPanel.TRUSTED_ORIGINS.has(e.origin) && e.origin !== this.localSidecarOrigin) return;
 
     // Desktop sidecar posts { type: 'yt-ready' | 'yt-state' | 'yt-error' }
     const msg = e.data as { type?: string; state?: number; code?: number; event?: string; info?: unknown } | string | null;

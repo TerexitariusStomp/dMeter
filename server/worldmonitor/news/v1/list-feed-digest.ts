@@ -189,7 +189,10 @@ for (const tag of KNOWN_TAGS) {
  */
 function extractTag(xml: string, tag: string): string {
   const cached = TAG_REGEX_CACHE.get(tag);
-  if (!cached) return '';
+  if (!cached) {
+    console.warn(`[extractTag] unknown tag "${tag}" — add to KNOWN_TAGS to enable extraction`);
+    return '';
+  }
 
   const cdataMatch = xml.match(cached.cdata);
   if (cdataMatch) return cdataMatch[1]!.trim();
