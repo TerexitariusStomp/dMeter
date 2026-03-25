@@ -8,6 +8,8 @@ const config = loadSharedConfig('grocery-basket.json');
 
 const CANONICAL_KEY = 'economic:grocery-basket:v1';
 const CACHE_TTL = 864000; // 10 days — weekly seed with 3-day cron-drift buffer
+// Bump when basket composition changes materially — invalidates WoW until a new baseline runs.
+const BASKET_VERSION = 2; // v2: oil changed from sunflower to canola
 const EXA_DELAY_MS = 150;
 
 const FIRECRAWL_DELAY_MS = 500;
@@ -208,8 +210,10 @@ async function fetchGroceryBasketPrices(prevSnapshot) {
 
   const countriesResult = [];
 
-  // Load all learned routes in one pipeline request before the country loop
-  const routeKeys = config.countries.flatMap(c => config.items.map(i => `${c.code}:${i.id}`));
+  // Load all learned routes in one pipeline request before the country loop.
+  // Include a one-time migration sentinel so the oil eviction only fires once.
+  const OIL_MIGRATION_KEY = '_migration:canola-oil-v1';
+  const routeKeys = [...config.countries.flatMap(c => config.items.map(i => `${c.code}:${i.id}`)), OIL_MIGRATION_KEY];
   const learnedRoutes = await bulkReadLearnedRoutes('grocery-basket', routeKeys).catch((err) => {
     console.warn(`  [routes] load failed (non-fatal): ${err.message}`);
     return new Map();
@@ -218,16 +222,18 @@ async function fetchGroceryBasketPrices(prevSnapshot) {
   const routeDeletes = new Set();
   console.log(`  [routes] loaded ${learnedRoutes.size} learned routes`);
 
-  // Evict all learned routes for "oil" — query changed from "sunflower cooking oil" to "canola oil".
-  // Old cached URLs may point to sunflower/vegetable oil pages; force fresh EXA discovery.
-  const oilRouteKeys = config.countries.map(c => `${c.code}:oil`);
-  const oilEvictions = new Set(oilRouteKeys.filter(k => learnedRoutes.has(k)));
-  if (oilEvictions.size > 0) {
-    console.log(`  [routes] evicting ${oilEvictions.size} stale oil routes (query changed to canola oil)`);
-    await bulkWriteLearnedRoutes('grocery-basket', new Map(), oilEvictions).catch(err =>
-      console.warn(`  [routes] oil eviction failed (non-fatal): ${err.message}`)
-    );
-    for (const k of oilEvictions) learnedRoutes.delete(k);
+  // One-time migration: evict stale oil routes when query changed sunflower → canola.
+  // Guarded by OIL_MIGRATION_KEY so it only fires once; subsequent runs skip entirely.
+  if (!learnedRoutes.has(OIL_MIGRATION_KEY)) {
+    const oilEvictions = new Set(config.countries.map(c => `${c.code}:oil`).filter(k => learnedRoutes.has(k)));
+    if (oilEvictions.size > 0) {
+      console.log(`  [routes] one-time migration: evicting ${oilEvictions.size} stale oil routes (sunflower → canola)`);
+      await bulkWriteLearnedRoutes('grocery-basket', new Map(), oilEvictions).catch(err =>
+        console.warn(`  [routes] oil eviction failed (non-fatal): ${err.message}`)
+      );
+      for (const k of oilEvictions) learnedRoutes.delete(k);
+    }
+    routeUpdates.set(OIL_MIGRATION_KEY, 'done'); // persisted at end of run alongside other route updates
   }
 
   for (const country of config.countries) {
@@ -384,8 +390,9 @@ async function fetchGroceryBasketPrices(prevSnapshot) {
   const cheapest = rankable.length ? rankable.reduce((a, b) => a.totalUsd < b.totalUsd ? a : b).code : '';
   const mostExpensive = rankable.length ? rankable.reduce((a, b) => a.totalUsd > b.totalUsd ? a : b).code : '';
 
-  // Compute WoW per country
-  const wowAvailable = prevSnapshot?.countries?.length > 0;
+  // Compute WoW per country — only valid when prev snapshot used the same basket composition.
+  // A version mismatch (e.g. oil changed from sunflower to canola) would produce bogus deltas.
+  const wowAvailable = prevSnapshot?.countries?.length > 0 && prevSnapshot.basketVersion === BASKET_VERSION;
   if (wowAvailable) {
     const prevMap = Object.fromEntries(prevSnapshot.countries.map(c => [c.code, c.totalUsd]));
     for (const country of countriesResult) {
@@ -410,6 +417,7 @@ async function fetchGroceryBasketPrices(prevSnapshot) {
     wowAvgPct,
     wowAvailable,
     prevFetchedAt: wowAvailable ? (prevSnapshot.fetchedAt ?? '') : '',
+    basketVersion: BASKET_VERSION,
   };
 }
 
