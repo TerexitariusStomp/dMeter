@@ -63,11 +63,14 @@ async function fetchAll() {
       };
     })
     // Keep companies with meaningful analyst coverage:
-    // - revenue estimate >= $10M (eliminates micro/nano-caps with near-zero revenue)
-    // - OR no revenue estimate but |EPS estimate| >= $0.10 (financials, REITs, etc.)
+    // - revenue estimate > 0 && >= $10M → large/mid-cap (primary filter)
+    // - revenue estimate === 0 OR null → pre-revenue (biotech, SPACs) or financial/REIT
+    //   with no revenue line — use |EPS| >= $0.05 as proxy for analyst coverage depth
+    //   ($0.05 keeps well-covered loss-making companies; $0.10 was too aggressive)
+    // - revenue estimate > 0 && < $10M → small-cap / micro-cap → always drop
     .filter(e => {
-      if (e.revenueEstimate != null) return e.revenueEstimate >= 10_000_000;
-      if (e.epsEstimate != null) return Math.abs(e.epsEstimate) >= 0.10;
+      if (e.revenueEstimate != null && e.revenueEstimate > 0) return e.revenueEstimate >= 10_000_000;
+      if (e.epsEstimate != null) return Math.abs(e.epsEstimate) >= 0.05;
       return false;
     })
     // Within same date, largest companies first; across dates, chronological
@@ -82,7 +85,8 @@ async function fetchAll() {
 }
 
 function validate(data) {
-  return Array.isArray(data?.earnings) && data.earnings.length > 0;
+  // >= 3 distinguishes a healthy result from an over-aggressive filter or a near-empty API response
+  return Array.isArray(data?.earnings) && data.earnings.length >= 3;
 }
 
 if (process.argv[1]?.endsWith('seed-earnings-calendar.mjs')) {
