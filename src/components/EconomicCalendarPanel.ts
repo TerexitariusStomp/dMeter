@@ -73,7 +73,7 @@ function countdown(dateStr: string): string {
   const days = Math.round((d.getTime() - today.getTime()) / 86_400_000);
   if (days === 0) return 'today';
   if (days === 1) return 'tomorrow';
-  if (days < 0) return `${Math.abs(days)}d ago`;
+  if (days < 0) return Math.abs(days) < 14 ? `${Math.abs(days)}d ago` : `${Math.round(Math.abs(days) / 7)}w ago`;
   if (days < 14) return `in ${days}d`;
   return `in ${Math.round(days / 7)}w`;
 }
