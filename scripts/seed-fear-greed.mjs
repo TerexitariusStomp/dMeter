@@ -471,7 +471,7 @@ async function fetchAll() {
     const prev = d.closes.at(-2), curr = d.closes.at(-1);
     const change1d = (prev && prev > 0) ? Math.round(((curr - prev) / prev) * 10000) / 100 : null;
     return change1d != null ? { symbol: sym, name, change1d } : null;
-  }).filter(Boolean);
+  }).filter(Boolean).sort((a, b) => b.change1d - a.change1d);
 
   const payload = {
     timestamp: new Date().toISOString(),

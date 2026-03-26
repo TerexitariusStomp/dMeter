@@ -138,13 +138,16 @@ export class HeatmapPanel extends Panel {
     super({ id: 'heatmap', title: t('panels.heatmap'), infoTooltip: t('components.heatmap.infoTooltip') });
   }
 
-  public renderHeatmap(data: Array<{ symbol?: string; name: string; change: number | null }>): void {
+  public renderHeatmap(
+    data: Array<{ symbol?: string; name: string; change: number | null }>,
+    sectorPerformance?: Array<{ symbol: string; name: string; change1d: number }>,
+  ): void {
     if (data.length === 0) {
       this.showRetrying(t('common.failedSectorData'));
       return;
     }
 
-    const html =
+    const tileHtml =
       '<div class="heatmap">' +
       data
         .map((sector) => {
@@ -163,7 +166,27 @@ export class HeatmapPanel extends Panel {
         .join('') +
       '</div>';
 
-    this.setContent(html);
+    let barChartHtml = '';
+    if (sectorPerformance && sectorPerformance.length > 0) {
+      const maxAbs = Math.max(...sectorPerformance.map((s) => Math.abs(s.change1d)), 0.01);
+      barChartHtml =
+        '<div class="sector-bar-chart">' +
+        sectorPerformance
+          .map((s) => {
+            const pct = Math.min(Math.abs(s.change1d) / maxAbs, 1) * 100;
+            const color = s.change1d >= 0 ? 'var(--green)' : 'var(--red)';
+            return `<div class="sector-bar-row">
+              <span class="sector-bar-symbol">${escapeHtml(s.symbol)}</span>
+              <span class="sector-bar-name">${escapeHtml(s.name)}</span>
+              <span class="sector-bar-track"><span class="sector-bar-fill" style="width:${pct.toFixed(1)}%;background:${color}"></span></span>
+              <span class="sector-bar-pct ${getChangeClass(s.change1d)}">${formatChange(s.change1d)}</span>
+            </div>`;
+          })
+          .join('') +
+        '</div>';
+    }
+
+    this.setContent(tileHtml + barChartHtml);
   }
 }
 

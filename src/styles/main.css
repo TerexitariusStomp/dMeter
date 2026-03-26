@@ -5866,6 +5866,60 @@ body.playback-mode .status-dot {
   color: var(--red);
 }
 
+/* Sector sorted bar chart */
+.sector-bar-chart {
+  padding: 6px 4px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sector-bar-row {
+  display: grid;
+  grid-template-columns: 36px 1fr 80px 46px;
+  align-items: center;
+  gap: 4px;
+  height: 18px;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.sector-bar-symbol {
+  font-weight: 700;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sector-bar-name {
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sector-bar-track {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  height: 8px;
+  overflow: hidden;
+  position: relative;
+}
+
+.sector-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.sector-bar-pct {
+  font-weight: 600;
+  text-align: right;
+  white-space: nowrap;
+}
+
 /* Markets */
 .market-item {
   display: flex;
