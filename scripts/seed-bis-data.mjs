@@ -200,8 +200,9 @@ async function fetchAll() {
   return { policy, exchange, credit };
 }
 
+// validateFn receives the post-transform data ({ rates: [...] }), not the raw fetchAll shape.
 function validate(data) {
-  return data?.policy || data?.exchange || data?.credit;
+  return Array.isArray(data?.rates) && data.rates.length > 0;
 }
 
 // publishTransform: store only policy data (correct shape) at canonical key.
@@ -225,6 +226,6 @@ if (process.argv[1]?.endsWith('seed-bis-data.mjs')) {
   }).catch((err) => {
     const _cause = err.cause ? ` (cause: ${err.cause.message || err.cause.code || err.cause})` : '';
     console.error('FATAL:', (err.message || err) + _cause);
-    process.exit(0);
+    process.exit(1);
   });
 }
