@@ -55,6 +55,7 @@ import {
   EscalationCorrelationPanel,
   EconomicCorrelationPanel,
   DisasterCorrelationPanel,
+  DefensePatentsPanel,
   HormuzPanel,
   MacroTilesPanel,
   FSIPanel,
@@ -79,10 +80,9 @@ import { BETA_MODE } from '@/config/beta';
 import { t } from '@/services/i18n';
 import { getCurrentTheme } from '@/utils';
 import { trackCriticalBannerAction } from '@/services/analytics';
-import { getSecretState } from '@/services/runtime-config';
 import { CustomWidgetPanel } from '@/components/CustomWidgetPanel';
 import { openWidgetChatModal } from '@/components/WidgetChatModal';
-import { isProUser, loadWidgets, saveWidget } from '@/services/widget-store';
+import { loadWidgets, saveWidget } from '@/services/widget-store';
 import type { CustomWidgetSpec } from '@/services/widget-store';
 import { initEntitlementSubscription, isEntitled, onEntitlementChange } from '@/services/entitlements';
 import { initSubscriptionWatch, destroySubscriptionWatch } from '@/services/billing';
@@ -96,25 +96,16 @@ import { loadMcpPanels, saveMcpPanel } from '@/services/mcp-store';
 import type { McpPanelSpec } from '@/services/mcp-store';
 import { getAuthState, subscribeAuthState } from '@/services/auth-state';
 import type { AuthSession } from '@/services/auth-state';
-import { PanelGateReason, getPanelGateReason } from '@/services/panel-gating';
+import { PanelGateReason, getPanelGateReason, hasPremiumAccess } from '@/services/panel-gating';
 import type { Panel } from '@/components/Panel';
 
-/** Panels that require premium access on the web. Auth-based gating applies to these. */
+/** Panels that require premium access on web. Auth-based gating applies to these. */
 const WEB_PREMIUM_PANELS = new Set([
   'stock-analysis',
   'stock-backtest',
   'daily-market-brief',
+  'market-implications',
 ]);
-
-/**
- * Checks if the user should have premium panel access.
- * Entitlement-based check takes priority when data is available;
- * falls back to legacy API key / localStorage checks.
- */
-function shouldUnlockPremium(): boolean {
-  if (isEntitled()) return true;
-  return getSecretState('WORLDMONITOR_API_KEY').present || isProUser();
-}
 
 export interface PanelLayoutManagerCallbacks {
   openCountryStory: (code: string, name: string) => void;
@@ -782,6 +773,8 @@ export class PanelLayoutManager implements AppModule {
     this.createPanel('cascade', () => new CascadePanel());
     this.createPanel('satellite-fires', () => new SatelliteFiresPanel());
 
+    this.createPanel('defense-patents', () => new DefensePatentsPanel());
+
     // Correlation engine panels
     if (this.shouldCreatePanel('military-correlation')) {
       const p = new MilitaryCorrelationPanel();
@@ -873,24 +866,17 @@ export class PanelLayoutManager implements AppModule {
       }),
     );
 
-    const _premium = shouldUnlockPremium();
-    const _lockPanels = this.ctx.isDesktopApp && !_premium;
+    const _lockPanels = this.ctx.isDesktopApp && !hasPremiumAccess();
 
     this.lazyPanel('daily-market-brief', () =>
       import('@/components/DailyMarketBriefPanel').then(m => new m.DailyMarketBriefPanel()),
     );
-    // Web premium gating for daily-market-brief is handled reactively
-    // by updatePanelGating() via auth state subscription.
 
     this.lazyPanel('market-implications', () =>
       import('@/components/MarketImplicationsPanel').then(m => new m.MarketImplicationsPanel()),
-      undefined,
-      (!isEntitled() && !getSecretState('WORLDMONITOR_API_KEY').present && !isProUser()) ? [
-        'AI-generated trade signals from live geopolitical world state',
-        'Direction badges (LONG/SHORT/HEDGE) with confidence ratings',
-        'Updated each forecast cycle with fresh market context',
-      ] : undefined,
     );
+    // Gating for daily-market-brief and market-implications is handled reactively
+    // by updatePanelGating() via auth state subscription (both are in WEB_PREMIUM_PANELS).
 
     this.lazyPanel('forecast', () =>
       import('@/components/ForecastPanel').then(m => new m.ForecastPanel()),
@@ -1240,11 +1226,9 @@ export class PanelLayoutManager implements AppModule {
         block.style.display = isPro ? '' : 'none';
       }
     };
-    applyProBlockGating(
-      isEntitled() || isProUser() || getAuthState().user?.role === 'pro'
-    );
+    applyProBlockGating(hasPremiumAccess(getAuthState()));
     this.proBlockUnsubscribe = subscribeAuthState((state) => {
-      applyProBlockGating(isEntitled() || isProUser() || state.user?.role === 'pro');
+      applyProBlockGating(hasPremiumAccess(state));
     });
 
     const bottomGrid = document.getElementById('mapBottomGrid');
@@ -1628,6 +1612,8 @@ export class PanelLayoutManager implements AppModule {
       if (lockedFeatures) {
         (panel as unknown as import('@/components/Panel').Panel).showLocked(lockedFeatures);
       } else {
+        // Re-apply auth gating for panels that loaded after the initial auth state fire
+        this.updatePanelGating(getAuthState());
         await replayPendingCalls(key, panel);
         if (setup) setup(panel);
       }

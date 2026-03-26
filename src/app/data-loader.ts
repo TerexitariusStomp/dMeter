@@ -114,14 +114,9 @@ import { fetchOrefAlerts, startOrefPolling, stopOrefPolling, onOrefAlertsUpdate 
 import { enrichEventsWithExposure } from '@/services/population-exposure';
 import { debounce, getCircuitBreakerCooldownInfo } from '@/utils';
 import { getSecretState, isFeatureAvailable, isFeatureEnabled } from '@/services/runtime-config';
-import { getAuthState } from '@/services/auth-state';
+import { hasPremiumAccess } from '@/services/panel-gating';
 import { isDesktopRuntime, toApiUrl } from '@/services/runtime';
-import { isEntitled } from '@/services/entitlements';
 import { getAiFlowSettings } from '@/services/ai-flow-settings';
-/** Premium feature access: Dodo entitlement, legacy API key, or Clerk Pro session. */
-function hasPremiumAccess(): boolean {
-  return isEntitled() || getSecretState('WORLDMONITOR_API_KEY').present || getAuthState().user?.role === 'pro';
-}
 import { t, getCurrentLanguage } from '@/services/i18n';
 import { getHydratedData } from '@/services/bootstrap';
 import { ingestHeadlines } from '@/services/trending-keywords';

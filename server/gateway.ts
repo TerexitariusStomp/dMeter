@@ -114,6 +114,7 @@ const RPC_CACHE_TIER: Record<string, CacheTier> = {
   '/api/thermal/v1/list-thermal-escalations': 'slow',
   '/api/research/v1/list-tech-events': 'static',
   '/api/military/v1/get-usni-fleet-report': 'static',
+  '/api/military/v1/list-defense-patents': 'daily',
   '/api/conflict/v1/list-ucdp-events': 'static',
   '/api/conflict/v1/get-humanitarian-summary': 'static',
   '/api/conflict/v1/list-iran-events': 'slow',
@@ -286,7 +287,9 @@ export function createDomainGateway(
 
     // Bearer role check — authenticated users who bypassed the API key gate still
     // need a pro role for PREMIUM_RPC_PATHS (entitlement check below handles tier-gated).
-    if (sessionUserId && !keyCheck.valid && PREMIUM_RPC_PATHS.has(pathname)) {
+    // Note: keyCheck.valid is true for trusted browser origins even without an API key,
+    // so we check for an actual X-WorldMonitor-Key header instead.
+    if (sessionUserId && !request.headers.get('X-WorldMonitor-Key') && PREMIUM_RPC_PATHS.has(pathname)) {
       const authHeader = request.headers.get('Authorization');
       if (authHeader?.startsWith('Bearer ')) {
         const { validateBearerToken } = await import('./auth-session');
