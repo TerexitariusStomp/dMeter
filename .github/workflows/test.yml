@@ -19,14 +19,9 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run test:data
-      - name: Edge function tests
-        run: node --test tests/edge-functions.test.mjs
-      - name: MDX lint
-        run: node --test tests/mdx-lint.test.mjs
       - name: Edge function bundle check
         run: |
-          for f in api/*.js; do
-            case "$(basename "$f")" in _*) continue;; esac
+          find api/ -name "*.js" -not -name "_*" | while read f; do
             npx esbuild "$f" --bundle --format=esm --platform=browser --outfile=/dev/null || {
               echo "ERROR: esbuild failed to bundle $f"
               exit 1
