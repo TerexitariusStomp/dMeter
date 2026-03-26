@@ -73,11 +73,11 @@ async function fetchAll() {
     // Within same date, largest companies first; across dates, chronological
     .sort((a, b) => {
       if (a.date !== b.date) return a.date.localeCompare(b.date);
-      return Math.abs(b.revenueEstimate ?? 0) - Math.abs(a.revenueEstimate ?? 0);
+      return (b.revenueEstimate ?? 0) - (a.revenueEstimate ?? 0);
     })
     .slice(0, 100);
 
-  console.log(`  Fetched ${earnings.length} earnings entries`);
+  console.log(`  Fetched ${earnings.length} earnings entries (from ${raw.length} total)`);
   return { earnings, unavailable: false };
 }
 
