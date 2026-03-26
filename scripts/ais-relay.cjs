@@ -3272,6 +3272,9 @@ async function handleWingbitsTrackRequest(req, res) {
             { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
             JSON.stringify({ positions, source: 'wingbits' }));
         }
+      } else {
+        const errBody = await gbResp.text().catch(() => '');
+        console.warn(`[Wingbits Track] Regional callsign fallback error: ${gbResp.status} — ${errBody.slice(0, 200)}`);
       }
     } catch (err) {
       console.warn(`[Wingbits Track] Global callsign fallback failed: ${err?.message || err}`);
