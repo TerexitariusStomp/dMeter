@@ -37,6 +37,7 @@ import type { GroceryBasketPanel } from '@/components/GroceryBasketPanel';
 import type { BigMacPanel } from '@/components/BigMacPanel';
 import type { FuelPricesPanel } from '@/components/FuelPricesPanel';
 import type { ConsumerPricesPanel } from '@/components/ConsumerPricesPanel';
+import type { DefensePatentsPanel } from '@/components/DefensePatentsPanel';
 import type { MacroTilesPanel } from '@/components/MacroTilesPanel';
 import type { FSIPanel } from '@/components/FSIPanel';
 import type { YieldCurvePanel } from '@/components/YieldCurvePanel';
@@ -284,6 +285,10 @@ export class App {
     if (shouldPrime('consumer-prices')) {
       const panel = this.state.panels['consumer-prices'] as ConsumerPricesPanel | undefined;
       if (panel) primeTask('consumer-prices', () => panel.fetchData());
+    }
+    if (shouldPrime('defense-patents')) {
+      const panel = this.state.panels['defense-patents'] as DefensePatentsPanel | undefined;
+      if (panel) primeTask('defense-patents', () => { panel.refresh(); return Promise.resolve(); });
     }
     if (shouldPrime('macro-tiles')) {
       const panel = this.state.panels['macro-tiles'] as MacroTilesPanel | undefined;
@@ -1143,6 +1148,12 @@ export class App {
       () => this.isPanelNearViewport('macro-signals')
     );
     this.refreshScheduler.scheduleRefresh(
+      'defense-patents',
+      () => { (this.state.panels['defense-patents'] as DefensePatentsPanel).refresh(); return Promise.resolve(); },
+      REFRESH_INTERVALS.defensePatents,
+      () => this.isPanelNearViewport('defense-patents')
+    );
+    this.refreshScheduler.scheduleRefresh(
       'fear-greed',
       () => (this.state.panels['fear-greed'] as FearGreedPanel).fetchData(),
       REFRESH_INTERVALS.fearGreed,
@@ -1224,37 +1235,37 @@ export class App {
     this.refreshScheduler.scheduleRefresh(
       'macro-tiles',
       () => (this.state.panels['macro-tiles'] as MacroTilesPanel).fetchData(),
-      30 * 60 * 1000,
+      REFRESH_INTERVALS.macroTiles,
       () => this.isPanelNearViewport('macro-tiles')
     );
     this.refreshScheduler.scheduleRefresh(
       'fsi',
       () => (this.state.panels['fsi'] as FSIPanel).fetchData(),
-      30 * 60 * 1000,
+      REFRESH_INTERVALS.fsi,
       () => this.isPanelNearViewport('fsi')
     );
     this.refreshScheduler.scheduleRefresh(
       'yield-curve',
       () => (this.state.panels['yield-curve'] as YieldCurvePanel).fetchData(),
-      30 * 60 * 1000,
+      REFRESH_INTERVALS.yieldCurve,
       () => this.isPanelNearViewport('yield-curve')
     );
     this.refreshScheduler.scheduleRefresh(
       'earnings-calendar',
       () => (this.state.panels['earnings-calendar'] as EarningsCalendarPanel).fetchData(),
-      60 * 60 * 1000,
+      REFRESH_INTERVALS.earningsCalendar,
       () => this.isPanelNearViewport('earnings-calendar')
     );
     this.refreshScheduler.scheduleRefresh(
       'economic-calendar',
       () => (this.state.panels['economic-calendar'] as EconomicCalendarPanel).fetchData(),
-      60 * 60 * 1000,
+      REFRESH_INTERVALS.economicCalendar,
       () => this.isPanelNearViewport('economic-calendar')
     );
     this.refreshScheduler.scheduleRefresh(
       'cot-positioning',
       () => (this.state.panels['cot-positioning'] as CotPositioningPanel).fetchData(),
-      60 * 60 * 1000,
+      REFRESH_INTERVALS.cotPositioning,
       () => this.isPanelNearViewport('cot-positioning')
     );
 
