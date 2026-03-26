@@ -62,7 +62,19 @@ async function fetchAll() {
         surpriseDirection,
       };
     })
-    .sort((a, b) => a.date.localeCompare(b.date))
+    // Keep companies with meaningful analyst coverage:
+    // - revenue estimate >= $10M (eliminates micro/nano-caps with near-zero revenue)
+    // - OR no revenue estimate but |EPS estimate| >= $0.10 (financials, REITs, etc.)
+    .filter(e => {
+      if (e.revenueEstimate != null) return e.revenueEstimate >= 10_000_000;
+      if (e.epsEstimate != null) return Math.abs(e.epsEstimate) >= 0.10;
+      return false;
+    })
+    // Within same date, largest companies first; across dates, chronological
+    .sort((a, b) => {
+      if (a.date !== b.date) return a.date.localeCompare(b.date);
+      return Math.abs(b.revenueEstimate ?? 0) - Math.abs(a.revenueEstimate ?? 0);
+    })
     .slice(0, 100);
 
   console.log(`  Fetched ${earnings.length} earnings entries`);
