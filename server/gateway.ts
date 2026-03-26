@@ -185,7 +185,14 @@ const RPC_CACHE_TIER: Record<string, CacheTier> = {
   '/api/consumer-prices/v1/get-consumer-price-freshness': 'slow',
 
   '/api/aviation/v1/get-youtube-live-stream-info': 'fast',
+
+  '/api/market/v1/list-earnings-calendar': 'slow',
+  '/api/market/v1/get-cot-positioning': 'slow',
+  '/api/economic/v1/get-economic-calendar': 'slow',
 };
+
+import { PREMIUM_RPC_PATHS } from '../src/shared/premium-paths';
+
 
 /**
  * Creates a Vercel Edge handler for a single domain's routes.
@@ -245,10 +252,36 @@ export function createDomainGateway(
       forceKey: isTierGated && !sessionUserId,
     });
     if (keyCheck.required && !keyCheck.valid) {
-      return new Response(JSON.stringify({ error: keyCheck.error }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
-      });
+      if (PREMIUM_RPC_PATHS.has(pathname)) {
+        const authHeader = request.headers.get('Authorization');
+        if (authHeader?.startsWith('Bearer ')) {
+          const { validateBearerToken } = await import('./auth-session');
+          const session = await validateBearerToken(authHeader.slice(7));
+          if (!session.valid) {
+            return new Response(JSON.stringify({ error: 'Invalid or expired session' }), {
+              status: 401,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders },
+            });
+          }
+          if (session.role !== 'pro') {
+            return new Response(JSON.stringify({ error: 'Pro subscription required' }), {
+              status: 403,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders },
+            });
+          }
+          // Valid pro session — fall through to route handling
+        } else {
+          return new Response(JSON.stringify({ error: keyCheck.error }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          });
+        }
+      } else {
+        return new Response(JSON.stringify({ error: keyCheck.error }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        });
+      }
     }
 
     // Entitlement check — blocks tier-gated endpoints for users below required tier

@@ -98,7 +98,7 @@ import { updateAndCheck, consumeServerAnomalies, fetchLiveAnomalies } from '@/se
 import { fetchAllFires, flattenFires, computeRegionStats, toMapFires } from '@/services/wildfires';
 import { analyzeFlightsForSurge, surgeAlertToSignal, detectForeignMilitaryPresence, foreignPresenceToSignal, type TheaterPostureSummary } from '@/services/military-surge';
 import { fetchCachedTheaterPosture } from '@/services/cached-theater-posture';
-import { ingestProtestsForCII, ingestMilitaryForCII, ingestNewsForCII, ingestOutagesForCII, ingestConflictsForCII, ingestUcdpForCII, ingestHapiForCII, ingestDisplacementForCII, ingestClimateForCII, ingestStrikesForCII, ingestOrefForCII, ingestAviationForCII, ingestAdvisoriesForCII, ingestGpsJammingForCII, ingestAisDisruptionsForCII, ingestSatelliteFiresForCII, ingestCyberThreatsForCII, ingestTemporalAnomaliesForCII, isInLearningMode, resetHotspotActivity, setIntelligenceSignalsLoaded, hasAnyIntelligenceData, calculateCII } from '@/services/country-instability';
+import { ingestProtestsForCII, ingestMilitaryForCII, ingestNewsForCII, ingestOutagesForCII, ingestConflictsForCII, ingestUcdpForCII, ingestHapiForCII, ingestDisplacementForCII, ingestClimateForCII, ingestStrikesForCII, ingestOrefForCII, ingestAviationForCII, ingestAdvisoriesForCII, ingestGpsJammingForCII, ingestAisDisruptionsForCII, ingestSatelliteFiresForCII, ingestCyberThreatsForCII, ingestTemporalAnomaliesForCII, ingestEarthquakesForCII, ingestSanctionsForCII, isInLearningMode, resetHotspotActivity, setIntelligenceSignalsLoaded, hasAnyIntelligenceData, calculateCII } from '@/services/country-instability';
 import { fetchGpsInterference } from '@/services/gps-interference';
 import { fetchSatelliteTLEs, initSatRecs, propagatePositions, startPropagationLoop } from '@/services/satellites';
 import type { SatRecEntry } from '@/services/satellites';
@@ -114,12 +114,13 @@ import { fetchOrefAlerts, startOrefPolling, stopOrefPolling, onOrefAlertsUpdate 
 import { enrichEventsWithExposure } from '@/services/population-exposure';
 import { debounce, getCircuitBreakerCooldownInfo } from '@/utils';
 import { getSecretState, isFeatureAvailable, isFeatureEnabled } from '@/services/runtime-config';
+import { getAuthState } from '@/services/auth-state';
 import { isDesktopRuntime, toApiUrl } from '@/services/runtime';
 import { isEntitled } from '@/services/entitlements';
 import { getAiFlowSettings } from '@/services/ai-flow-settings';
-/** Premium feature access: Dodo entitlement OR legacy API key */
+/** Premium feature access: Dodo entitlement, legacy API key, or Clerk Pro session. */
 function hasPremiumAccess(): boolean {
-  return isEntitled() || getSecretState('WORLDMONITOR_API_KEY').present;
+  return isEntitled() || getSecretState('WORLDMONITOR_API_KEY').present || getAuthState().user?.role === 'pro';
 }
 import { t, getCurrentLanguage } from '@/services/i18n';
 import { getHydratedData } from '@/services/bootstrap';
@@ -172,6 +173,9 @@ import {
   cacheDailyMarketBrief,
   getCachedDailyMarketBrief,
   shouldRefreshDailyBrief,
+  type RegimeMacroContext,
+  type YieldCurveContext,
+  type SectorBriefContext,
 } from '@/services/daily-market-brief';
 import { fetchCachedRiskScores } from '@/services/cached-risk-scores';
 import type { ThreatLevel as ClientThreatLevel } from '@/types';
@@ -403,6 +407,7 @@ export class DataLoaderManager implements AppModule {
       }
       if (shouldLoad('forecast')) {
         tasks.push({ name: 'forecasts', task: runGuarded('forecasts', () => this.loadForecasts()) });
+        tasks.push({ name: 'simulation-outcome', task: runGuarded('simulation-outcome', () => this.loadSimulationOutcome()) });
       }
       if (SITE_VARIANT === 'full') tasks.push({ name: 'pizzint', task: runGuarded('pizzint', () => this.loadPizzInt()) });
       if (shouldLoad('economic')) {
@@ -1408,10 +1413,22 @@ export class DataLoaderManager implements AppModule {
         this.callPanel('daily-market-brief', 'showLoading', 'Building daily market brief...');
       }
 
+      const [r0, r1, r2] = await Promise.allSettled([
+        this._collectRegimeContext(),
+        this._collectYieldCurveContext(),
+        this._collectSectorContext(),
+      ]);
+      const regimeContext = r0.status === 'fulfilled' ? r0.value : undefined;
+      const yieldCurveContext = r1.status === 'fulfilled' ? r1.value : undefined;
+      const sectorContext = r2.status === 'fulfilled' ? r2.value : undefined;
+
       const brief = await buildDailyMarketBrief({
         markets: this.ctx.latestMarkets,
         newsByCategory: this.ctx.newsByCategory,
         timezone,
+        regimeContext,
+        yieldCurveContext,
+        sectorContext,
       });
 
       if (!brief.available) {
@@ -1437,8 +1454,95 @@ export class DataLoaderManager implements AppModule {
     }
   }
 
+  private async _collectRegimeContext(): Promise<RegimeMacroContext | undefined> {
+    try {
+      const hydrated = getHydratedData('fearGreedIndex') as Record<string, unknown> | undefined;
+      if (hydrated && !hydrated.unavailable && Number(hydrated.compositeScore) > 0) {
+        const comp = hydrated.composite as Record<string, unknown> | undefined;
+        const cats = (hydrated.categories ?? {}) as Record<string, Record<string, unknown>>;
+        const hdr = (hydrated.headerMetrics ?? {}) as Record<string, Record<string, unknown> | null>;
+        return {
+          compositeScore: Number(comp?.score ?? hydrated.compositeScore ?? 0),
+          compositeLabel: String(comp?.label ?? hydrated.compositeLabel ?? ''),
+          fsiValue: Number(hdr?.fsi?.value ?? 0),
+          fsiLabel: String(hdr?.fsi?.label ?? ''),
+          vix: Number(hdr?.vix?.value ?? 0),
+          hySpread: Number(hdr?.hySpread?.value ?? 0),
+          cnnFearGreed: Number(hdr?.cnnFearGreed?.value ?? 0),
+          cnnLabel: String(hdr?.cnnFearGreed?.label ?? ''),
+          momentum: cats.momentum ? { score: Number(cats.momentum.score ?? 0) } : undefined,
+          sentiment: cats.sentiment ? { score: Number(cats.sentiment.score ?? 0) } : undefined,
+        };
+      }
+      const { MarketServiceClient } = await import('@/generated/client/worldmonitor/market/v1/service_client');
+      const { getRpcBaseUrl } = await import('@/services/rpc-client');
+      const client = new MarketServiceClient(getRpcBaseUrl(), { fetch: (...args: Parameters<typeof fetch>) => globalThis.fetch(...args) });
+      const resp = await client.getFearGreedIndex({});
+      if (resp.unavailable || resp.compositeScore <= 0) return undefined;
+      return {
+        compositeScore: resp.compositeScore,
+        compositeLabel: resp.compositeLabel,
+        fsiValue: resp.fsiValue ?? 0,
+        fsiLabel: resp.fsiLabel ?? '',
+        vix: resp.vix ?? 0,
+        hySpread: resp.hySpread ?? 0,
+        cnnFearGreed: resp.cnnFearGreed ?? 0,
+        cnnLabel: resp.cnnLabel ?? '',
+        momentum: resp.momentum ? { score: resp.momentum.score } : undefined,
+        sentiment: resp.sentiment ? { score: resp.sentiment.score } : undefined,
+      };
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async _collectYieldCurveContext(): Promise<YieldCurveContext | undefined> {
+    try {
+      const { EconomicServiceClient } = await import('@/generated/client/worldmonitor/economic/v1/service_client');
+      const { getRpcBaseUrl } = await import('@/services/rpc-client');
+      const client = new EconomicServiceClient(getRpcBaseUrl(), { fetch: (...args: Parameters<typeof fetch>) => globalThis.fetch(...args) });
+      const resp = await client.getFredSeriesBatch({ seriesIds: ['DGS2', 'DGS10', 'DGS30'], limit: 1 });
+      const lastVal = (id: string): number => {
+        const obs = resp.results[id]?.observations;
+        if (!obs?.length) return 0;
+        return obs[obs.length - 1]?.value ?? 0;
+      };
+      const rate2y = lastVal('DGS2');
+      const rate10y = lastVal('DGS10');
+      const rate30y = lastVal('DGS30');
+      if (!rate10y) return undefined;
+      const spread2s10s = rate2y > 0 ? Math.round((rate10y - rate2y) * 100) : 0;
+      return { inverted: spread2s10s < 0, spread2s10s, rate2y, rate10y, rate30y };
+    } catch {
+      return undefined;
+    }
+  }
+
+  private _collectSectorContext(): SectorBriefContext | undefined {
+    try {
+      const hydratedSectors = getHydratedData('sectors') as GetSectorSummaryResponse | undefined;
+      const sectors = hydratedSectors?.sectors;
+      if (!sectors?.length) return undefined;
+      const sorted = [...sectors].sort((a, b) => b.change - a.change);
+      const countPositive = sorted.filter(s => s.change > 0).length;
+      const top = sorted[0];
+      const worst = sorted[sorted.length - 1];
+      if (!top || !worst) return undefined;
+      return {
+        topName: top.name,
+        topChange: top.change,
+        worstName: worst.name,
+        worstChange: worst.change,
+        countPositive,
+        total: sorted.length,
+      };
+    } catch {
+      return undefined;
+    }
+  }
+
   async loadMarketImplications(): Promise<void> {
-    if (!getSecretState('WORLDMONITOR_API_KEY').present && !isProUser()) return;
+    if (!hasPremiumAccess()) return;
     if (this.ctx.isDestroyed || this.ctx.inFlight.has('marketImplications')) return;
     this.ctx.inFlight.add('marketImplications');
     try {
@@ -1492,6 +1596,14 @@ export class DataLoaderManager implements AppModule {
     } catch { /* premium feature, silent fail */ }
   }
 
+  async loadSimulationOutcome(): Promise<void> {
+    try {
+      const { fetchSimulationOutcome } = await import('@/services/forecast');
+      const json = await fetchSimulationOutcome();
+      if (json) this.callPanel('forecast', 'updateSimulation', json);
+    } catch { /* silent fail — simulation data is supplementary */ }
+  }
+
   async loadNatural(): Promise<void> {
     const [earthquakeResult, eonetResult] = await Promise.allSettled([
       fetchEarthquakes(),
@@ -1502,6 +1614,7 @@ export class DataLoaderManager implements AppModule {
       this.ctx.intelligenceCache.earthquakes = earthquakeResult.value;
       this.ctx.map?.setEarthquakes(earthquakeResult.value);
       ingestEarthquakes(earthquakeResult.value);
+      ingestEarthquakesForCII(earthquakeResult.value);
       this.ctx.statusPanel?.updateApi('USGS', { status: 'ok' });
       dataFreshness.recordUpdate('usgs', earthquakeResult.value.length);
     } else {
@@ -1813,6 +1926,7 @@ export class DataLoaderManager implements AppModule {
         if (data.countries.length > 0) dataFreshness.recordUpdate('unhcr', data.countries.length);
       } catch (error) {
         console.error('[Intelligence] UNHCR displacement fetch failed:', error);
+        this.callPanel('displacement', 'showError');
         dataFreshness.recordError('unhcr', String(error));
       }
     })());
@@ -1833,6 +1947,7 @@ export class DataLoaderManager implements AppModule {
         if (anomalies.length > 0) dataFreshness.recordUpdate('climate', anomalies.length);
       } catch (error) {
         console.error('[Intelligence] Climate anomalies fetch failed:', error);
+        this.callPanel('climate', 'showError');
         dataFreshness.recordError('climate', String(error));
       }
     })());
@@ -1867,6 +1982,7 @@ export class DataLoaderManager implements AppModule {
           startOrefPolling();
         } catch (error) {
           console.error('[Intelligence] OREF alerts fetch failed:', error);
+          this.callPanel('oref-sirens', 'showError');
         }
       })());
     }
@@ -1917,6 +2033,7 @@ export class DataLoaderManager implements AppModule {
       }
     } catch (error) {
       console.error('[Intelligence] Population exposure fetch failed:', error);
+      this.callPanel('population-exposure', 'showError');
       dataFreshness.recordError('worldpop', String(error));
     }
 
@@ -1954,6 +2071,7 @@ export class DataLoaderManager implements AppModule {
         (this.ctx.panels['internet-disruptions'] as InternetDisruptionsPanel)?.setDdos(r);
       }).catch(() => {});
     } catch (error) {
+      this.callPanel('internet-disruptions', 'showError');
       this.ctx.map?.setLayerReady('outages', false);
       this.ctx.statusPanel?.updateFeed('NetBlocks', { status: 'error' });
       dataFreshness.recordError('outages', String(error));
@@ -2385,6 +2503,7 @@ export class DataLoaderManager implements AppModule {
       }
     } catch (e) {
       console.error('[App] Oil analytics failed:', e);
+      this.callPanel('energy-complex', 'showError', undefined, () => void this.loadOilAnalytics());
       this.ctx.statusPanel?.updateApi('EIA', { status: 'error' });
       dataFreshness.recordError('oil', String(e));
     }
@@ -2486,6 +2605,7 @@ export class DataLoaderManager implements AppModule {
       }
     } catch (e) {
       console.error('[App] Trade policy failed:', e);
+      this.callPanel('trade-policy', 'showError', undefined, () => void this.loadTradePolicy());
       this.ctx.statusPanel?.updateApi('WTO', { status: 'error' });
       dataFreshness.recordError('wto_trade', String(e));
     }
@@ -2522,6 +2642,7 @@ export class DataLoaderManager implements AppModule {
       }
     } catch (e) {
       console.error('[App] Supply chain failed:', e);
+      this.callPanel('supply-chain', 'showError', undefined, () => void this.loadSupplyChain());
       this.ctx.statusPanel?.updateApi('SupplyChain', { status: 'error' });
       dataFreshness.recordError('supply_chain', String(e));
     }
@@ -2607,7 +2728,7 @@ export class DataLoaderManager implements AppModule {
       this.ctx.statusPanel?.updateApi('FIRMS', { status: 'ok' });
     } catch (e) {
       console.warn('[App] FIRMS load failed:', e);
-      (this.ctx.panels['satellite-fires'] as SatelliteFiresPanel)?.update([], 0);
+      this.callPanel('satellite-fires', 'showError');
       this.ctx.statusPanel?.updateApi('FIRMS', { status: 'error' });
       dataFreshness.recordError('firms', String(e));
     }
@@ -2819,6 +2940,7 @@ export class DataLoaderManager implements AppModule {
       }
     } catch (error) {
       console.error('[App] Security advisories fetch failed:', error);
+      this.callPanel('security-advisories', 'showError');
     }
   }
 
@@ -2828,6 +2950,7 @@ export class DataLoaderManager implements AppModule {
       this.callPanel('sanctions-pressure', 'setData', result);
       this.ctx.intelligenceCache.sanctions = result;
       signalAggregator.ingestSanctionsPressure(result.countries);
+      ingestSanctionsForCII(result.countries);
       if (result.totalCount > 0) {
         dataFreshness.recordUpdate('sanctions_pressure', result.totalCount);
         this.ctx.statusPanel?.updateApi('OFAC', { status: result.newEntryCount > 0 ? 'warning' : 'ok' });
@@ -2836,6 +2959,7 @@ export class DataLoaderManager implements AppModule {
       }
     } catch (error) {
       console.error('[App] Sanctions pressure fetch failed:', error);
+      this.callPanel('sanctions-pressure', 'showError');
       dataFreshness.recordError('sanctions_pressure', String(error));
       this.ctx.statusPanel?.updateApi('OFAC', { status: 'error' });
     }
@@ -2855,6 +2979,7 @@ export class DataLoaderManager implements AppModule {
       }
     } catch (error) {
       console.error('[App] Radiation watch fetch failed:', error);
+      this.callPanel('radiation-watch', 'showError');
       this.ctx.map?.setLayerReady('radiationWatch', false);
       dataFreshness.recordError('radiation', String(error));
     }
@@ -2881,6 +3006,7 @@ export class DataLoaderManager implements AppModule {
       dataFreshness.recordUpdate('thermal-escalation' as DataSourceId, result.clusters.length);
     } catch (error) {
       console.error('[App] Thermal escalation fetch failed:', error);
+      this.callPanel('thermal-escalation', 'showError');
     }
   }
 

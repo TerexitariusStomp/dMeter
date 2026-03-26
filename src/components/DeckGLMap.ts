@@ -88,6 +88,7 @@ import {
   MINING_SITES,
   PROCESSING_PLANTS,
   COMMODITY_PORTS as COMMODITY_GEO_PORTS,
+  SANCTIONED_COUNTRIES_ALPHA2,
 } from '@/config';
 import type { GulfInvestment } from '@/types';
 import { resolveTradeRouteSegments, TRADE_ROUTES as TRADE_ROUTES_LIST, type TradeRouteSegment } from '@/config/trade-routes';
@@ -1666,6 +1667,11 @@ export class DeckGLMap {
     if (mapLayers.ciiChoropleth) {
       const ciiLayer = this.createCIIChoroplethLayer();
       if (ciiLayer) layers.push(ciiLayer);
+    }
+    // Sanctions choropleth
+    if (mapLayers.sanctions) {
+      const sanctionsLayer = this.createSanctionsChoroplethLayer();
+      if (sanctionsLayer) layers.push(sanctionsLayer);
     }
     // Phase 8: Species recovery zones
     if (mapLayers.speciesRecovery && this.speciesRecoveryZones.length > 0) {
@@ -3417,6 +3423,25 @@ export class DeckGLMap {
     });
   }
 
+  private createSanctionsChoroplethLayer(): GeoJsonLayer | null {
+    if (!this.countriesGeoJsonData) return null;
+    return new GeoJsonLayer({
+      id: 'sanctions-choropleth-layer',
+      data: this.countriesGeoJsonData,
+      filled: true,
+      stroked: false,
+      getFillColor: (feature: { properties?: Record<string, unknown> }) => {
+        const code = feature.properties?.['ISO3166-1-Alpha-2'] as string | undefined;
+        const level = code ? SANCTIONED_COUNTRIES_ALPHA2[code] : undefined;
+        if (level === 'severe') return [255, 0, 0, 89] as [number, number, number, number];
+        if (level === 'high') return [255, 100, 0, 64] as [number, number, number, number];
+        if (level === 'moderate') return [255, 200, 0, 51] as [number, number, number, number];
+        return [0, 0, 0, 0] as [number, number, number, number];
+      },
+      pickable: false,
+    });
+  }
+
   private createSpeciesRecoveryLayer(): ScatterplotLayer {
     return new ScatterplotLayer({
       id: 'species-recovery-layer',
@@ -3658,7 +3683,7 @@ export class DeckGLMap {
         return { html: `<div class="deckgl-tooltip"><strong>${text(obj.event || t('components.deckgl.layers.weatherAlerts'))}</strong><br/>${text(obj.severity)}${area}</div>` };
       }
       case 'outages-layer':
-        return { html: `<div class="deckgl-tooltip"><strong>${text(obj.asn || t('components.deckgl.tooltip.internetOutage'))}</strong><br/>${text(obj.country)}</div>` };
+        return { html: `<div class="deckgl-tooltip"><strong>${text(obj.title || t('components.deckgl.tooltip.internetOutage'))}</strong><br/>${text(obj.country)}</div>` };
       case 'traffic-anomalies-layer':
         return { html: `<div class="deckgl-tooltip"><strong>${text(obj.type || 'Traffic Anomaly')}</strong><br/>${text(obj.locationName || obj.asnName || '')}</div>` };
       case 'ddos-locations-layer':

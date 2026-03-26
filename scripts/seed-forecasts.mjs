@@ -38,6 +38,7 @@ const SIMULATION_RUNNER_VERSION = 'v1';
 const SIMULATION_TASK_KEY_PREFIX = 'forecast:simulation-task:v1';
 const SIMULATION_TASK_QUEUE_KEY = 'forecast:simulation-task-queue:v1';
 const SIMULATION_LOCK_KEY_PREFIX = 'forecast:simulation-lock:v1';
+const VALID_RUN_ID_RE = /^\d{13,}-[a-z0-9-]{1,64}$/i;
 const SIMULATION_ROUND1_MAX_TOKENS = 2200;
 const SIMULATION_ROUND2_MAX_TOKENS = 2500;
 const SIMULATION_LOCK_TTL_SECONDS = 20 * 60;
@@ -62,6 +63,13 @@ const MIN_TARGET_PUBLISHED_FORECASTS = 10;
 const MAX_TARGET_PUBLISHED_FORECASTS = 14;
 const MAX_PRESELECTED_FORECASTS_PER_FAMILY = 3;
 const MAX_PRESELECTED_FORECASTS_PER_SITUATION = 2;
+// stateKind values that legitimately drive maritime energy/freight supply_chain forecasts.
+// Defined at module scope — not per-call — to avoid re-allocating the Set on every invocation.
+const MARITIME_BUCKET_STATE_KINDS = new Set([
+  'maritime_disruption', 'port_disruption', 'shipping_disruption',
+  'chokepoint_closure', 'naval_blockade', 'piracy_escalation',
+  'transport_pressure', // shipping route pressure (e.g. Red Sea, Suez transit delays) is maritime-relevant
+]);
 const CYBER_MIN_THREATS_PER_COUNTRY = 5;
 const CYBER_MAX_FORECASTS = 12;
 const CYBER_SCORE_TYPE_MULTIPLIER = 1.5;    // bonus per distinct threat type
@@ -146,6 +154,24 @@ const CHOKEPOINT_MARKET_REGIONS = {
   'Lombok Strait': 'Southeast Asia',
   'Cape of Good Hope': 'Southern Africa',
 };
+
+const THEATER_GEO_GROUPS = {
+  'Middle East': 'MENA',
+  'Red Sea': 'MENA',
+  'Persian Gulf': 'MENA',
+  'South China Sea': 'AsiaPacific',
+  'Western Pacific': 'AsiaPacific',
+  'Southeast Asia': 'AsiaPacific',
+  'Black Sea': 'EastEurope',
+  'Northern Europe': 'NorthernEurope',
+  'Mediterranean': 'Mediterranean',
+  'Central America': 'LatinAmerica',
+  'Southern Africa': 'SouthernAfrica',
+};
+
+function getTheaterGeoGroup(marketRegion) {
+  return THEATER_GEO_GROUPS[marketRegion] || marketRegion || 'unknown';
+}
 
 const MARKET_INPUT_KEYS = {
   stocks: 'market:stocks-bootstrap:v1',
@@ -1218,6 +1244,15 @@ function computeStateDerivedBucketCandidate(domain, stateUnit, bucket, marketCon
     (domain === 'supply_chain' && directBucket ? 0.05 : 0),
   );
 
+  // Maritime-specific buckets (energy, freight in supply_chain) require actual maritime disruption state.
+  // Without this gate, security escalations in landlocked/non-chokepoint states (Brazil, Cuba, etc.)
+  // generate spurious "Maritime energy flow disruption" forecasts that have no causal basis.
+  const requiresMaritimeStateKind = domain === 'supply_chain' && ['freight', 'energy'].includes(bucket.id);
+  // Block if stateKind absent OR not in allowlist — falsy stateKind must NOT bypass this gate.
+  if (requiresMaritimeStateKind && !MARITIME_BUCKET_STATE_KINDS.has(stateUnit.stateKind ?? '')) {
+    return null;
+  }
+
   const supplyChainFallbackEligible = domain === 'supply_chain'
     && stateDomainMatch
     && directBucket
@@ -1431,7 +1466,43 @@ function deriveStateDrivenForecasts({
     derived.push(fallback.prediction);
   }
 
-  return derived
+  // Cross-state semantic deduplication: cap same (bucketId × stateKind) combinations.
+  // Without this, every monitored sea/chokepoint produces an identical "Inflation from [X]" bet —
+  // Baltic Sea 66%, Red Sea 66%, Persian Gulf 66%, Hormuz 70%... all the same bet, useless.
+  // Keep the top MAX_CROSS_STATE_SAME_BUCKET_KIND by (probability × confidence), and require
+  // a minimum probability spread so near-identical scores don't both make the cut.
+  const MAX_CROSS_STATE_SAME_BUCKET_KIND = 2;
+  const MIN_CROSS_STATE_PROBABILITY_SPREAD = 0.06;
+
+  const crossGroups = new Map(); // groupKey → sorted array of preds
+  const noDerivation = [];
+  for (const pred of derived) {
+    const bucketId = pred.stateDerivation?.bucketId || '';
+    const stateKind = pred.stateDerivation?.sourceStateKind || '';
+    if (!bucketId || !stateKind) { noDerivation.push(pred); continue; }
+    const key = `${bucketId}:${stateKind}`;
+    if (!crossGroups.has(key)) crossGroups.set(key, []);
+    crossGroups.get(key).push(pred);
+  }
+
+  const crossDeduped = [...noDerivation];
+  for (const group of crossGroups.values()) {
+    // Sort by probability descending so the spread check (probability delta) is monotonic.
+    // Secondary: confidence breaks ties to prefer more certain forecasts.
+    group.sort((a, b) => b.probability - a.probability || b.confidence - a.confidence);
+    let lastKeptProb = null;
+    let keptCount = 0;
+    for (const pred of group) {
+      if (keptCount >= MAX_CROSS_STATE_SAME_BUCKET_KIND) break;
+      // Skip if too close to the last kept forecast — ensures meaningful differentiation between kept bets.
+      if (lastKeptProb !== null && Math.abs(pred.probability - lastKeptProb) < MIN_CROSS_STATE_PROBABILITY_SPREAD) continue;
+      lastKeptProb = pred.probability;
+      keptCount++;
+      crossDeduped.push(pred);
+    }
+  }
+
+  return crossDeduped
     .sort((a, b) => (Number(a.stateDerivedBackfill) - Number(b.stateDerivedBackfill))
       || (b.probability * b.confidence) - (a.probability * a.confidence)
       || a.title.localeCompare(b.title));
@@ -12141,8 +12212,8 @@ function buildSimulationPackageEvaluationTargets(selectedTheaters, candidates) {
           question: `What specific conditions contain the ${route} disruption before it crosses into ${bucket} repricing?`,
         },
         {
-          pathType: 'spillover',
-          question: `How does stress at ${route} spill from ${macroRegion} into adjacent markets or political theaters via ${channel}?`,
+          pathType: 'market_cascade',
+          question: `What are the 2nd and 3rd order economic consequences of disruption at ${route}? Model energy price direction ($/bbl or %), freight rate delta on affected trade lanes, downstream sector impacts (manufacturing, agriculture, consumer prices), and FX stress on import-dependent economies in ${macroRegion}.`,
         },
       ],
       requiredOutputs: ['key_invalidators', 'timing_markers', 'actor_response_summary'],
@@ -12190,12 +12261,23 @@ function buildSimulationStructuralWorld(selectedTheaters, { stateUnits, worldSig
 function buildSimulationPackageFromDeepSnapshot(snapshot, priorWorldState = null) {
   const candidates = (snapshot.impactExpansionCandidates || []).filter(isMaritimeChokeEnergyCandidate);
   if (candidates.length === 0) return null;
-  const top = candidates.slice(0, 3);
+  const usedGroups = new Set();
+  const top = [];
+  for (const c of candidates) {
+    const marketRegion = CHOKEPOINT_MARKET_REGIONS[c.routeFacilityKey] || c.dominantRegion || '';
+    const group = getTheaterGeoGroup(marketRegion);
+    if (!usedGroups.has(group)) {
+      usedGroups.add(group);
+      top.push(c);
+      if (top.length === 3) break;
+    }
+  }
+  if (top.length === 0) return null;
 
   const selectedTheaters = top.map((c, i) => ({
     theaterId: `theater-${i + 1}`,
     candidateStateId: c.candidateStateId,
-    label: c.candidateStateLabel || c.dominantRegion || 'unknown theater',
+    label: (c.candidateStateLabel || c.dominantRegion || 'unknown theater').replace(/\s*\([^)]+\)\s*$/, '').trim(),
     stateKind: c.stateKind,
     dominantRegion: c.dominantRegion,
     macroRegions: c.macroRegions,
@@ -15319,7 +15401,8 @@ if (_isDirectRun) {
         const snapshotWrite = await writeDeepForecastSnapshot(snapshotPayload, { runId });
         if (snapshotWrite?.storageConfig && (data.impactExpansionCandidates || []).length > 0) {
           writeSimulationPackage(snapshotPayload, { storageConfig: snapshotWrite.storageConfig, priorWorldState: data.priorWorldState || null })
-            .catch((err) => console.warn(`  [SimulationPackage] Write failed: ${err.message}`));
+            .then(() => enqueueSimulationTask(runId))
+            .catch((err) => console.warn(`  [SimulationPackage] Write/enqueue failed: ${err.message}`));
         }
         if (deepForecast.status === 'queued' && (data.impactExpansionCandidates || []).length > 0) {
           if (snapshotWrite?.snapshotKey) {
@@ -15436,7 +15519,7 @@ EVALUATION TARGETS:
 ${evalTargets}
 
 INSTRUCTIONS:
-Generate EXACTLY 3 divergent paths named "escalation", "containment", and "spillover". For each path, model the initial actor reactions in the first 24 hours.
+Generate EXACTLY 3 divergent paths named "escalation", "containment", and "market_cascade". For each path, model the initial actor reactions in the first 24 hours.
 
 - Actors MUST be from the list above (use their exact entityId)
 - Cite event seeds (seedId) in reactions where applicable
@@ -15444,6 +15527,7 @@ Generate EXACTLY 3 divergent paths named "escalation", "containment", and "spill
 - timing format: "T+0h", "T+6h", "T+12h", "T+24h"
 - Maximum 3 initialReactions per path
 - note: A brief (≤200 char) meta-observation on the divergence logic
+- market_cascade path: model 2nd and 3rd order economic consequences — energy price direction ($/bbl or %), freight rate delta on affected trade lanes, downstream sector impacts (manufacturing, agriculture, consumer prices), FX stress on import-dependent economies
 
 Return ONLY a JSON object with no markdown fences:
 {
@@ -15457,7 +15541,7 @@ Return ONLY a JSON object with no markdown fences:
       ]
     },
     { "pathId": "containment", "label": "...", "summary": "...", "initialReactions": [] },
-    { "pathId": "spillover", "label": "...", "summary": "...", "initialReactions": [] }
+    { "pathId": "market_cascade", "label": "...", "summary": "...", "initialReactions": [] }
   ],
   "dominantReactions": ["<actor name>: <action summary>"],
   "note": "<meta-observation>"
@@ -15491,7 +15575,7 @@ EVALUATION TARGETS:
 ${evalTargets}
 
 INSTRUCTIONS:
-For each of the 3 paths from Round 1 (escalation, containment, spillover), generate the EVOLVED outcome after 72 hours.
+For each of the 3 paths from Round 1 (escalation, containment, market_cascade), generate the EVOLVED outcome after 72 hours.
 
 - keyActors: 2-4 actor IDs that drive this path
 - roundByRoundEvolution: 2 entries (round 1 summary, round 2 evolution)
@@ -15516,7 +15600,7 @@ Return ONLY a JSON object with no markdown fences:
       "timingMarkers": [{ "event": "<≤80 char>", "timing": "T+Nh" }]
     },
     { "pathId": "containment", "label": "...", "summary": "...", "keyActors": [], "roundByRoundEvolution": [], "confidence": 0.0, "timingMarkers": [] },
-    { "pathId": "spillover", "label": "...", "summary": "...", "keyActors": [], "roundByRoundEvolution": [], "confidence": 0.0, "timingMarkers": [] }
+    { "pathId": "market_cascade", "label": "...", "summary": "...", "keyActors": [], "roundByRoundEvolution": [], "confidence": 0.0, "timingMarkers": [] }
   ],
   "stabilizers": ["<≤100 char>"],
   "invalidators": ["<≤100 char>"],
@@ -15529,7 +15613,7 @@ function tryParseSimulationRoundPayload(text, round) {
   try {
     const parsed = JSON.parse(text);
     if (!Array.isArray(parsed?.paths)) return { paths: null };
-    const expectedIds = new Set(['escalation', 'containment', 'spillover']);
+    const expectedIds = new Set(['escalation', 'containment', 'market_cascade']);
     const paths = parsed.paths.filter((p) => p && expectedIds.has(p.pathId));
     if (paths.length === 0) return { paths: null };
     if (round === 2) {
@@ -15616,6 +15700,20 @@ async function writeSimulationOutcome(pkg, outcome, { storageConfig } = {}) {
     schema_version: SIMULATION_OUTCOME_SCHEMA_VERSION,
   });
   const { url, token } = getRedisCredentials();
+  const uiTheaters = (outcome.theaterResults || []).map((tr) => ({
+    theaterId: tr.theaterId,
+    theaterLabel: tr.theaterLabel || tr.theaterId,
+    stateKind: tr.stateKind || '',
+    topPaths: (tr.topPaths || []).slice(0, 3).map((p) => ({
+      label: p.label,
+      summary: p.summary,
+      confidence: p.confidence,
+      keyActors: (p.keyActors || []).slice(0, 4),
+    })),
+    dominantReactions: (tr.dominantReactions || []).slice(0, 3),
+    stabilizers: (tr.stabilizers || []).slice(0, 3),
+    invalidators: (tr.invalidators || []).slice(0, 2),
+  }));
   await redisCommand(url, token, [
     'SET',
     SIMULATION_OUTCOME_LATEST_KEY,
@@ -15625,6 +15723,7 @@ async function writeSimulationOutcome(pkg, outcome, { storageConfig } = {}) {
       schemaVersion: SIMULATION_OUTCOME_SCHEMA_VERSION,
       theaterCount: (outcome.theaterResults || []).length,
       generatedAt: generatedAt || Date.now(),
+      uiTheaters,
     }),
     'EX',
     String(TRACE_REDIS_TTL_SECONDS),
@@ -15632,7 +15731,6 @@ async function writeSimulationOutcome(pkg, outcome, { storageConfig } = {}) {
   return { outcomeKey };
 }
 
-const VALID_RUN_ID_RE = /^\d{13,}-[a-z0-9-]{1,64}$/i;
 function validateRunId(runId) { return typeof runId === 'string' && VALID_RUN_ID_RE.test(runId); }
 
 function buildSimulationTaskKey(runId) { return `${SIMULATION_TASK_KEY_PREFIX}:${runId}`; }
@@ -15770,6 +15868,8 @@ async function processNextSimulationTask(options = {}) {
 
         theaterResults.push({
           theaterId: theater.theaterId,
+          theaterLabel: theater.label || theater.dominantRegion || theater.theaterId,
+          stateKind: theater.stateKind || '',
           topPaths: mergedPaths,
           dominantReactions: (result.round1?.dominantReactions || []).map((s) => sanitizeForPrompt(String(s)).slice(0, 120)).slice(0, 6),
           stabilizers: (result.round2?.stabilizers || []).map((s) => sanitizeForPrompt(String(s)).slice(0, 120)).slice(0, 6),

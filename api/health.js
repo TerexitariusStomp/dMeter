@@ -55,6 +55,9 @@ const BOOTSTRAP_KEYS = {
   otherTokens:       'market:other-tokens:v1',
   fredBatch:         'economic:fred:v1:FEDFUNDS:0',
   fearGreedIndex:    'market:fear-greed:v1',
+  earningsCalendar:  'market:earnings-calendar:v1',
+  econCalendar:      'economic:econ-calendar:v1',
+  cotPositioning:    'market:cot:v1',
 };
 
 const STANDALONE_KEYS = {
@@ -130,11 +133,11 @@ const SEED_META = {
   gpsjam:           { key: 'seed-meta:intelligence:gpsjam',       maxStaleMin: 720 },
   positiveGeoEvents:{ key: 'seed-meta:positive-events:geo',       maxStaleMin: 60 },
   riskScores:       { key: 'seed-meta:intelligence:risk-scores',  maxStaleMin: 30 }, // CII warm-ping every 8min; 30min = ~3.5x interval,
-  iranEvents:       { key: 'seed-meta:conflict:iran-events',      maxStaleMin: 10080 },
+  iranEvents:       { key: 'seed-meta:conflict:iran-events',      maxStaleMin: 20160 }, // manual seed from LiveUAMap; 20160 = 14d = 2× weekly cadence
   ucdpEvents:       { key: 'seed-meta:conflict:ucdp-events',      maxStaleMin: 420 },
   militaryFlights:  { key: 'seed-meta:military:flights',           maxStaleMin: 30 }, // cron ~10min (LIVE_TTL=600s); 30min = 3x interval,
   satellites:       { key: 'seed-meta:intelligence:satellites',    maxStaleMin: 240 }, // CelesTrak every 120min; 240min = absorbs one missed cycle
-  weatherAlerts:    { key: 'seed-meta:weather:alerts',             maxStaleMin: 30 },
+  weatherAlerts:    { key: 'seed-meta:weather:alerts',             maxStaleMin: 45 }, // relay loop every 15min; 45 = 3× interval (was 30 = 2×, too tight on relay hiccup)
   spending:         { key: 'seed-meta:economic:spending',          maxStaleMin: 120 },
   techEvents:       { key: 'seed-meta:research:tech-events',       maxStaleMin: 480 },
   gdeltIntel:       { key: 'seed-meta:intelligence:gdelt-intel',   maxStaleMin: 420 }, // 6h cron + 1h grace; CACHE_TTL is 24h so per-topic merge always has a prior snapshot
@@ -163,7 +166,7 @@ const SEED_META = {
   groceryBasket:       { key: 'seed-meta:economic:grocery-basket',            maxStaleMin: 10080 }, // weekly seed; 10080 = 7 days
   bigmac:              { key: 'seed-meta:economic:bigmac',                    maxStaleMin: 10080 }, // weekly seed; 10080 = 7 days
   fuelPrices:          { key: 'seed-meta:economic:fuel-prices',               maxStaleMin: 10080 }, // weekly seed; 10080 = 7 days
-  thermalEscalation:   { key: 'seed-meta:thermal:escalation',                 maxStaleMin: 240 },
+  thermalEscalation:   { key: 'seed-meta:thermal:escalation',                 maxStaleMin: 360 }, // cron every 2h; 360 = 3x interval (was 240 = 2x)
   nationalDebt:        { key: 'seed-meta:economic:national-debt',              maxStaleMin: 10080 }, // 7 days — monthly seed
   tariffTrendsUs:      { key: 'seed-meta:trade:tariffs:v1:840:all:10',        maxStaleMin: 900 },
   // publish.ts runs once daily (02:30 UTC); seed-meta TTL=52h — maxStaleMin must cover the full 24h cycle
@@ -180,6 +183,9 @@ const SEED_META = {
   gscpi:             { key: 'seed-meta:economic:gscpi',               maxStaleMin: 2880 }, // 24h interval; 2880min = 48h = 2x interval
   fearGreedIndex:    { key: 'seed-meta:market:fear-greed',            maxStaleMin: 720 }, // 6h cron; 720min = 12h = 2x interval
   hormuzTracker:     { key: 'seed-meta:supply_chain:hormuz_tracker',  maxStaleMin: 2880 }, // daily cron; 2880min = 48h = 2x interval
+  earningsCalendar:  { key: 'seed-meta:market:earnings-calendar',     maxStaleMin: 1440 }, // 12h cron; 1440min = 24h = 2x interval
+  econCalendar:      { key: 'seed-meta:economic:econ-calendar',       maxStaleMin: 1440 }, // 12h cron; 1440min = 24h = 2x interval
+  cotPositioning:    { key: 'seed-meta:market:cot',                   maxStaleMin: 14400 }, // weekly CFTC release; 14400min = 10d = 1.4x interval (weekend + delay buffer)
 };
 
 // Standalone keys that are populated on-demand by RPC handlers (not seeds).
@@ -198,9 +204,13 @@ const ON_DEMAND_KEYS = new Set([
   'simulationOutcomeLatest', // written by writeSimulationOutcome after simulation runs; only present after first successful simulation
 ]);
 
-// Keys where 0 records is a valid healthy state (e.g. no airports closed).
+// Keys where 0 records is a valid healthy state (e.g. no airports closed,
+// no earnings events this week, econ calendar quiet between seasons).
 // The key must still exist in Redis; only the record count can be 0.
-const EMPTY_DATA_OK_KEYS = new Set(['notamClosures', 'faaDelays', 'gpsjam', 'positiveGeoEvents']);
+const EMPTY_DATA_OK_KEYS = new Set([
+  'notamClosures', 'faaDelays', 'gpsjam', 'positiveGeoEvents', 'weatherAlerts',
+  'earningsCalendar', 'econCalendar', 'cotPositioning',
+]);
 
 // Cascade groups: if any key in the group has data, all empty siblings are OK.
 // Theater posture uses live → stale → backup fallback chain.
@@ -246,6 +256,7 @@ function dataSize(parsed) {
                       'airports', 'closedIcaos', 'categories', 'regions', 'entries', 'satellites',
                       'sectors', 'statuses', 'scores', 'topics', 'advisories', 'months',
                       'observations', 'datapoints', 'clusters',
+                      'earnings', 'instruments',
                       'charts']) {
       if (Array.isArray(parsed[k])) return parsed[k].length;
     }
@@ -320,11 +331,31 @@ export default async function handler(req) {
 
     let status;
     if (!parsed || raw === NEG_SENTINEL) {
-      status = 'EMPTY';
-      critCount++;
+      if (EMPTY_DATA_OK_KEYS.has(name)) {
+        if (seedStale === true) {
+          status = 'STALE_SEED';
+          warnCount++;
+        } else {
+          status = 'OK';
+          okCount++;
+        }
+      } else {
+        status = 'EMPTY';
+        critCount++;
+      }
     } else if (size === 0) {
-      status = 'EMPTY_DATA';
-      critCount++;
+      if (EMPTY_DATA_OK_KEYS.has(name)) {
+        if (seedStale === true) {
+          status = 'STALE_SEED';
+          warnCount++;
+        } else {
+          status = 'OK';
+          okCount++;
+        }
+      } else {
+        status = 'EMPTY_DATA';
+        critCount++;
+      }
     } else if (seedStale === true) {
       status = 'STALE_SEED';
       warnCount++;
