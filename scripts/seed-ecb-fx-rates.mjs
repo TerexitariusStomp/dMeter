@@ -41,9 +41,13 @@ async function fetchEcbFxRates() {
     throw new Error('ECB response missing structure.dimensions.series');
   }
 
-  const currencyDim = seriesDimensions.find(d => d.id === 'CURRENCY');
-  if (!currencyDim?.values) {
+  const currencyDimPos = seriesDimensions.findIndex(d => d.id === 'CURRENCY');
+  if (currencyDimPos === -1) {
     throw new Error('ECB response missing CURRENCY dimension');
+  }
+  const currencyDim = seriesDimensions[currencyDimPos];
+  if (!currencyDim?.values) {
+    throw new Error('ECB response missing CURRENCY dimension values');
   }
 
   const currencyCodes = currencyDim.values.map(v => v.id);
@@ -58,7 +62,7 @@ async function fetchEcbFxRates() {
 
   for (const [seriesKey, seriesData] of Object.entries(seriesMap)) {
     const keyParts = seriesKey.split(':');
-    const currencyIndex = parseInt(keyParts[0], 10);
+    const currencyIndex = parseInt(keyParts[currencyDimPos], 10);
     const currency = currencyCodes[currencyIndex];
     if (!currency || !PAIR_LABELS[currency]) continue;
 
