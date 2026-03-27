@@ -764,8 +764,8 @@ export function installWebApiRedirect(): void {
    * existing auth header is present. Priority order:
    *   1. Existing auth headers — left unchanged (API key users keep their flow)
    *   2. WORLDMONITOR_API_KEY from runtime config → X-WorldMonitor-Key
-   *   3. Clerk Pro session → Authorization: Bearer <token>
-   *   4. Tester key (wm-pro-key / wm-widget-key) → X-WorldMonitor-Key
+   *   3. Tester key (wm-pro-key / wm-widget-key) → X-WorldMonitor-Key
+   *   4. Clerk Pro session → Authorization: Bearer <token>
    * Runs on every web deployment (with or without API base redirect).
    * Returns the original init unchanged for non-premium paths (zero overhead).
    */
@@ -784,17 +784,19 @@ export function installWebApiRedirect(): void {
         return { ...init, headers };
       }
     } catch { /* runtime-config unavailable — fall through */ }
-    // Clerk Pro: inject Bearer token
+    // Tester key (wm-pro-key / wm-widget-key): forward as API key header.
+    // Must run BEFORE Clerk to prevent a free Clerk session from intercepting
+    // the request and returning 403 before the tester key is ever tried.
+    const { getBrowserTesterKey } = await import('@/services/widget-store');
+    const testerKey = getBrowserTesterKey();
+    if (testerKey) {
+      headers.set('X-WorldMonitor-Key', testerKey);
+      return { ...init, headers };
+    }
+    // Clerk Pro: inject Bearer token (fallback for users without a tester key)
     const token = await getClerkToken();
     if (token) {
       headers.set('Authorization', `Bearer ${token}`);
-      return { ...init, headers };
-    }
-    // Tester key (wm-pro-key / wm-widget-key): forward as API key header
-    const { getProWidgetKey, getWidgetAgentKey } = await import('@/services/widget-store');
-    const testerKey = getProWidgetKey() || getWidgetAgentKey();
-    if (testerKey) {
-      headers.set('X-WorldMonitor-Key', testerKey);
       return { ...init, headers };
     }
     return init;

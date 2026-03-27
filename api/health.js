@@ -35,7 +35,6 @@ const BOOTSTRAP_KEYS = {
   forecasts:         'forecast:predictions:v2',
   securityAdvisories: 'intelligence:advisories-bootstrap:v1',
   customsRevenue:    'trade:customs-revenue:v1',
-  defensePatents:    'patents:defense:latest',
   comtradeFlows:     'comtrade:flows:v1',
   blsSeries:         'bls:series:v1',
   sanctionsPressure: 'sanctions:pressure:v1',
@@ -55,10 +54,21 @@ const BOOTSTRAP_KEYS = {
   aiTokens:          'market:ai-tokens:v1',
   otherTokens:       'market:other-tokens:v1',
   fredBatch:         'economic:fred:v1:FEDFUNDS:0',
+  ecbEstr:           'economic:fred:v1:ESTR:0',
+  ecbEuribor3m:      'economic:fred:v1:EURIBOR3M:0',
+  ecbEuribor6m:      'economic:fred:v1:EURIBOR6M:0',
+  ecbEuribor1y:      'economic:fred:v1:EURIBOR1Y:0',
   fearGreedIndex:    'market:fear-greed:v1',
+  euYieldCurve:      'economic:yield-curve-eu:v1',
   earningsCalendar:  'market:earnings-calendar:v1',
   econCalendar:      'economic:econ-calendar:v1',
   cotPositioning:    'market:cot:v1',
+  crudeInventories:  'economic:crude-inventories:v1',
+  natGasStorage:     'economic:nat-gas-storage:v1',
+  ecbFxRates:        'economic:ecb-fx-rates:v1',
+  eurostatCountryData: 'economic:eurostat-country-data:v1',
+  euGasStorage:      'economic:eu-gas-storage:v1',
+  euFsi:             'economic:fsi-eu:v1',
 };
 
 const STANDALONE_KEYS = {
@@ -158,7 +168,6 @@ const SEED_META = {
   usniFleet:           { key: 'seed-meta:military:usni-fleet',               maxStaleMin: 720 }, // relay loop every 6h; 720 = 2× interval (was 480 = 1.3×, too tight)
   securityAdvisories:  { key: 'seed-meta:intelligence:advisories',           maxStaleMin: 120 },
   customsRevenue:      { key: 'seed-meta:trade:customs-revenue',              maxStaleMin: 1440 },
-  defensePatents:      { key: 'seed-meta:military:defense-patents',           maxStaleMin: 20160 }, // weekly seed; 20160 = 2× 7-day interval
   comtradeFlows:       { key: 'seed-meta:trade:comtrade-flows',               maxStaleMin: 2880 }, // 24h cron; 2880min = 48h = 2x interval
   blsSeries:           { key: 'seed-meta:economic:bls-series',                maxStaleMin: 2880 }, // daily seed; 2880min = 48h = 2x interval
   sanctionsPressure:   { key: 'seed-meta:sanctions:pressure',                 maxStaleMin: 720 },
@@ -182,12 +191,24 @@ const SEED_META = {
   aiTokens:          { key: 'seed-meta:market:token-panels', maxStaleMin: 90 },
   otherTokens:       { key: 'seed-meta:market:token-panels', maxStaleMin: 90 },
   fredBatch:         { key: 'seed-meta:economic:fred:v1:FEDFUNDS:0', maxStaleMin: 1500 }, // daily cron
+  ecbEstr:           { key: 'seed-meta:economic:ecb-short-rates',   maxStaleMin: 4320 }, // daily ECB publish; 4320min = 3d = TTL/interval
+  ecbEuribor3m:      { key: 'seed-meta:economic:ecb-short-rates',   maxStaleMin: 4320 }, // shared meta key with ecbEstr
+  ecbEuribor6m:      { key: 'seed-meta:economic:ecb-short-rates',   maxStaleMin: 4320 }, // shared meta key with ecbEstr
+  ecbEuribor1y:      { key: 'seed-meta:economic:ecb-short-rates',   maxStaleMin: 4320 }, // shared meta key with ecbEstr
   gscpi:             { key: 'seed-meta:economic:gscpi',               maxStaleMin: 2880 }, // 24h interval; 2880min = 48h = 2x interval
   fearGreedIndex:    { key: 'seed-meta:market:fear-greed',            maxStaleMin: 720 }, // 6h cron; 720min = 12h = 2x interval
   hormuzTracker:     { key: 'seed-meta:supply_chain:hormuz_tracker',  maxStaleMin: 2880 }, // daily cron; 2880min = 48h = 2x interval
   earningsCalendar:  { key: 'seed-meta:market:earnings-calendar',     maxStaleMin: 1440 }, // 12h cron; 1440min = 24h = 2x interval
   econCalendar:      { key: 'seed-meta:economic:econ-calendar',       maxStaleMin: 1440 }, // 12h cron; 1440min = 24h = 2x interval
   cotPositioning:    { key: 'seed-meta:market:cot',                   maxStaleMin: 14400 }, // weekly CFTC release; 14400min = 10d = 1.4x interval (weekend + delay buffer)
+  crudeInventories:  { key: 'seed-meta:economic:crude-inventories',   maxStaleMin: 20160 }, // weekly EIA data; 20160min = 14 days = 2x weekly cadence
+  natGasStorage:     { key: 'seed-meta:economic:nat-gas-storage',     maxStaleMin: 20160 }, // weekly EIA data; 20160min = 14 days = 2x weekly cadence
+  ecbFxRates:        { key: 'seed-meta:economic:ecb-fx-rates',        maxStaleMin: 2880 }, // daily seed; 2880min = 48h = 2x interval
+  eurostatCountryData: { key: 'seed-meta:economic:eurostat-country-data', maxStaleMin: 4320 }, // daily seed; 4320min = 3 days = 3x interval
+  euGasStorage:      { key: 'seed-meta:economic:eu-gas-storage',      maxStaleMin: 2880 }, // daily seed (T+1); 2880min = 48h = 2x interval
+  euYieldCurve:      { key: 'seed-meta:economic:yield-curve-eu',      maxStaleMin: 2880 }, // daily seed (weekdays); 2880min = 48h = 2x interval
+  euFsi:             { key: 'seed-meta:economic:fsi-eu',               maxStaleMin: 20160 }, // weekly seed (Saturday); 20160min = 14d = 2x interval
+  newsThreatSummary: { key: 'seed-meta:news:threat-summary',          maxStaleMin: 60 }, // relay classify every ~20min; 60min = 3x interval
 };
 
 // Standalone keys that are populated on-demand by RPC handlers (not seeds).
@@ -212,6 +233,7 @@ const ON_DEMAND_KEYS = new Set([
 const EMPTY_DATA_OK_KEYS = new Set([
   'notamClosures', 'faaDelays', 'gpsjam', 'positiveGeoEvents', 'weatherAlerts',
   'earningsCalendar', 'econCalendar', 'cotPositioning',
+  'usniFleet', // usniFleetStale covers the fallback; relay outages → WARN not CRIT
 ]);
 
 // Cascade groups: if any key in the group has data, all empty siblings are OK.
@@ -246,26 +268,6 @@ function parseRedisValue(raw) {
   try { return JSON.parse(raw); } catch { return raw; }
 }
 
-function dataSize(parsed) {
-  if (!parsed) return 0;
-  if (Array.isArray(parsed)) return parsed.length;
-  if (typeof parsed === 'object') {
-    for (const k of ['quotes', 'hexes', 'events', 'stablecoins', 'fires', 'threats',
-                      'earthquakes', 'outages', 'delays', 'items', 'predictions', 'alerts', 'awards',
-                      'papers', 'repos', 'articles', 'signals', 'rates', 'countries',
-                      'chokepoints', 'minerals', 'anomalies', 'flows', 'bases', 'flights',
-                      'theaters', 'fleets', 'warnings', 'closures', 'cables',
-                      'airports', 'closedIcaos', 'categories', 'regions', 'entries', 'satellites',
-                      'sectors', 'statuses', 'scores', 'topics', 'advisories', 'months',
-                      'observations', 'datapoints', 'clusters',
-                      'earnings', 'instruments',
-                      'charts']) {
-      if (Array.isArray(parsed[k])) return parsed[k].length;
-    }
-    return Object.keys(parsed).length;
-  }
-  return typeof parsed === 'string' ? parsed.length : 1;
-}
 
 export default async function handler(req) {
   const headers = {
@@ -286,11 +288,16 @@ export default async function handler(req) {
     ...Object.values(STANDALONE_KEYS),
   ];
   const allMetaKeys = Object.values(SEED_META).map(s => s.key);
-  const allKeys = [...allDataKeys, ...allMetaKeys];
 
+  // STRLEN for data keys avoids loading large blobs into memory (OOM prevention).
+  // NEG_SENTINEL ('__WM_NEG__') is 10 bytes — any real data is >10 bytes.
+  const NEG_SENTINEL_LEN = NEG_SENTINEL.length;
   let results;
   try {
-    const commands = allKeys.map(k => ['GET', k]);
+    const commands = [
+      ...allDataKeys.map(k => ['STRLEN', k]),
+      ...allMetaKeys.map(k => ['GET', k]),
+    ];
     results = await redisPipeline(commands);
   } catch (err) {
     return jsonResponse({
@@ -300,9 +307,15 @@ export default async function handler(req) {
     }, 503, headers);
   }
 
-  const keyValues = new Map();
-  for (let i = 0; i < allKeys.length; i++) {
-    keyValues.set(allKeys[i], results[i]?.result ?? null);
+  // keyStrens: byte length per data key (0 = missing/empty/sentinel)
+  const keyStrens = new Map();
+  for (let i = 0; i < allDataKeys.length; i++) {
+    keyStrens.set(allDataKeys[i], results[i]?.result ?? 0);
+  }
+  // keyMetaValues: parsed seed-meta objects (GET, small payloads)
+  const keyMetaValues = new Map();
+  for (let i = 0; i < allMetaKeys.length; i++) {
+    keyMetaValues.set(allMetaKeys[i], results[allDataKeys.length + i]?.result ?? null);
   }
 
   const checks = {};
@@ -313,15 +326,15 @@ export default async function handler(req) {
 
   for (const [name, redisKey] of Object.entries(BOOTSTRAP_KEYS)) {
     totalChecks++;
-    const raw = keyValues.get(redisKey);
-    const parsed = parseRedisValue(raw);
-    const size = dataSize(parsed);
+    const strlen = keyStrens.get(redisKey) ?? 0;
+    const hasData = strlen > NEG_SENTINEL_LEN;
     const seedCfg = SEED_META[name];
 
     let seedAge = null;
     let seedStale = null;
+    let metaCount = null;
     if (seedCfg) {
-      const metaRaw = keyValues.get(seedCfg.key);
+      const metaRaw = keyMetaValues.get(seedCfg.key);
       const meta = parseRedisValue(metaRaw);
       if (meta?.fetchedAt) {
         seedAge = Math.round((now - meta.fetchedAt) / 60_000);
@@ -329,10 +342,13 @@ export default async function handler(req) {
       } else {
         seedStale = true;
       }
+      if (meta?.count != null) metaCount = meta.count;
     }
 
+    const size = metaCount ?? (hasData ? 1 : 0);
+
     let status;
-    if (!parsed || raw === NEG_SENTINEL) {
+    if (!hasData) {
       if (EMPTY_DATA_OK_KEYS.has(name)) {
         if (seedStale === true) {
           status = 'STALE_SEED';
@@ -374,17 +390,17 @@ export default async function handler(req) {
 
   for (const [name, redisKey] of Object.entries(STANDALONE_KEYS)) {
     totalChecks++;
-    const raw = keyValues.get(redisKey);
-    const parsed = parseRedisValue(raw);
-    const size = dataSize(parsed);
+    const strlen = keyStrens.get(redisKey) ?? 0;
+    const hasData = strlen > NEG_SENTINEL_LEN;
     const isOnDemand = ON_DEMAND_KEYS.has(name);
     const seedCfg = SEED_META[name];
 
     // Freshness tracking for standalone keys (same logic as bootstrap keys)
     let seedAge = null;
     let seedStale = null;
+    let metaCount = null;
     if (seedCfg) {
-      const metaRaw = keyValues.get(seedCfg.key);
+      const metaRaw = keyMetaValues.get(seedCfg.key);
       const meta = parseRedisValue(metaRaw);
       if (meta?.fetchedAt) {
         seedAge = Math.round((now - meta.fetchedAt) / 60_000);
@@ -393,19 +409,20 @@ export default async function handler(req) {
         // No seed-meta → data exists but freshness is unknown → stale
         seedStale = true;
       }
+      if (meta?.count != null) metaCount = meta.count;
     }
+
+    const size = metaCount ?? (hasData ? 1 : 0);
 
     // Cascade: if this key is empty but a sibling in the cascade group has data, it's OK.
     const cascadeSiblings = CASCADE_GROUPS[name];
     let cascadeCovered = false;
-    if (cascadeSiblings && (!parsed || size === 0)) {
+    if (cascadeSiblings && !hasData) {
       for (const sibling of cascadeSiblings) {
         if (sibling === name) continue;
         const sibKey = STANDALONE_KEYS[sibling];
         if (!sibKey) continue;
-        const sibRaw = keyValues.get(sibKey);
-        const sibParsed = parseRedisValue(sibRaw);
-        if (sibParsed && dataSize(sibParsed) > 0) {
+        if ((keyStrens.get(sibKey) ?? 0) > NEG_SENTINEL_LEN) {
           cascadeCovered = true;
           break;
         }
@@ -413,7 +430,7 @@ export default async function handler(req) {
     }
 
     let status;
-    if (!parsed || raw === NEG_SENTINEL) {
+    if (!hasData) {
       if (cascadeCovered) {
         status = 'OK_CASCADE';
         okCount++;
