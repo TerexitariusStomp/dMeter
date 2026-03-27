@@ -46,7 +46,8 @@ async function buildWidgetAuthHeaders(isPro: boolean): Promise<Record<string, st
   const widgetKey = getWidgetAgentKey();
   const proKey = getProWidgetKey();
   if (widgetKey || proKey) {
-    const headers: Record<string, string> = { 'X-Widget-Key': widgetKey };
+    const headers: Record<string, string> = {};
+    if (widgetKey) headers['X-Widget-Key'] = widgetKey;
     if (isPro && proKey) headers['X-Pro-Key'] = proKey;
     return headers;
   }
