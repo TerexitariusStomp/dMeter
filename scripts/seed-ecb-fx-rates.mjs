@@ -57,6 +57,10 @@ async function fetchEcbFxRates() {
     throw new Error('ECB response missing dataSets[0].series');
   }
 
+  const obsPeriods = data?.structure?.dimensions?.observation;
+  const timeDim = Array.isArray(obsPeriods) ? obsPeriods.find(d => d.id === 'TIME_PERIOD') : null;
+  const timeValues = timeDim?.values || [];
+
   const rates = {};
   let latestDate = '';
 
@@ -68,10 +72,6 @@ async function fetchEcbFxRates() {
 
     const observations = seriesData?.observations;
     if (!observations || typeof observations !== 'object') continue;
-
-    const obsPeriods = data?.structure?.dimensions?.observation;
-    const timeDim = Array.isArray(obsPeriods) ? obsPeriods.find(d => d.id === 'TIME_PERIOD') : null;
-    const timeValues = timeDim?.values || [];
 
     const obsEntries = Object.entries(observations)
       .map(([idx, obsArr]) => {
@@ -110,7 +110,7 @@ async function fetchEcbFxRates() {
 
   return {
     rates,
-    updatedAt: latestDate ? `${latestDate}T16:00:00Z` : new Date().toISOString(),
+    updatedAt: latestDate ? `${latestDate}T14:00:00Z` : new Date().toISOString(),
     seededAt: Date.now(),
   };
 }
