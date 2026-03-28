@@ -107,6 +107,7 @@ import { fetchConflictEvents, fetchUcdpClassifications, fetchHapiSummary, fetchU
 import { fetchUnhcrPopulation } from '@/services/displacement';
 import { fetchClimateAnomalies } from '@/services/climate';
 import { fetchSecurityAdvisories } from '@/services/security-advisories';
+import { applyMonitorHighlightsToNews, hasMonitorProAccess } from '@/services/monitors';
 import { fetchThermalEscalations } from '@/services/thermal-escalation';
 import { fetchCrossSourceSignals } from '@/services/cross-source-signals';
 import { fetchTelegramFeed } from '@/services/telegram-intel';
@@ -2532,7 +2533,27 @@ export class DataLoaderManager implements AppModule {
 
   updateMonitorResults(): void {
     const monitorPanel = this.ctx.panels['monitors'] as MonitorPanel | undefined;
-    monitorPanel?.renderResults(this.ctx.allNews);
+    const highlightedAllNews = applyMonitorHighlightsToNews(
+      this.ctx.monitors,
+      this.ctx.allNews,
+      { proAccess: hasMonitorProAccess() },
+    );
+    this.ctx.allNews = highlightedAllNews;
+
+    Object.entries(this.ctx.newsByCategory).forEach(([category, items]) => {
+      const highlightedItems = applyMonitorHighlightsToNews(
+        this.ctx.monitors,
+        items,
+        { proAccess: hasMonitorProAccess() },
+      );
+      this.renderNewsForCategory(category, highlightedItems);
+    });
+
+    monitorPanel?.renderResults({
+      news: highlightedAllNews,
+      advisories: this.ctx.intelligenceCache.advisories ?? [],
+      crossSourceSignals: this.ctx.intelligenceCache.crossSourceSignals?.signals ?? [],
+    });
   }
 
   async runCorrelationAnalysis(): Promise<void> {
@@ -2894,6 +2915,7 @@ export class DataLoaderManager implements AppModule {
   async loadCrossSourceSignals(): Promise<void> {
     try {
       const result = await fetchCrossSourceSignals();
+      this.ctx.intelligenceCache.crossSourceSignals = result;
       this.callPanel('cross-source-signals', 'setData', result);
       dataFreshness.recordUpdate('cross-source-signals' as DataSourceId, result.signals?.length ?? 0);
     } catch (error) {
