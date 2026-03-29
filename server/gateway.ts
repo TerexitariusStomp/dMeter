@@ -206,9 +206,6 @@ const RPC_CACHE_TIER: Record<string, CacheTier> = {
   '/api/intelligence/v1/get-social-velocity': 'fast',
 };
 
-import { PREMIUM_RPC_PATHS } from '../src/shared/premium-paths';
-
-
 /**
  * Creates a Vercel Edge handler for a single domain's routes.
  *
@@ -267,54 +264,10 @@ export function createDomainGateway(
       forceKey: isTierGated && !sessionUserId,
     });
     if (keyCheck.required && !keyCheck.valid) {
-      if (PREMIUM_RPC_PATHS.has(pathname)) {
-        const authHeader = request.headers.get('Authorization');
-        if (authHeader?.startsWith('Bearer ')) {
-          const { validateBearerToken } = await import('./auth-session');
-          const session = await validateBearerToken(authHeader.slice(7));
-          if (!session.valid) {
-            return new Response(JSON.stringify({ error: 'Invalid or expired session' }), {
-              status: 401,
-              headers: { 'Content-Type': 'application/json', ...corsHeaders },
-            });
-          }
-          if (session.role !== 'pro') {
-            return new Response(JSON.stringify({ error: 'Pro subscription required' }), {
-              status: 403,
-              headers: { 'Content-Type': 'application/json', ...corsHeaders },
-            });
-          }
-          // Valid pro session — fall through to route handling
-        } else {
-          return new Response(JSON.stringify({ error: keyCheck.error, _debug: (keyCheck as any)._debug }), {
-            status: 401,
-            headers: { 'Content-Type': 'application/json', ...corsHeaders },
-          });
-        }
-      } else {
-        return new Response(JSON.stringify({ error: keyCheck.error }), {
-          status: 401,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders },
-        });
-      }
-    }
-
-    // Bearer role check — authenticated users who bypassed the API key gate still
-    // need a pro role for PREMIUM_RPC_PATHS (entitlement check below handles tier-gated).
-    // Note: keyCheck.valid is true for trusted browser origins even without an API key,
-    // so we check for an actual X-WorldMonitor-Key header instead.
-    if (sessionUserId && !request.headers.get('X-WorldMonitor-Key') && PREMIUM_RPC_PATHS.has(pathname)) {
-      const authHeader = request.headers.get('Authorization');
-      if (authHeader?.startsWith('Bearer ')) {
-        const { validateBearerToken } = await import('./auth-session');
-        const session = await validateBearerToken(authHeader.slice(7));
-        if (!session.valid || session.role !== 'pro') {
-          return new Response(JSON.stringify({ error: 'Pro subscription required' }), {
-            status: 403,
-            headers: { 'Content-Type': 'application/json', ...corsHeaders },
-          });
-        }
-      }
+      return new Response(JSON.stringify({ error: keyCheck.error }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
     }
 
     // Entitlement check — blocks tier-gated endpoints for users below required tier
