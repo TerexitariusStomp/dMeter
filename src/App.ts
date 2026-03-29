@@ -64,6 +64,7 @@ import { EventHandlerManager } from '@/app/event-handlers';
 import { resolveUserRegion, resolvePreciseUserCoordinates, type PreciseCoordinates } from '@/utils/user-location';
 import { showProBanner } from '@/components/ProBanner';
 import { initAuthState, subscribeAuthState } from '@/services/auth-state';
+import { install as installCloudPrefsSync, onSignIn as cloudPrefsSignIn, onSignOut as cloudPrefsSignOut } from '@/utils/cloud-prefs-sync';
 import {
   CorrelationEngine,
   militaryAdapter,
@@ -399,7 +400,7 @@ export class App {
       }
       for (const key of newVariantKeys) {
         if (!(key in panelSettings)) {
-          panelSettings[key] = { ...getEffectivePanelConfig(key, currentVariant), enabled: true };
+          panelSettings[key] = { ...getEffectivePanelConfig(key, currentVariant) };
         }
       }
     } else {
@@ -437,8 +438,9 @@ export class App {
       // Merge in any panels from ALL_PANELS that didn't exist when settings were saved
       for (const key of Object.keys(ALL_PANELS)) {
         if (!(key in panelSettings)) {
-          const isDefault = (VARIANT_DEFAULTS[SITE_VARIANT] ?? []).includes(key);
-          panelSettings[key] = { ...getEffectivePanelConfig(key, SITE_VARIANT), enabled: isDefault };
+          const config = getEffectivePanelConfig(key, SITE_VARIANT);
+          const isInVariant = (VARIANT_DEFAULTS[SITE_VARIANT] ?? []).includes(key);
+          panelSettings[key] = { ...config, enabled: isInVariant && config.enabled };
         }
       }
 
@@ -448,7 +450,8 @@ export class App {
         const variantDefaults = new Set(VARIANT_DEFAULTS[SITE_VARIANT] ?? []);
         for (const key of Object.keys(ALL_PANELS)) {
           if (!(key in panelSettings)) {
-            panelSettings[key] = { ...getEffectivePanelConfig(key, SITE_VARIANT), enabled: variantDefaults.has(key) };
+            const config = getEffectivePanelConfig(key, SITE_VARIANT);
+            panelSettings[key] = { ...config, enabled: variantDefaults.has(key) && config.enabled };
           }
         }
         saveToStorage(STORAGE_KEYS.panels, panelSettings);
@@ -776,12 +779,24 @@ export class App {
     this.bootstrapHydrationState = getBootstrapHydrationState();
 
     // Verify OAuth OTT and hydrate auth session BEFORE any UI subscribes to auth state
+    await initAuthState();
     if (isProUser()) {
-      await initAuthState();
       initAuthAnalytics();
     }
+    installCloudPrefsSync(SITE_VARIANT);
     this.enforceFreeTierLimits();
-    this.unsubFreeTier = subscribeAuthState(() => { this.enforceFreeTierLimits(); });
+
+    let _prevUserId: string | null = null;
+    this.unsubFreeTier = subscribeAuthState((session) => {
+      this.enforceFreeTierLimits();
+      const userId = session.user?.id ?? null;
+      if (userId !== null && userId !== _prevUserId) {
+        void cloudPrefsSignIn(userId, SITE_VARIANT);
+      } else if (userId === null && _prevUserId !== null) {
+        cloudPrefsSignOut();
+      }
+      _prevUserId = userId;
+    });
 
 
     const geoCoordsPromise: Promise<PreciseCoordinates | null> =

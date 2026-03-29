@@ -7,6 +7,7 @@ import type { MapProvider } from '@/config/basemap';
 import { escapeHtml } from '@/utils/sanitize';
 import type { PanelConfig } from '@/types';
 import { renderPreferences } from '@/services/preferences-content';
+import { getAuthState } from '@/services/auth-state';
 import { track } from '@/services/analytics';
 import { isEntitled } from '@/services/entitlements';
 import { getSubscription, openBillingPortal } from '@/services/billing';
@@ -229,6 +230,7 @@ export class UnifiedSettings {
     const prefs = renderPreferences({
       isDesktopApp: this.config.isDesktopApp,
       onMapProviderChange: this.config.onMapProviderChange,
+      isSignedIn: !this.config.isDesktopApp && (getAuthState().user !== null),
     });
 
     this.overlay.innerHTML = `

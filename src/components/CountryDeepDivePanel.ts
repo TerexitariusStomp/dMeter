@@ -63,7 +63,6 @@ export class CountryDeepDivePanel implements CountryBriefPanel {
   private infrastructureByType = new Map<AssetType, RelatedAsset[]>();
   private maximizeButton: HTMLButtonElement | null = null;
   private currentHeadlineCount = 0;
-
   private signalsBody: HTMLElement | null = null;
   private signalBreakdownBody: HTMLElement | null = null;
   private signalRecentBody: HTMLElement | null = null;

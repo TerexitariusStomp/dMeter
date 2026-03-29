@@ -17,6 +17,8 @@ const { readFileSync } = require('fs');
 const crypto = require('crypto');
 const v8 = require('v8');
 const { WebSocketServer, WebSocket } = require('ws');
+const { parseProxyConfig } = require('./_proxy-utils.cjs');
+const parseProxyUrl = parseProxyConfig;
 
 const httpsKeepAliveAgent = new https.Agent({ keepAlive: true, maxSockets: 6, timeout: 60_000 });
 
@@ -86,7 +88,7 @@ const ALLOW_VERCEL_PREVIEW_ORIGINS = process.env.ALLOW_VERCEL_PREVIEW_ORIGINS ==
 const OPENSKY_PROXY_AUTH = process.env.OPENSKY_PROXY_AUTH || process.env.OREF_PROXY_AUTH || '';
 const OPENSKY_PROXY_ENABLED = !!OPENSKY_PROXY_AUTH;
 
-const PROXY_URL = process.env.PROXY_URL || ''; // generic residential proxy (US exit) — user:pass@host:port or http://...
+const PROXY_URL = process.env.PROXY_URL || ''; // generic residential proxy (US exit) — http://user:pass@host:port or host:port:user:pass (Decodo)
 
 // OREF (Israel Home Front Command) siren alerts — fetched via HTTP proxy (Israel exit)
 const OREF_PROXY_AUTH = process.env.OREF_PROXY_AUTH || ''; // format: user:pass@host:port
@@ -1302,6 +1304,8 @@ const YAHOO_ONLY = new Set([
   '^GSPC', '^DJI', '^IXIC', '^RUT',
   ...COMMODITY_SYMBOLS.filter(s => s.endsWith('=F') || s.startsWith('^')),
   'URA', 'LIT',
+  // Spot gold and forex pairs (=X suffix) — not on Finnhub
+  ...COMMODITY_SYMBOLS.filter(s => s.endsWith('=X')),
 ]);
 
 function fetchYahooChartDirect(symbol) {
@@ -3419,10 +3423,16 @@ async function handleWingbitsTrackRequest(req, res) {
       JSON.stringify({ error: 'Invalid bbox params: must be finite numbers', positions: [] }));
   }
 
-  const centerLat = (lamin + lamax) / 2;
-  const centerLon = (lomin + lomax) / 2;
-  const widthNm = Math.min(Math.abs(lomax - lomin) * 60 * Math.cos(centerLat * Math.PI / 180), WINGBITS_MAX_BOX_NM);
-  const heightNm = Math.min(Math.abs(lamax - lamin) * 60, WINGBITS_MAX_BOX_NM);
+  // Clamp bbox to valid geographic ranges before computing center.
+  // Map projections can produce slightly out-of-range values; Wingbits rejects la outside [-90,90].
+  const clampedLamin = Math.max(-90, Math.min(90, lamin));
+  const clampedLamax = Math.max(-90, Math.min(90, lamax));
+  const clampedLomin = Math.max(-180, Math.min(180, lomin));
+  const clampedLomax = Math.max(-180, Math.min(180, lomax));
+  const centerLat = (clampedLamin + clampedLamax) / 2;
+  const centerLon = (clampedLomin + clampedLomax) / 2;
+  const widthNm = Math.min(Math.abs(clampedLomax - clampedLomin) * 60 * Math.cos(centerLat * Math.PI / 180), WINGBITS_MAX_BOX_NM);
+  const heightNm = Math.min(Math.abs(clampedLamax - clampedLamin) * 60, WINGBITS_MAX_BOX_NM);
   const areas = [{ alias: 'viewport', by: 'box', la: centerLat, lo: centerLon, w: widthNm, h: heightNm, unit: 'nm' }];
 
   try {
@@ -4944,7 +4954,7 @@ async function seedUsniFleet() {
     // Use PROXY_URL (US-targeted proxy). OREF_PROXY_AUTH is IL-only and must NOT be used here.
     let wpData;
     const proxiesToTry = [
-      PROXY_URL ? parseProxyUrl(PROXY_URL) : null,
+      PROXY_URL ? { ...parseProxyUrl(PROXY_URL), tls: true } : null, // Decodo gate.*.com:10001 is HTTPS
     ].filter(Boolean);
     let fetched = false;
     for (const proxy of proxiesToTry) {
@@ -5000,6 +5010,173 @@ async function startUsniFleetSeedLoop() {
   }, USNI_SEED_INTERVAL_MS).unref?.();
 }
 
+// ─────────────────────────────────────────────────────────────
+// Shipping Stress Index — Yahoo Finance carrier/ETF market data
+// ─────────────────────────────────────────────────────────────
+
+const SHIPPING_STRESS_REDIS_KEY = 'supply_chain:shipping_stress:v1';
+const SHIPPING_STRESS_TTL = 3600; // 1h — seed runs every 15min (4× safety margin)
+const SHIPPING_STRESS_INTERVAL_MS = 15 * 60 * 1000;
+
+const SHIPPING_CARRIERS = [
+  { symbol: 'BDRY', name: 'Breakwave Dry Bulk ETF',  carrierType: 'etf' },
+  { symbol: 'ZIM',  name: 'ZIM Integrated Shipping', carrierType: 'carrier' },
+  { symbol: 'MATX', name: 'Matson Inc',              carrierType: 'carrier' },
+  { symbol: 'SBLK', name: 'Star Bulk Carriers',      carrierType: 'carrier' },
+  { symbol: 'GOGL.OL', name: 'Golden Ocean Group',       carrierType: 'carrier' },
+];
+
+let shippingStressInFlight = false;
+let shippingStressRetryTimer = null;
+const SHIPPING_STRESS_RETRY_MS = 20 * 60 * 1000;
+
+async function seedShippingStress() {
+  if (shippingStressInFlight) { console.log('[ShippingStress] Skipped (in-flight)'); return; }
+  shippingStressInFlight = true;
+  if (shippingStressRetryTimer) { clearTimeout(shippingStressRetryTimer); shippingStressRetryTimer = null; }
+  console.log('[ShippingStress] Fetching...');
+  const t0 = Date.now();
+  try {
+    const results = [];
+    for (const carrier of SHIPPING_CARRIERS) {
+      await new Promise(r => setTimeout(r, 150));
+      const quote = await fetchYahooChartDirect(carrier.symbol);
+      if (!quote) continue;
+      results.push({
+        symbol: carrier.symbol,
+        name: carrier.name,
+        carrierType: carrier.carrierType,
+        price: quote.price,
+        changePct: Number(quote.change.toFixed(2)),
+        sparkline: quote.sparkline,
+      });
+    }
+    if (!results.length) {
+      console.warn('[ShippingStress] No carrier data — extending TTL, retrying in 20min');
+      try { await upstashExpire(SHIPPING_STRESS_REDIS_KEY, SHIPPING_STRESS_TTL); } catch {}
+      shippingStressRetryTimer = setTimeout(() => { seedShippingStress().catch(() => {}); }, SHIPPING_STRESS_RETRY_MS);
+      return;
+    }
+    const avgChange = results.reduce((a, b) => a + b.changePct, 0) / results.length;
+    // Neutral market (0% change) → score=40 (moderate). Positive change = lower stress.
+    const stressScore = Math.min(100, Math.max(0, Math.round(40 - avgChange * 3)));
+    const stressLevel = stressScore >= 75 ? 'critical' : stressScore >= 50 ? 'elevated' : stressScore >= 25 ? 'moderate' : 'low';
+    const payload = { carriers: results, stressScore, stressLevel, fetchedAt: Date.now() };
+    const ok = await upstashSet(SHIPPING_STRESS_REDIS_KEY, payload, SHIPPING_STRESS_TTL);
+    await upstashSet('seed-meta:supply_chain:shipping_stress', { fetchedAt: Date.now(), recordCount: results.length }, 604800);
+    console.log(`[ShippingStress] Seeded ${results.length} carriers score=${stressScore}/${stressLevel} (redis: ${ok ? 'OK' : 'FAIL'}) in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+  } catch (e) {
+    console.warn('[ShippingStress] Seed error:', e?.message || e, '— extending TTL, retrying in 20min');
+    try { await upstashExpire(SHIPPING_STRESS_REDIS_KEY, SHIPPING_STRESS_TTL); } catch {}
+    shippingStressRetryTimer = setTimeout(() => { seedShippingStress().catch(() => {}); }, SHIPPING_STRESS_RETRY_MS);
+  } finally {
+    shippingStressInFlight = false;
+  }
+}
+
+async function startShippingStressSeedLoop() {
+  if (!UPSTASH_ENABLED) {
+    console.log('[ShippingStress] Disabled (no Upstash Redis)');
+    return;
+  }
+  console.log(`[ShippingStress] Seed loop starting (interval ${SHIPPING_STRESS_INTERVAL_MS / 1000 / 60}min)`);
+  seedShippingStress().catch(e => console.warn('[ShippingStress] Initial seed error:', e?.message || e));
+  setInterval(() => {
+    seedShippingStress().catch(e => console.warn('[ShippingStress] Seed error:', e?.message || e));
+  }, SHIPPING_STRESS_INTERVAL_MS).unref?.();
+}
+
+// ─────────────────────────────────────────────────────────────
+// Social Velocity — Reddit r/worldnews + r/geopolitics trending
+// ─────────────────────────────────────────────────────────────
+
+const SOCIAL_VELOCITY_REDIS_KEY = 'intelligence:social:reddit:v1';
+const SOCIAL_VELOCITY_TTL = 1800; // 30min — seed runs every 10min (3× safety margin)
+const SOCIAL_VELOCITY_INTERVAL_MS = 10 * 60 * 1000;
+const REDDIT_SUBREDDITS = ['worldnews', 'geopolitics'];
+
+let socialVelocityInFlight = false;
+let socialVelocityRetryTimer = null;
+const SOCIAL_VELOCITY_RETRY_MS = 20 * 60 * 1000;
+
+async function fetchRedditHot(subreddit) {
+  const url = `https://www.reddit.com/r/${subreddit}/hot.json?limit=25&raw_json=1`;
+  const resp = await fetch(url, {
+    headers: { Accept: 'application/json', 'User-Agent': 'WorldMonitor/1.0 (contact: info@worldmonitor.app)' },
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!resp.ok) { console.warn(`[SocialVelocity] Reddit r/${subreddit} HTTP ${resp.status}`); return []; }
+  const data = await resp.json();
+  return (data?.data?.children || []).map(c => c.data).filter(Boolean);
+}
+
+async function seedSocialVelocity() {
+  if (socialVelocityInFlight) { console.log('[SocialVelocity] Skipped (in-flight)'); return; }
+  socialVelocityInFlight = true;
+  if (socialVelocityRetryTimer) { clearTimeout(socialVelocityRetryTimer); socialVelocityRetryTimer = null; }
+  console.log('[SocialVelocity] Fetching...');
+  const t0 = Date.now();
+  try {
+    const nowSec = Date.now() / 1000;
+    const allPosts = [];
+    const seenUrls = new Set();
+    for (const sub of REDDIT_SUBREDDITS) {
+      await new Promise(r => setTimeout(r, 500));
+      const posts = await fetchRedditHot(sub);
+      for (const p of posts) {
+        // Deduplicate cross-subreddit reposts of the same article URL.
+        const articleUrl = p.url || '';
+        const isExternal = articleUrl && !articleUrl.includes('reddit.com');
+        if (isExternal && seenUrls.has(articleUrl)) continue;
+        if (isExternal) seenUrls.add(articleUrl);
+        const ageSec = Math.max(1, nowSec - (p.created_utc || nowSec));
+        const recencyFactor = Math.exp(-ageSec / (6 * 3600));
+        const velocityScore = Math.log1p(p.score || 1) * (p.upvote_ratio || 0.5) * recencyFactor * 100;
+        allPosts.push({
+          id: String(p.id || ''),
+          title: String(p.title || '').slice(0, 300),
+          subreddit: sub,
+          url: `https://reddit.com${p.permalink || ''}`,
+          score: p.score || 0,
+          upvoteRatio: p.upvote_ratio || 0,
+          numComments: p.num_comments || 0,
+          velocityScore: Math.round(velocityScore * 10) / 10,
+          createdAt: Math.round((p.created_utc || nowSec) * 1000),
+        });
+      }
+    }
+    if (!allPosts.length) {
+      console.warn('[SocialVelocity] No posts — extending TTL, retrying in 20min');
+      try { await upstashExpire(SOCIAL_VELOCITY_REDIS_KEY, SOCIAL_VELOCITY_TTL); } catch {}
+      socialVelocityRetryTimer = setTimeout(() => { seedSocialVelocity().catch(() => {}); }, SOCIAL_VELOCITY_RETRY_MS);
+      return;
+    }
+    allPosts.sort((a, b) => b.velocityScore - a.velocityScore);
+    const top = allPosts.slice(0, 30);
+    const payload = { posts: top, fetchedAt: Date.now() };
+    const ok = await upstashSet(SOCIAL_VELOCITY_REDIS_KEY, payload, SOCIAL_VELOCITY_TTL);
+    await upstashSet('seed-meta:intelligence:social-reddit', { fetchedAt: Date.now(), recordCount: top.length }, 604800);
+    console.log(`[SocialVelocity] Seeded ${top.length} posts (redis: ${ok ? 'OK' : 'FAIL'}) in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+  } catch (e) {
+    console.warn('[SocialVelocity] Seed error:', e?.message || e, '— extending TTL, retrying in 20min');
+    try { await upstashExpire(SOCIAL_VELOCITY_REDIS_KEY, SOCIAL_VELOCITY_TTL); } catch {}
+    socialVelocityRetryTimer = setTimeout(() => { seedSocialVelocity().catch(() => {}); }, SOCIAL_VELOCITY_RETRY_MS);
+  } finally {
+    socialVelocityInFlight = false;
+  }
+}
+
+async function startSocialVelocitySeedLoop() {
+  if (!UPSTASH_ENABLED) {
+    console.log('[SocialVelocity] Disabled (no Upstash Redis)');
+    return;
+  }
+  console.log(`[SocialVelocity] Seed loop starting (interval ${SOCIAL_VELOCITY_INTERVAL_MS / 1000 / 60}min)`);
+  seedSocialVelocity().catch(e => console.warn('[SocialVelocity] Initial seed error:', e?.message || e));
+  setInterval(() => {
+    seedSocialVelocity().catch(e => console.warn('[SocialVelocity] Seed error:', e?.message || e));
+  }, SOCIAL_VELOCITY_INTERVAL_MS).unref?.();
+}
 
 function gzipSyncBuffer(body) {
   try {
@@ -7308,18 +7485,6 @@ function handleAviationStackRequest(req, res) {
 // ── YouTube Live Detection (residential proxy bypass) ──────────────
 const YOUTUBE_PROXY_URL = process.env.YOUTUBE_PROXY_URL || '';
 
-function parseProxyUrl(proxyUrl) {
-  if (!proxyUrl) return null;
-  try {
-    const u = new URL(proxyUrl);
-    return {
-      host: u.hostname,
-      port: parseInt(u.port, 10),
-      auth: u.username ? `${decodeURIComponent(u.username)}:${decodeURIComponent(u.password)}` : null,
-    };
-  } catch { return null; }
-}
-
 function ytFetchViaProxy(targetUrl, proxy) {
   return new Promise((resolve, reject) => {
     const target = new URL(targetUrl);
@@ -7330,8 +7495,10 @@ function ytFetchViaProxy(targetUrl, proxy) {
     if (proxy.auth) {
       connectOpts.headers['Proxy-Authorization'] = 'Basic ' + Buffer.from(proxy.auth).toString('base64');
     }
-    const connectReq = http.request(connectOpts);
+    // Use TLS to connect to proxy if required (e.g. Decodo port 10001); plain HTTP otherwise
+    const connectReq = proxy.tls ? https.request(connectOpts) : http.request(connectOpts);
     connectReq.on('connect', (_res, socket) => {
+      connectReq.setTimeout(0);
       const req = https.request({
         hostname: target.hostname,
         path: target.pathname + target.search,
@@ -8153,6 +8320,10 @@ const server = http.createServer(async (req, res) => {
     handleNotamProxyRequest(req, res);
   } else if (pathname === '/aviationstack') {
     handleAviationStackRequest(req, res);
+  } else if (pathname === '/google-flights/search') {
+    handleGoogleFlightsSearch(req, res);
+  } else if (pathname === '/google-flights/search-dates') {
+    handleGoogleFlightsDates(req, res);
   } else if (pathname === '/widget-agent/health' && req.method === 'GET') {
     handleWidgetAgentHealthRequest(req, res);
   } else if (pathname === '/widget-agent' && req.method === 'POST') {
@@ -8162,6 +8333,396 @@ const server = http.createServer(async (req, res) => {
     res.end();
   }
 });
+
+// ─── Google Flights ───────────────────────────────────────────────────────────
+
+const GF_SHOPPING_URL = 'https://www.google.com/_/FlightsFrontendUi/data/travel.frontend.flights.FlightsFrontendService/GetShoppingResults';
+const GF_CALENDAR_URL = 'https://www.google.com/_/FlightsFrontendUi/data/travel.frontend.flights.FlightsFrontendService/GetCalendarGraph';
+const GF_HEADERS = {
+  'content-type': 'application/x-www-form-urlencoded;charset=UTF-8',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  'Accept': '*/*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Origin': 'https://www.google.com',
+  'Referer': 'https://www.google.com/flights',
+};
+
+/**
+ * Encode a Google Flights filter structure for use in f.req POST body.
+ * Mirrors fli's FlightSearchFilters.encode() / DateSearchFilters.encode().
+ */
+function encodeGfFilters(filters) {
+  const jsonStr = JSON.stringify(filters);
+  return encodeURIComponent(JSON.stringify([null, jsonStr]));
+}
+
+function gfCabinClass(cabin) {
+  switch ((cabin || '').toUpperCase()) {
+    case 'PREMIUM_ECONOMY': return 2;
+    case 'BUSINESS': return 3;
+    case 'FIRST': return 4;
+    default: return 1;
+  }
+}
+
+function gfMaxStops(stops) {
+  switch ((stops || '').toUpperCase()) {
+    case 'NON_STOP': case '0': return 1;
+    case 'ONE_STOP': case '1': return 2;
+    case 'TWO_PLUS_STOPS': case '2': return 3;
+    default: return 0;
+  }
+}
+
+function gfSortBy(sort) {
+  switch ((sort || '').toUpperCase()) {
+    case 'CHEAPEST': case 'PRICE': return 2;
+    case 'DEPARTURE_TIME': case 'DEPARTURE': return 3;
+    case 'ARRIVAL_TIME': case 'ARRIVAL': return 4;
+    case 'DURATION': return 5;
+    default: return 0;
+  }
+}
+
+// Parse a query-param airlines value that may be a comma-joined string (from
+// codegen serialization) or an array (from getAll). Returns a clean string[].
+function gfParseAirlines(raw) {
+  if (!raw) return [];
+  const arr = Array.isArray(raw) ? raw : String(raw).split(',');
+  return arr.map(s => s.trim().toUpperCase()).filter(Boolean);
+}
+
+/**
+ * Build the nested filter array for GetShoppingResults.
+ * Mirrors FlightSearchFilters.format() from fli/models/google_flights/flights.py.
+ */
+function buildFlightFilters(params) {
+  const { origin, destination, departureDate, returnDate, cabinClass, maxStops,
+    departureWindow, airlines, sortBy, passengers } = params;
+
+  const isRoundTrip = !!(returnDate && returnDate.length === 10);
+  const adults = Math.max(1, Math.min(parseInt(passengers) || 1, 9));
+
+  let timeFilters = null;
+  if (departureWindow) {
+    const parts = departureWindow.split('-');
+    if (parts.length === 2) {
+      const h0 = parseInt(parts[0]);
+      const h1 = parseInt(parts[1]);
+      if (!isNaN(h0) && !isNaN(h1)) timeFilters = [h0, h1, null, null];
+    }
+  }
+
+  const airlinesFilter = Array.isArray(airlines) && airlines.length > 0
+    ? airlines.slice().sort()
+    : null;
+
+  const makeSegment = (dep, arr, date) => [
+    [[[dep, 0]]],        // departure airports
+    [[[arr, 0]]],        // arrival airports
+    timeFilters,         // time restrictions [earliestDep, latestDep, earliestArr, latestArr]
+    gfMaxStops(maxStops), // stops
+    airlinesFilter,      // airlines
+    null,                // placeholder
+    date,                // travel date YYYY-MM-DD
+    null,                // max duration
+    null,                // selected flight (for round-trip return search)
+    null,                // layover airports
+    null, null, null,    // placeholders
+    null,                // emissions
+    3,                   // constant
+  ];
+
+  const segments = [makeSegment(origin, destination, departureDate)];
+  if (isRoundTrip) segments.push(makeSegment(destination, origin, returnDate));
+
+  return [
+    [],
+    [
+      null, null,
+      isRoundTrip ? 1 : 2,    // trip type: 1=round, 2=one-way
+      null, [],
+      gfCabinClass(cabinClass),
+      [adults, 0, 0, 0],       // passengers [adults, children, infants_on_lap, infants_in_seat]
+      null,                    // price limit
+      null, null, null, null, null,
+      segments,
+      null, null, null, 1,
+    ],
+    gfSortBy(sortBy),
+    0, 0, 2,
+  ];
+}
+
+/**
+ * Build the nested filter array for GetCalendarGraph.
+ * Mirrors DateSearchFilters.format() from fli/models/google_flights/dates.py.
+ */
+function buildDateFilters(params) {
+  const { origin, destination, startDate, endDate, tripDuration, isRoundTrip,
+    cabinClass, maxStops, departureWindow, airlines, passengers } = params;
+
+  const roundTrip = isRoundTrip === 'true' || isRoundTrip === true;
+  const adults = Math.max(1, Math.min(parseInt(passengers) || 1, 9));
+  const duration = parseInt(tripDuration) || 0;
+
+  let timeFilters = null;
+  if (departureWindow) {
+    const parts = departureWindow.split('-');
+    if (parts.length === 2) {
+      const h0 = parseInt(parts[0]);
+      const h1 = parseInt(parts[1]);
+      if (!isNaN(h0) && !isNaN(h1)) timeFilters = [h0, h1, null, null];
+    }
+  }
+
+  const airlinesFilter = Array.isArray(airlines) && airlines.length > 0
+    ? airlines.slice().sort()
+    : null;
+
+  const makeSegment = (dep, arr, date) => [
+    [[[dep, 0]]],
+    [[[arr, 0]]],
+    timeFilters,
+    gfMaxStops(maxStops),
+    airlinesFilter,
+    null,
+    date,
+    null, null, null, null, null, null, null,
+    3,
+  ];
+
+  const segments = [makeSegment(origin, destination, startDate)];
+  if (roundTrip && duration > 0) {
+    const retDate = new Date(startDate);
+    retDate.setDate(retDate.getDate() + duration);
+    const retDateStr = retDate.toISOString().slice(0, 10);
+    segments.push(makeSegment(destination, origin, retDateStr));
+  }
+
+  const durationExtra = roundTrip && duration > 0 ? [null, [duration, duration]] : [];
+
+  return [
+    null,
+    [
+      null, null,
+      roundTrip ? 1 : 2,
+      null, [],
+      gfCabinClass(cabinClass),
+      [adults, 0, 0, 0],
+      null,
+      null, null, null, null, null,
+      segments,
+      null, null, null, 1,
+    ],
+    [startDate, endDate],
+    ...durationExtra,
+  ];
+}
+
+/**
+ * Parse a Google Flights GetShoppingResults response.
+ * Mirrors SearchFlights._parse_flights_data() from fli/search/flights.py.
+ */
+function parseGfFlights(text) {
+  try {
+    const stripped = text.replace(/^\)\]\}'/, '');
+    const outer = JSON.parse(stripped);
+    const inner = outer?.[0]?.[2];
+    if (!inner) return [];
+
+    const data = JSON.parse(inner);
+    const items = [];
+    for (const idx of [2, 3]) {
+      if (Array.isArray(data[idx]) && Array.isArray(data[idx][0])) {
+        items.push(...data[idx][0]);
+      }
+    }
+
+    const pad2 = n => String(n || 0).padStart(2, '0');
+    const toIso = (dateArr, timeArr) => {
+      if (!Array.isArray(dateArr) || !Array.isArray(timeArr)) return '';
+      return `${dateArr[0]}-${pad2(dateArr[1])}-${pad2(dateArr[2])}T${pad2(timeArr[0])}:${pad2(timeArr[1])}`;
+    };
+
+    return items.map(item => {
+      try {
+        const fd = item[0];
+        const pd = item[1];
+        const priceArr = pd?.[0];
+        const price = Array.isArray(priceArr) ? (priceArr[priceArr.length - 1] ?? 0) : 0;
+        const legs = (fd[2] || []).map(fl => ({
+          airlineCode: fl[22]?.[0] ?? '',
+          flightNumber: String(fl[22]?.[1] ?? ''),
+          departureAirport: fl[3] ?? '',
+          arrivalAirport: fl[6] ?? '',
+          departureDatetime: toIso(fl[20], fl[8]),
+          arrivalDatetime: toIso(fl[21], fl[10]),
+          durationMinutes: fl[11] ?? 0,
+        }));
+        return { legs, price, durationMinutes: fd[9] ?? 0, stops: Math.max(0, (fd[2]?.length ?? 1) - 1) };
+      } catch { return null; }
+    }).filter(Boolean);
+  } catch { return []; }
+}
+
+/**
+ * Parse a Google Flights GetCalendarGraph response.
+ * Mirrors SearchDates._search_chunk() from fli/search/dates.py.
+ */
+function parseGfDates(text, isRoundTrip) {
+  try {
+    const stripped = text.replace(/^\)\]\}'/, '');
+    const outer = JSON.parse(stripped);
+    const inner = outer?.[0]?.[2];
+    if (!inner) return [];
+
+    const data = JSON.parse(inner);
+    const items = data[data.length - 1];
+    if (!Array.isArray(items)) return [];
+
+    const roundTrip = isRoundTrip === 'true' || isRoundTrip === true;
+    return items.map(item => {
+      try {
+        if (!Array.isArray(item) || item.length < 3) return null;
+        if (!Array.isArray(item[2]) || !Array.isArray(item[2][0]) || item[2][0].length < 2) return null;
+        const price = parseFloat(item[2][0][1]);
+        if (!price || isNaN(price)) return null;
+        return { date: item[0] ?? '', returnDate: roundTrip ? (item[1] ?? '') : '', price };
+      } catch { return null; }
+    }).filter(Boolean);
+  } catch { return []; }
+}
+
+async function handleGoogleFlightsSearch(req, res) {
+  try {
+    const url = new URL(req.url, 'http://localhost');
+    const origin = (url.searchParams.get('origin') || '').toUpperCase();
+    const destination = (url.searchParams.get('destination') || '').toUpperCase();
+    const departureDate = url.searchParams.get('departure_date') || '';
+
+    if (!origin || !destination || !departureDate) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'origin, destination, departure_date required' }));
+      return;
+    }
+
+    const filters = buildFlightFilters({
+      origin, destination,
+      departureDate,
+      returnDate: url.searchParams.get('return_date') || '',
+      cabinClass: url.searchParams.get('cabin_class') || '',
+      maxStops: url.searchParams.get('max_stops') || '',
+      departureWindow: url.searchParams.get('departure_window') || '',
+      airlines: gfParseAirlines(url.searchParams.getAll('airlines')),
+      sortBy: url.searchParams.get('sort_by') || '',
+      passengers: url.searchParams.get('passengers') || '1',
+    });
+
+    const body = `f.req=${encodeGfFilters(filters)}`;
+    const gfResp = await fetch(GF_SHOPPING_URL, {
+      method: 'POST',
+      headers: GF_HEADERS,
+      body,
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!gfResp.ok) throw new Error(`Google Flights returned ${gfResp.status}`);
+
+    const text = await gfResp.text();
+    const flights = parseGfFlights(text);
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ flights }));
+  } catch (err) {
+    console.error('[Google Flights] search error:', err?.message || err);
+    res.writeHead(502, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err?.message || 'search failed', flights: [] }));
+  }
+}
+
+async function handleGoogleFlightsDates(req, res) {
+  try {
+    const url = new URL(req.url, 'http://localhost');
+    const origin = (url.searchParams.get('origin') || '').toUpperCase();
+    const destination = (url.searchParams.get('destination') || '').toUpperCase();
+    const startDate = url.searchParams.get('start_date') || '';
+    const endDate = url.searchParams.get('end_date') || '';
+
+    if (!origin || !destination || !startDate || !endDate) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'origin, destination, start_date, end_date required' }));
+      return;
+    }
+
+    const isRoundTrip = url.searchParams.get('is_round_trip') || 'false';
+    const tripDuration = url.searchParams.get('trip_duration') || '0';
+    if ((isRoundTrip === 'true') && (parseInt(tripDuration) || 0) <= 0) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'trip_duration is required for round-trip date searches' }));
+      return;
+    }
+
+    const params = {
+      origin, destination, startDate, endDate, isRoundTrip,
+      tripDuration,
+      cabinClass: url.searchParams.get('cabin_class') || '',
+      maxStops: url.searchParams.get('max_stops') || '',
+      departureWindow: url.searchParams.get('departure_window') || '',
+      airlines: gfParseAirlines(url.searchParams.getAll('airlines')),
+      passengers: url.searchParams.get('passengers') || '1',
+    };
+
+    // Chunk date ranges > 61 days (Google's calendar API limit)
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const totalDays = Math.ceil((end - start) / 86_400_000) + 1;
+    const MAX_CHUNK = 61;
+    const allDates = [];
+    let hasPartialFailure = false;
+
+    if (totalDays <= MAX_CHUNK) {
+      const filters = buildDateFilters(params);
+      const body = `f.req=${encodeGfFilters(filters)}`;
+      const gfResp = await fetch(GF_CALENDAR_URL, { method: 'POST', headers: GF_HEADERS, body, signal: AbortSignal.timeout(20_000) });
+      if (!gfResp.ok) throw new Error(`Google Flights returned ${gfResp.status}`);
+      const text = await gfResp.text();
+      allDates.push(...parseGfDates(text, isRoundTrip));
+    } else {
+      let current = new Date(start);
+      while (current <= end) {
+        const chunkEnd = new Date(current);
+        chunkEnd.setDate(chunkEnd.getDate() + MAX_CHUNK - 1);
+        if (chunkEnd > end) chunkEnd.setTime(end.getTime());
+
+        const chunkFilters = buildDateFilters({
+          ...params,
+          startDate: current.toISOString().slice(0, 10),
+          endDate: chunkEnd.toISOString().slice(0, 10),
+        });
+        const body = `f.req=${encodeGfFilters(chunkFilters)}`;
+        const gfResp = await fetch(GF_CALENDAR_URL, { method: 'POST', headers: GF_HEADERS, body, signal: AbortSignal.timeout(20_000) });
+        if (gfResp.ok) {
+          const text = await gfResp.text();
+          allDates.push(...parseGfDates(text, isRoundTrip));
+        } else {
+          hasPartialFailure = true;
+          console.warn(`[Google Flights] dates chunk ${current.toISOString().slice(0, 10)} failed: ${gfResp.status}`);
+        }
+        current.setDate(current.getDate() + MAX_CHUNK);
+      }
+    }
+
+    const sortByPrice = url.searchParams.get('sort_by_price') === 'true';
+    if (sortByPrice) allDates.sort((a, b) => a.price - b.price);
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ dates: allDates, partial: hasPartialFailure }));
+  } catch (err) {
+    console.error('[Google Flights] dates error:', err?.message || err);
+    res.writeHead(502, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err?.message || 'search failed', dates: [] }));
+  }
+}
 
 // ─── Widget Agent ────────────────────────────────────────────────────────────
 
@@ -8279,10 +8840,14 @@ Infrastructure & Environment:
   radiationWatch, weatherAlerts, outages, serviceStatuses, ddosAttacks, trafficAnomalies
 
 Supply Chain & Trade:
-  shippingRates, chokepoints, chokepointTransits, minerals, customsRevenue, sanctionsPressure
+  shippingRates, chokepoints, chokepointTransits, minerals, customsRevenue, sanctionsPressure,
+  shippingStress
 
 Consumer Prices:
   consumerPricesOverview, consumerPricesCategories, consumerPricesMovers, consumerPricesSpread
+
+Health & Social:
+  diseaseOutbreaks, socialVelocity
 
 Other:
   flightDelays, cyberThreats, positiveGeoEvents, predictions, forecasts, giving, insights
@@ -8293,7 +8858,10 @@ economic: list-world-bank-indicators (params: indicator, country_code),
   get-fred-series (params: series_id e.g. UNRATE/CPIAUCSL/DGS10), get-eurostat-country-data
 trade: get-trade-flows, get-trade-restrictions, get-tariff-trends, get-trade-barriers, list-comtrade-flows
 aviation: get-airport-ops-summary (params: airport_code), get-carrier-ops (params: carrier_code), list-aviation-news
-intelligence: get-country-intel-brief (params: country_code), get-country-facts (params: country_code)
+intelligence: get-country-intel-brief (params: country_code), get-country-facts (params: country_code),
+  get-social-velocity
+health: list-disease-outbreaks
+supply-chain: get-shipping-stress
 conflict: list-acled-events, get-humanitarian-summary (params: country_code)
 market: get-country-stock-index (params: country_code), list-earnings-calendar, get-cot-positioning
 consumer-prices: list-retailer-price-spreads
@@ -8852,10 +9420,14 @@ Infrastructure & Environment:
   radiationWatch, weatherAlerts, outages, serviceStatuses, ddosAttacks, trafficAnomalies
 
 Supply Chain & Trade:
-  shippingRates, chokepoints, chokepointTransits, minerals, customsRevenue, sanctionsPressure
+  shippingRates, chokepoints, chokepointTransits, minerals, customsRevenue, sanctionsPressure,
+  shippingStress
 
 Consumer Prices:
   consumerPricesOverview, consumerPricesCategories, consumerPricesMovers, consumerPricesSpread
+
+Health & Social:
+  diseaseOutbreaks, socialVelocity
 
 Other:
   flightDelays, cyberThreats, positiveGeoEvents, predictions, forecasts, giving, insights
@@ -8866,7 +9438,10 @@ economic: list-world-bank-indicators (params: indicator, country_code),
   get-fred-series (params: series_id e.g. UNRATE/CPIAUCSL/DGS10), get-eurostat-country-data
 trade: get-trade-flows, get-trade-restrictions, get-tariff-trends, get-trade-barriers, list-comtrade-flows
 aviation: get-airport-ops-summary (params: airport_code), get-carrier-ops (params: carrier_code), list-aviation-news
-intelligence: get-country-intel-brief (params: country_code), get-country-facts (params: country_code)
+intelligence: get-country-intel-brief (params: country_code), get-country-facts (params: country_code),
+  get-social-velocity
+health: list-disease-outbreaks
+supply-chain: get-shipping-stress
 conflict: list-acled-events, get-humanitarian-summary (params: country_code)
 market: get-country-stock-index (params: country_code), list-earnings-calendar, get-cot-positioning
 consumer-prices: list-retailer-price-spreads
@@ -9084,6 +9659,8 @@ server.listen(PORT, () => {
   startPortWatchSeedLoop();
   startCorridorRiskSeedLoop();
   startUsniFleetSeedLoop();
+  startShippingStressSeedLoop();
+  startSocialVelocitySeedLoop();
 });
 
 wss.on('connection', (ws, req) => {

@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { channelTypeValidator, sensitivityValidator } from "./constants";
 
 // Subscription status enum — maps Dodo statuses to our internal set
 const subscriptionStatus = v.union(
@@ -10,7 +11,64 @@ const subscriptionStatus = v.union(
 );
 
 export default defineSchema({
-  // --- Existing tables (unchanged) ---
+  userPreferences: defineTable({
+    userId: v.string(),
+    variant: v.string(),
+    data: v.any(),
+    schemaVersion: v.number(),
+    updatedAt: v.number(),
+    syncVersion: v.number(),
+  }).index("by_user_variant", ["userId", "variant"]),
+
+  notificationChannels: defineTable(
+    v.union(
+      v.object({
+        userId: v.string(),
+        channelType: v.literal("telegram"),
+        chatId: v.string(),
+        verified: v.boolean(),
+        linkedAt: v.number(),
+      }),
+      v.object({
+        userId: v.string(),
+        channelType: v.literal("slack"),
+        webhookEnvelope: v.string(),
+        verified: v.boolean(),
+        linkedAt: v.number(),
+      }),
+      v.object({
+        userId: v.string(),
+        channelType: v.literal("email"),
+        email: v.string(),
+        verified: v.boolean(),
+        linkedAt: v.number(),
+      }),
+    ),
+  )
+    .index("by_user", ["userId"])
+    .index("by_user_channel", ["userId", "channelType"]),
+
+  alertRules: defineTable({
+    userId: v.string(),
+    variant: v.string(),
+    enabled: v.boolean(),
+    eventTypes: v.array(v.string()),
+    sensitivity: sensitivityValidator,
+    channels: v.array(channelTypeValidator),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_variant", ["userId", "variant"])
+    .index("by_enabled", ["enabled"]),
+
+  telegramPairingTokens: defineTable({
+    userId: v.string(),
+    token: v.string(),
+    expiresAt: v.number(),
+    used: v.boolean(),
+  })
+    .index("by_token", ["token"])
+    .index("by_user", ["userId"]),
 
   registrations: defineTable({
     email: v.string(),
@@ -51,6 +109,7 @@ export default defineSchema({
     currentPeriodStart: v.number(),
     currentPeriodEnd: v.number(),
     cancelledAt: v.optional(v.number()),
+    // v.any(): Dodo webhook payload — intentionally untyped (external schema)
     rawPayload: v.any(),
     updatedAt: v.number(),
   })
@@ -86,6 +145,7 @@ export default defineSchema({
   webhookEvents: defineTable({
     webhookId: v.string(),
     eventType: v.string(),
+    // v.any(): Dodo webhook payload — intentionally untyped (external schema)
     rawPayload: v.any(),
     processedAt: v.number(),
     status: v.literal("processed"),
@@ -101,6 +161,7 @@ export default defineSchema({
     currency: v.string(),
     status: v.string(),
     dodoSubscriptionId: v.optional(v.string()),
+    // v.any(): Dodo webhook payload — intentionally untyped (external schema)
     rawPayload: v.any(),
     occurredAt: v.number(),
   })

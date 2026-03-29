@@ -451,6 +451,8 @@ export interface EurostatMetric {
   value: number;
   date: string;
   unit: string;
+  priorValue: number;
+  hasPrior: boolean;
 }
 
 export interface GetEuGasStorageRequest {
@@ -503,6 +505,26 @@ export interface GetEuFsiResponse {
 export interface EuFsiObservation {
   date: string;
   value: number;
+}
+
+export interface GetEconomicStressRequest {
+}
+
+export interface GetEconomicStressResponse {
+  compositeScore: number;
+  label: string;
+  components: EconomicStressComponent[];
+  seededAt: string;
+  unavailable: boolean;
+}
+
+export interface EconomicStressComponent {
+  id: string;
+  label: string;
+  rawValue: number;
+  score: number;
+  weight: number;
+  missing: boolean;
 }
 
 export interface FieldViolation {
@@ -1078,6 +1100,29 @@ export class EconomicServiceClient {
     }
 
     return await resp.json() as GetEuFsiResponse;
+  }
+
+  async getEconomicStress(req: GetEconomicStressRequest, options?: EconomicServiceCallOptions): Promise<GetEconomicStressResponse> {
+    let path = "/api/economic/v1/get-economic-stress";
+    const url = this.baseURL + path;
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...this.defaultHeaders,
+      ...options?.headers,
+    };
+
+    const resp = await this.fetchFn(url, {
+      method: "GET",
+      headers,
+      signal: options?.signal,
+    });
+
+    if (!resp.ok) {
+      return this.handleError(resp);
+    }
+
+    return await resp.json() as GetEconomicStressResponse;
   }
 
   private async handleError(resp: Response): Promise<never> {

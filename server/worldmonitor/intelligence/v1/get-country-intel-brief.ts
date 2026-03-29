@@ -7,8 +7,10 @@ import type {
 import { cachedFetchJson } from '../../../_shared/redis';
 import { UPSTREAM_TIMEOUT_MS, TIER1_COUNTRIES, sha256Hex } from './_shared';
 import { callLlm } from '../../../_shared/llm';
+import { isCallerPremium } from '../../../_shared/premium-check';
+import { sanitizeForPrompt } from '../../../_shared/llm-sanitize.js';
 
-const INTEL_CACHE_TTL = 7200;
+const INTEL_CACHE_TTL = 21600;
 
 export async function getCountryIntelBrief(
   ctx: ServerContext,
@@ -28,14 +30,21 @@ export async function getCountryIntelBrief(
   let lang = 'en';
   try {
     const url = new URL(ctx.request.url);
-    contextSnapshot = (url.searchParams.get('context') || '').trim().slice(0, 4000);
+    contextSnapshot = sanitizeForPrompt((url.searchParams.get('context') || '').trim().slice(0, 4000));
     lang = url.searchParams.get('lang') || 'en';
   } catch {
     contextSnapshot = '';
   }
 
-  const contextHash = contextSnapshot ? (await sha256Hex(contextSnapshot)).slice(0, 16) : 'base';
-  const cacheKey = `ci-sebuf:v3:${req.countryCode}:${lang}:${contextHash}`;
+  const isPremium = await isCallerPremium(ctx.request);
+  const frameworkRaw = isPremium && typeof req.framework === 'string' ? req.framework.slice(0, 2000) : '';
+  const [contextHashFull, frameworkHashFull] = await Promise.all([
+    contextSnapshot ? sha256Hex(contextSnapshot) : Promise.resolve('base'),
+    frameworkRaw    ? sha256Hex(frameworkRaw)    : Promise.resolve(''),
+  ]);
+  const contextHash = contextSnapshot ? contextHashFull.slice(0, 16) : 'base';
+  const frameworkHash = frameworkRaw ? frameworkHashFull.slice(0, 8) : '';
+  const cacheKey = `ci-sebuf:v3:${req.countryCode}:${lang}:${contextHash}${frameworkHash ? `:${frameworkHash}` : ''}`;
   const countryName = TIER1_COUNTRIES[req.countryCode] || req.countryCode;
   const dateStr = new Date().toISOString().split('T')[0];
 
@@ -88,6 +97,7 @@ Rules:
         temperature: 0.4,
         maxTokens: 1100,
         timeoutMs: UPSTREAM_TIMEOUT_MS,
+        systemAppend: frameworkRaw || undefined,
       });
 
       if (!llmResult) return null;

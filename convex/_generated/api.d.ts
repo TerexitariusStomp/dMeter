@@ -23,6 +23,10 @@ import type * as payments_subscriptionHelpers from "../payments/subscriptionHelp
 import type * as payments_webhookHandlers from "../payments/webhookHandlers.js";
 import type * as payments_webhookMutations from "../payments/webhookMutations.js";
 import type * as registerInterest from "../registerInterest.js";
+import type * as userPreferences from "../userPreferences.js";
+import type * as notificationChannels from "../notificationChannels.js";
+import type * as alertRules from "../alertRules.js";
+import type * as telegramPairingTokens from "../telegramPairingTokens.js";
 
 import type {
   ApiFromModules,
@@ -46,6 +50,10 @@ declare const fullApi: ApiFromModules<{
   "payments/webhookHandlers": typeof payments_webhookHandlers;
   "payments/webhookMutations": typeof payments_webhookMutations;
   registerInterest: typeof registerInterest;
+  userPreferences: typeof userPreferences;
+  notificationChannels: typeof notificationChannels;
+  alertRules: typeof alertRules;
+  telegramPairingTokens: typeof telegramPairingTokens;
 }>;
 
 /**

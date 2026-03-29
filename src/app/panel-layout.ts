@@ -65,6 +65,8 @@ import {
   EarningsCalendarPanel,
   EconomicCalendarPanel,
   CotPositioningPanel,
+  DiseaseOutbreaksPanel,
+  SocialVelocityPanel,
 } from '@/components';
 import { SatelliteFiresPanel } from '@/components/SatelliteFiresPanel';
 import { focusInvestmentOnMap } from '@/services/investments-focus';
@@ -107,6 +109,8 @@ const WEB_PREMIUM_PANELS = new Set([
   'stock-backtest',
   'daily-market-brief',
   'market-implications',
+  'deduction',
+  'chat-analyst',
 ]);
 
 export interface PanelLayoutManagerCallbacks {
@@ -434,7 +438,7 @@ export class PanelLayoutManager implements AppModule {
         </button>`
       ).join('')}
       </div>
-      <div class="main-content">
+      <div class="main-content${this.ctx.isDesktopApp ? ' desktop-grid' : ''}">
         <div class="map-section" id="mapSection">
           <div class="panel-header">
             <div class="panel-header-left">
@@ -461,6 +465,7 @@ export class PanelLayoutManager implements AppModule {
           <div class="map-resize-handle" id="mapResizeHandle"></div>
           <div class="map-bottom-grid" id="mapBottomGrid"></div>
         </div>
+        <div class="map-width-resize-handle" id="mapWidthResizeHandle"></div>
         <div class="panels-grid" id="panelsGrid"></div>
         <button class="search-mobile-fab" id="searchMobileFab" aria-label="Search">\u{1F50D}</button>
       </div>
@@ -764,23 +769,23 @@ export class PanelLayoutManager implements AppModule {
 
     this.createPanel('gdelt-intel', () => new GdeltIntelPanel());
 
-    if (SITE_VARIANT === 'full' && this.ctx.isDesktopApp) {
-      import('@/components/DeductionPanel').then(({ DeductionPanel }) => {
-        const deductionPanel = new DeductionPanel(() => this.ctx.allNews);
-        this.ctx.panels['deduction'] = deductionPanel;
-        const el = deductionPanel.getElement();
-        this.makeDraggable(el, 'deduction');
-        const grid = document.getElementById('panelsGrid');
-        if (grid) {
-          const gdeltEl = this.ctx.panels['gdelt-intel']?.getElement();
-          if (gdeltEl?.nextSibling) {
-            grid.insertBefore(el, gdeltEl.nextSibling);
-          } else {
-            grid.appendChild(el);
-          }
+    import('@/components/DeductionPanel').then(({ DeductionPanel }) => {
+      const deductionPanel = new DeductionPanel(() => this.ctx.allNews);
+      this.ctx.panels['deduction'] = deductionPanel;
+      const el = deductionPanel.getElement();
+      this.makeDraggable(el, 'deduction');
+      const grid = document.getElementById('panelsGrid');
+      if (grid) {
+        const gdeltEl = this.ctx.panels['gdelt-intel']?.getElement();
+        if (gdeltEl?.parentNode === grid && gdeltEl.nextSibling) {
+          grid.insertBefore(el, gdeltEl.nextSibling);
+        } else {
+          grid.appendChild(el);
         }
-      });
-    }
+      }
+      this.applyPanelSettings();
+      this.updatePanelGating(getAuthState());
+    });
 
     if (this.shouldCreatePanel('cii')) {
       const ciiPanel = new CIIPanel();
@@ -845,6 +850,9 @@ export class PanelLayoutManager implements AppModule {
       this.ctx.panels['ucdp-events'] = ucdpEventsPanel;
     }
 
+    this.createPanel('disease-outbreaks', () => new DiseaseOutbreaksPanel());
+    this.createPanel('social-velocity', () => new SocialVelocityPanel());
+
     this.lazyPanel('displacement', () =>
       import('@/components/DisplacementPanel').then(m => {
         const p = new m.DisplacementPanel();
@@ -898,8 +906,12 @@ export class PanelLayoutManager implements AppModule {
     this.lazyPanel('market-implications', () =>
       import('@/components/MarketImplicationsPanel').then(m => new m.MarketImplicationsPanel()),
     );
-    // Gating for daily-market-brief and market-implications is handled reactively
-    // by updatePanelGating() via auth state subscription (both are in WEB_PREMIUM_PANELS).
+    // Gating for daily-market-brief, market-implications, and chat-analyst is handled
+    // reactively by updatePanelGating() via auth state subscription (all in WEB_PREMIUM_PANELS).
+
+    this.lazyPanel('chat-analyst', () =>
+      import('@/components/ChatAnalystPanel').then(m => new m.ChatAnalystPanel()),
+    );
 
     this.lazyPanel('forecast', () =>
       import('@/components/ForecastPanel').then(m => new m.ForecastPanel()),
@@ -986,6 +998,26 @@ export class PanelLayoutManager implements AppModule {
 
     this.lazyPanel('cross-source-signals', () =>
       import('@/components/CrossSourceSignalsPanel').then(m => new m.CrossSourceSignalsPanel()),
+    );
+
+    this.lazyPanel('geo-hubs', () =>
+      import('@/components/GeoHubsPanel').then(m => {
+        const p = new m.GeoHubsPanel();
+        p.setOnHubClick((hub) => { this.ctx.map?.setCenter(hub.lat, hub.lon, 4); });
+        return p;
+      }),
+    );
+
+    this.lazyPanel('tech-hubs', () =>
+      import('@/components/TechHubsPanel').then(m => {
+        const p = new m.TechHubsPanel();
+        p.setOnHubClick((hub) => { this.ctx.map?.setCenter(hub.lat, hub.lon, 4); });
+        return p;
+      }),
+    );
+
+    this.lazyPanel('ai-regulation', () =>
+      import('@/components/RegulationPanel').then(m => new m.RegulationPanel('ai-regulation')),
     );
 
     this.createPanel('macro-signals', () => new MacroSignalsPanel());
@@ -1233,8 +1265,12 @@ export class PanelLayoutManager implements AppModule {
     const mcpLabel = document.createElement('span');
     mcpLabel.className = 'add-panel-block-label';
     mcpLabel.textContent = t('mcp.connectPanel');
+    const mcpBadge = document.createElement('span');
+    mcpBadge.className = 'widget-pro-badge';
+    mcpBadge.textContent = t('widgets.proBadge');
     mcpBlock.appendChild(mcpIcon);
     mcpBlock.appendChild(mcpLabel);
+    mcpBlock.appendChild(mcpBadge);
     mcpBlock.addEventListener('click', () => {
       openMcpConnectModal({
         onComplete: (spec) => this.addMcpPanel(spec),
@@ -1279,7 +1315,7 @@ export class PanelLayoutManager implements AppModule {
     if (import.meta.env.DEV) {
       const configured = new Set(Object.keys(ALL_PANELS).filter(k => k !== 'map'));
       const created = new Set(Object.keys(this.ctx.panels));
-      const extra = [...created].filter(k => !configured.has(k) && k !== 'deduction' && k !== 'runtime-config' && !k.startsWith('cw-') && !k.startsWith('mcp-'));
+      const extra = [...created].filter(k => !configured.has(k) && k !== 'runtime-config' && !k.startsWith('cw-') && !k.startsWith('mcp-'));
       if (extra.length) console.warn('[PanelLayoutManager] Panels created but not in ALL_PANELS:', extra);
     }
   }
@@ -1535,7 +1571,8 @@ export class PanelLayoutManager implements AppModule {
   private getEffectiveUltraWide(): boolean {
     const mapSection = document.getElementById('mapSection');
     const mapEnabled = !mapSection?.classList.contains('hidden');
-    return window.innerWidth >= 1600 && mapEnabled;
+    const minWidth = this.ctx.isDesktopApp ? 900 : 1600;
+    return window.innerWidth >= minWidth && mapEnabled;
   }
 
   private insertByOrder(grid: HTMLElement, el: HTMLElement, key: string): void {

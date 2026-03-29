@@ -1,6 +1,8 @@
 import { getCorsHeaders, getPublicCorsHeaders, isDisallowedOrigin } from './_cors.js';
 import { validateApiKey } from './_api-key.js';
 import { jsonResponse } from './_json-response.js';
+// @ts-expect-error — JS module, no declaration file
+import { redisPipeline } from './_upstash-json.js';
 
 export const config = { runtime: 'edge' };
 
@@ -75,6 +77,10 @@ const BOOTSTRAP_CACHE_KEYS = {
   natGasStorage:     'economic:nat-gas-storage:v1',
   ecbFxRates:        'economic:ecb-fx-rates:v1',
   euFsi:             'economic:fsi-eu:v1',
+  shippingStress:    'supply_chain:shipping_stress:v1',
+  socialVelocity:    'intelligence:social:reddit:v1',
+  diseaseOutbreaks:  'health:disease-outbreaks:v1',
+  economicStress:    'economic:stress-index:v1',
 };
 
 const SLOW_KEYS = new Set([
@@ -102,12 +108,14 @@ const SLOW_KEYS = new Set([
   'natGasStorage',
   'ecbFxRates',
   'euFsi',
+  'diseaseOutbreaks',
+  'economicStress',
 ]);
 const FAST_KEYS = new Set([
   'earthquakes', 'outages', 'serviceStatuses', 'ddosAttacks', 'trafficAnomalies', 'macroSignals', 'chokepoints', 'chokepointTransits',
   'marketQuotes', 'commodityQuotes', 'positiveGeoEvents', 'riskScores', 'flightDelays','insights', 'predictions',
   'iranEvents', 'temporalAnomalies', 'weatherAlerts', 'spending', 'theaterPosture', 'gdeltIntel',
-  'correlationCards', 'forecasts', 'shippingRates',
+  'correlationCards', 'forecasts', 'shippingRates', 'shippingStress', 'socialVelocity',
 ]);
 
 // No public/s-maxage: CF (in front of api.worldmonitor.app) ignores Vary: Origin and would
@@ -128,23 +136,13 @@ async function getCachedJsonBatch(keys) {
   const result = new Map();
   if (keys.length === 0) return result;
 
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return result;
-
   // Always read unprefixed keys — bootstrap is a read-only consumer of
   // production cache data. Preview/branch deploys don't run handlers that
   // populate prefixed keys, so prefixing would always miss.
   const pipeline = keys.map((k) => ['GET', k]);
-  const resp = await fetch(`${url}/pipeline`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(pipeline),
-    signal: AbortSignal.timeout(3000),
-  });
-  if (!resp.ok) return result;
+  const data = await redisPipeline(pipeline, 3000);
+  if (!data) return result;
 
-  const data = await resp.json();
   for (let i = 0; i < keys.length; i++) {
     const raw = data[i]?.result;
     if (raw) {
