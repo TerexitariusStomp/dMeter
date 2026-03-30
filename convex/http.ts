@@ -92,7 +92,7 @@ http.route({
       schemaVersion?: number;
     };
     try {
-      body = await request.json();
+      body = await request.json() as typeof body;
     } catch {
       return new Response(JSON.stringify({ error: "INVALID_JSON" }), {
         status: 400,
@@ -163,7 +163,7 @@ http.route({
       };
     };
     try {
-      update = await request.json();
+      update = await request.json() as typeof update;
     } catch {
       return new Response("OK", { status: 200 });
     }
@@ -194,6 +194,52 @@ http.route({
 
 // --- Relay channels ---
 http.route({
+  path: "/relay/deactivate",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const secret = process.env.RELAY_SHARED_SECRET ?? "";
+    const provided = (request.headers.get("Authorization") ?? "").replace(/^Bearer\s+/, "");
+
+    if (!secret || !(await timingSafeEqualStrings(provided, secret))) {
+      return new Response(JSON.stringify({ error: "UNAUTHORIZED" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    let body: { userId?: string; channelType?: string };
+    try {
+      body = await request.json() as typeof body;
+    } catch {
+      return new Response(JSON.stringify({ error: "INVALID_JSON" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    if (
+      typeof body.userId !== "string" || !body.userId ||
+      (body.channelType !== "telegram" && body.channelType !== "slack" && body.channelType !== "email")
+    ) {
+      return new Response(JSON.stringify({ error: "MISSING_FIELDS" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    await ctx.runMutation(internal.notificationChannels.deactivateChannelForUser, {
+      userId: body.userId,
+      channelType: body.channelType,
+    });
+
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }),
+});
+
+http.route({
   path: "/relay/channels",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
@@ -209,7 +255,7 @@ http.route({
 
     let body: { userId?: string };
     try {
-      body = await request.json();
+      body = await request.json() as typeof body;
     } catch {
       return new Response(JSON.stringify({ error: "INVALID_JSON" }), {
         status: 400,
