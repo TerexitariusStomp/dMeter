@@ -864,7 +864,7 @@ export class App {
     correlationEngine.registerAdapter(disasterAdapter);
     this.state.correlationEngine = correlationEngine;
     this.eventHandlers.setupUnifiedSettings();
-    if (isProUser()) this.eventHandlers.setupAuthWidget();
+    this.eventHandlers.setupAuthWidget();
 
     // Phase 4: SearchManager, MapLayerHandlers, CountryIntel
     this.searchManager.init();
