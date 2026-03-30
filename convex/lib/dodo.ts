@@ -1,15 +1,15 @@
 /**
- * Shared DodoPayments configuration.
+ * Convex component SDK (@dodopayments/convex) — for checkout session creation.
  *
- * Centralizes the DodoPayments component instance and API exports
- * so that all Convex modules (checkout, billing, etc.) share the
- * same config and API key handling.
+ * This file uses the Convex-aware component SDK which threads `ctx` through
+ * the Convex component graph. Use it for: checkout session creation.
  *
- * Config is read lazily (on first use) rather than at module scope,
- * so missing env vars fail at the action boundary with a clear error
- * instead of silently capturing empty values at import time.
+ * For admin operations the component SDK does not expose (customer portal
+ * sessions, subscription plan changes), use the direct REST SDK in
+ * payments/billing.ts (dodopayments package) instead.
  *
- * Canonical env var: DODO_API_KEY (set in Convex dashboard).
+ * Both files read DODO_API_KEY exclusively — no other env var fallback.
+ * Config is read lazily (on first use) rather than at module scope.
  */
 
 import { DodoPayments } from "@dodopayments/convex";

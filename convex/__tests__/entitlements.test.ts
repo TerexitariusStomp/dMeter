@@ -130,4 +130,41 @@ describe("entitlement query", () => {
       /Unknown planKey "nonexistent_plan"/,
     );
   });
+
+  test("does not throw when duplicate entitlement rows exist for same userId", async () => {
+    // Regression: concurrent webhook delivery could insert two entitlement rows
+    // before the .first() fix was in place. getEntitlementsForUser must tolerate
+    // this and return a valid result rather than throwing.
+    const t = convexTest(schema, modules);
+
+    const userId = "user-duplicate-entitlement";
+    const planKey = "pro_monthly";
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("entitlements", {
+        userId,
+        planKey,
+        features: getFeaturesForPlan(planKey),
+        validUntil: FUTURE,
+        updatedAt: NOW - 1000,
+      });
+      await ctx.db.insert("entitlements", {
+        userId,
+        planKey,
+        features: getFeaturesForPlan(planKey),
+        validUntil: FUTURE,
+        updatedAt: NOW,
+      });
+    });
+
+    // Should not throw; .first() returns one of the two rows
+    const result = await t.query(api.entitlements.getEntitlementsForUser, {
+      userId,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result.planKey).toBe("pro_monthly");
+    expect(result.features.tier).toBe(1);
+    expect(result.validUntil).toBe(FUTURE);
+  });
 });

@@ -10,6 +10,7 @@ import { MutationCtx } from "../_generated/server";
 import { internal } from "../_generated/api";
 import { getFeaturesForPlan } from "../lib/entitlements";
 import { verifyUserId } from "../lib/identity-signing";
+import { DEV_USER_ID, isDev } from "../lib/auth";
 
 // ---------------------------------------------------------------------------
 // Types for webhook payload data (narrowed from `any`)
@@ -69,7 +70,7 @@ export async function upsertEntitlements(
   const existing = await ctx.db
     .query("entitlements")
     .withIndex("by_userId", (q) => q.eq("userId", userId))
-    .unique();
+    .first();
 
   const features = getFeaturesForPlan(planKey);
 
@@ -94,6 +95,9 @@ export async function upsertEntitlements(
   // Skipped in test environments (no UPSTASH_REDIS_REST_URL) to avoid
   // convex-test "Write outside of transaction" errors from scheduled functions.
   if (process.env.UPSTASH_REDIS_REST_URL) {
+    // ACCEPTED BOUND: cache sync runs after mutation commits. If scheduler
+    // fails to enqueue, stale cache survives up to ENTITLEMENT_CACHE_TTL_SECONDS
+    // (900s). Gateway falls back to Convex DB on cache miss — latency only.
     await ctx.scheduler.runAfter(
       0,
       internal.payments.cacheActions.syncEntitlementCache,
@@ -106,19 +110,7 @@ export async function upsertEntitlements(
 // Internal resolution helpers
 // ---------------------------------------------------------------------------
 
-const FALLBACK_USER_ID = "test-user-001";
-
-/**
- * True only when explicitly running `convex dev` (which sets CONVEX_IS_DEV).
- * Never infer dev mode from missing env vars — that would make production
- * behave like dev if CONVEX_CLOUD_URL happens to be unset.
- */
-const isDevDeployment = process.env.CONVEX_IS_DEV === "true";
-
-// Log dev mode warning at module load time (once) instead of per-call
-if (isDevDeployment) {
-  console.warn("[subscriptionHelpers] WARNING: Running in dev mode — webhook userId resolution will use fallback for unmapped customers");
-}
+// DEV_USER_ID and isDev imported from lib/auth — single source of truth
 
 /**
  * Resolves a Dodo product ID to a plan key via the productPlans table.
@@ -197,11 +189,11 @@ async function resolveUserId(
   }
 
   // 4. Dev-only fallback
-  if (isDevDeployment) {
+  if (isDev) {
     console.warn(
-      `[subscriptionHelpers] No user identity found for customer="${dodoCustomerId}" — using dev fallback "${FALLBACK_USER_ID}"`,
+      `[subscriptionHelpers] No user identity found for customer="${dodoCustomerId}" — using dev fallback "${DEV_USER_ID}"`,
     );
-    return FALLBACK_USER_ID;
+    return DEV_USER_ID;
   }
 
   throw new Error(
@@ -602,7 +594,17 @@ export async function handleDisputeEvent(
     data.metadata,
   );
 
-  const status = eventType.replace("dispute.", "");
+  const disputeStatusMap: Record<string, "dispute_opened" | "dispute_won" | "dispute_lost" | "dispute_closed"> = {
+    "dispute.opened": "dispute_opened",
+    "dispute.won": "dispute_won",
+    "dispute.lost": "dispute_lost",
+    "dispute.closed": "dispute_closed",
+  };
+  const disputeStatus = disputeStatusMap[eventType];
+  if (!disputeStatus) {
+    console.error(`[handleDisputeEvent] Unknown dispute event type: ${eventType}`);
+    return;
+  }
 
   await ctx.db.insert("paymentEvents", {
     userId,
@@ -610,7 +612,7 @@ export async function handleDisputeEvent(
     type: "charge", // disputes are related to charges
     amount: data.total_amount ?? data.amount ?? 0,
     currency: data.currency ?? "USD",
-    status: `dispute_${status}`,
+    status: disputeStatus,
     dodoSubscriptionId: data.subscription_id ?? undefined,
     rawPayload: data,
     occurredAt: eventTimestamp,

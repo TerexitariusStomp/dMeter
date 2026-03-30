@@ -76,6 +76,16 @@ export function destroyEntitlementSubscription(): void {
     unsubscribeFn = null;
   }
   initialized = false;
+  listeners.clear();
+}
+
+/**
+ * Explicitly resets the cached entitlement state.
+ * Call on user logout so the next init starts fresh.
+ * Intentionally separate from destroyEntitlementSubscription to avoid
+ * accidentally clearing valid state on destroy/re-init cycles.
+ */
+export function resetEntitlementState(): void {
   currentState = null;
 }
 

@@ -19,8 +19,8 @@ const DISMISS_KEY = 'pf-banner-dismissed';
  * Initialize the payment failure banner.
  * Listens to subscription changes and shows/hides the banner reactively.
  */
-export function initPaymentFailureBanner(): void {
-  onSubscriptionChange((sub: SubscriptionInfo | null) => {
+export function initPaymentFailureBanner(): () => void {
+  return onSubscriptionChange((sub: SubscriptionInfo | null) => {
     const existing = document.getElementById(BANNER_ID);
 
     // Remove banner if subscription is not on_hold

@@ -134,6 +134,15 @@ export async function startCheckout(
 }
 
 /**
+ * Tears down the checkout overlay state so a new layout can re-initialize it.
+ * Resets the initialized flag and clears the stored success callback.
+ */
+export function destroyCheckoutOverlay(): void {
+  initialized = false;
+  onSuccessCallback = null;
+}
+
+/**
  * Show a transient success banner at the top of the viewport.
  * Auto-dismisses after 5 seconds.
  */

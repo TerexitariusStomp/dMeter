@@ -32,6 +32,28 @@ function makeSubscriptionPayload(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function makeDisputePayload(overrides: Record<string, unknown> = {}) {
+  return {
+    type: "dispute.opened",
+    business_id: "biz_test",
+    timestamp: "2026-03-21T10:00:00Z",
+    data: {
+      payload_type: "Payment",
+      payment_id: "pay_dispute_001",
+      subscription_id: "sub_test_001",
+      total_amount: 1999,
+      currency: "USD",
+      customer: {
+        customer_id: "cust_test_001",
+        email: "test@example.com",
+        name: "Test User",
+      },
+      metadata: { wm_user_id: "test-user-001" },
+      ...overrides,
+    },
+  };
+}
+
 function makePaymentPayload(
   eventType: "payment.succeeded" | "payment.failed",
   overrides: Record<string, unknown> = {},
@@ -466,5 +488,107 @@ describe("webhook processWebhookEvent", () => {
     });
     expect(subs).toHaveLength(1);
     expect(subs[0].status).toBe("active");
+  });
+
+  // ---------------------------------------------------------------------------
+  // Dispute event status enum tests
+  // ---------------------------------------------------------------------------
+
+  test("dispute.opened stores status dispute_opened", async () => {
+    const t = convexTest(schema, modules);
+
+    const payload = makeDisputePayload();
+    await processEvent(t, "wh_d01", "dispute.opened", payload, BASE_TIMESTAMP);
+
+    const paymentEvents = await t.run(async (ctx) => {
+      return ctx.db.query("paymentEvents").collect();
+    });
+    expect(paymentEvents).toHaveLength(1);
+    expect(paymentEvents[0].status).toBe("dispute_opened");
+    expect(paymentEvents[0].type).toBe("charge");
+  });
+
+  test("dispute.won stores status dispute_won", async () => {
+    const t = convexTest(schema, modules);
+
+    const payload = makeDisputePayload();
+    await processEvent(t, "wh_d02", "dispute.won", payload, BASE_TIMESTAMP);
+
+    const paymentEvents = await t.run(async (ctx) => {
+      return ctx.db.query("paymentEvents").collect();
+    });
+    expect(paymentEvents).toHaveLength(1);
+    expect(paymentEvents[0].status).toBe("dispute_won");
+  });
+
+  test("dispute.lost stores status dispute_lost", async () => {
+    const t = convexTest(schema, modules);
+
+    const payload = makeDisputePayload();
+    await processEvent(t, "wh_d03", "dispute.lost", payload, BASE_TIMESTAMP);
+
+    const paymentEvents = await t.run(async (ctx) => {
+      return ctx.db.query("paymentEvents").collect();
+    });
+    expect(paymentEvents).toHaveLength(1);
+    expect(paymentEvents[0].status).toBe("dispute_lost");
+  });
+
+  test("dispute.closed stores status dispute_closed", async () => {
+    const t = convexTest(schema, modules);
+
+    const payload = makeDisputePayload();
+    await processEvent(t, "wh_d04", "dispute.closed", payload, BASE_TIMESTAMP);
+
+    const paymentEvents = await t.run(async (ctx) => {
+      return ctx.db.query("paymentEvents").collect();
+    });
+    expect(paymentEvents).toHaveLength(1);
+    expect(paymentEvents[0].status).toBe("dispute_closed");
+  });
+
+  // ---------------------------------------------------------------------------
+  // upsertEntitlements resilience: pre-existing duplicate entitlement rows
+  // ---------------------------------------------------------------------------
+
+  test("subscription.active upserts entitlement when a row already exists for userId", async () => {
+    // Simulates the concurrent-insert scenario fixed by using .first() in
+    // upsertEntitlements: a pre-existing entitlement row exists when the
+    // webhook fires. The handler must patch (not insert) and not throw.
+    //
+    // The webhook payload has no HMAC signature, so resolveUserId falls back to
+    // the synthetic "dodo:{customerId}" identity. We seed the stale row under
+    // that same synthetic userId so upsertEntitlements finds it and patches
+    // rather than inserting a second row.
+    const t = convexTest(schema, modules);
+
+    await seedProductPlan(t, "pdt_test_pro", "pro_monthly", "Pro Monthly");
+
+    // Webhook resolves to synthetic "dodo:cust_test_001" (unsigned metadata)
+    const resolvedUserId = "dodo:cust_test_001";
+
+    await t.run(async (ctx) => {
+      const { getFeaturesForPlan } = await import("../lib/entitlements");
+      await ctx.db.insert("entitlements", {
+        userId: resolvedUserId,
+        planKey: "free",
+        features: getFeaturesForPlan("free"),
+        validUntil: BASE_TIMESTAMP - 86400000,
+        updatedAt: BASE_TIMESTAMP - 86400000,
+      });
+    });
+
+    // Process subscription.active — upsertEntitlements should patch the row
+    const payload = makeSubscriptionPayload();
+    await processEvent(t, "wh_up01", "subscription.active", payload, BASE_TIMESTAMP);
+
+    const entitlements = await t.run(async (ctx) => {
+      return ctx.db.query("entitlements").collect();
+    });
+
+    // Must still be exactly 1 row (patched, not duplicated)
+    expect(entitlements).toHaveLength(1);
+    expect(entitlements[0].planKey).toBe("pro_monthly");
+    expect(entitlements[0].features).toMatchObject({ apiAccess: false, maxDashboards: 10 });
   });
 });
