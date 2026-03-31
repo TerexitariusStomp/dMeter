@@ -2546,6 +2546,7 @@ export class DataLoaderManager implements AppModule {
         items,
         { proAccess: hasMonitorProAccess() },
       );
+      this.ctx.newsByCategory[category] = highlightedItems;
       this.renderNewsForCategory(category, highlightedItems);
     });
 

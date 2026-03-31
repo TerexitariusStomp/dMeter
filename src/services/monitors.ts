@@ -60,15 +60,29 @@ function uniqueKeywords(items: string[] | undefined): string[] {
   return out;
 }
 
-function normalizeSources(items: MonitorSourceKind[] | undefined): MonitorSourceKind[] {
+function uniqueSources(items: MonitorSourceKind[] | undefined): MonitorSourceKind[] {
   const out: MonitorSourceKind[] = [];
   const seen = new Set<MonitorSourceKind>();
-  for (const item of items || DEFAULT_MONITOR_SOURCES) {
+  for (const item of items || []) {
     if (seen.has(item)) continue;
     seen.add(item);
     out.push(item);
   }
+  return out;
+}
+
+function normalizeSources(items: MonitorSourceKind[] | undefined): MonitorSourceKind[] {
+  const out = uniqueSources(items);
   return out.length > 0 ? out : [...DEFAULT_MONITOR_SOURCES];
+}
+
+function filterFreeSources(items: MonitorSourceKind[] | undefined): MonitorSourceKind[] {
+  const freeSources = uniqueSources(items).filter((source) => FREE_MONITOR_SOURCES.includes(source));
+  return freeSources.length > 0 ? freeSources : [...FREE_MONITOR_SOURCES];
+}
+
+function resolveSourcesForMatching(items: MonitorSourceKind[] | undefined): MonitorSourceKind[] {
+  return items === undefined ? [...DEFAULT_MONITOR_SOURCES] : uniqueSources(items);
 }
 
 function inferMonitorName(keywords: string[], fallbackIndex: number): string {
@@ -118,9 +132,21 @@ export function prepareMonitorsForRuntime(monitors: Monitor[], proAccess = hasMo
       return {
         ...monitor,
         excludeKeywords: [],
-        sources: monitor.sources?.filter((source) => FREE_MONITOR_SOURCES.includes(source)) ?? [...FREE_MONITOR_SOURCES],
+        sources: filterFreeSources(monitor.sources),
       };
     });
+}
+
+export function mergeMonitorEdits(existing: Monitor, draft: Monitor, proAccess = hasMonitorProAccess()): Monitor {
+  if (proAccess || !monitorUsesProFeatures(existing)) return draft;
+
+  const freeSources = uniqueSources(draft.sources).filter((source) => FREE_MONITOR_SOURCES.includes(source));
+  const lockedSources = uniqueSources(existing.sources).filter((source) => !FREE_MONITOR_SOURCES.includes(source));
+  return {
+    ...draft,
+    excludeKeywords: uniqueKeywords(existing.excludeKeywords),
+    sources: uniqueSources([...freeSources, ...lockedSources]),
+  };
 }
 
 function matchesKeyword(haystack: string, keyword: string): boolean {
@@ -215,7 +241,7 @@ export function evaluateMonitorMatches(
     const includeKeywords = uniqueKeywords(monitor.includeKeywords ?? monitor.keywords);
     const excludeKeywords = uniqueKeywords(monitor.excludeKeywords);
     const matchMode = monitor.matchMode === 'all' ? 'all' : 'any';
-    const sources = normalizeSources(monitor.sources);
+    const sources = resolveSourcesForMatching(monitor.sources);
 
     if (sources.includes('news')) {
       for (const item of feed.news || []) {
@@ -223,9 +249,7 @@ export function evaluateMonitorMatches(
           || trimText((item as NewsItem & { description?: string; summary?: string }).summary);
         const haystack = [
           item.title,
-          item.source,
           item.locationName,
-          item.link,
           extraDescription,
         ].filter(Boolean).join(' ').toLowerCase();
         const matchedTerms = evaluateTextRule(haystack, includeKeywords, excludeKeywords, matchMode);
@@ -368,13 +392,30 @@ export function applyMonitorHighlightsToNews(
 function hasStoredProKey(): boolean {
   try {
     const cookie = document.cookie || '';
-    if (cookie.includes('wm-widget-key=') || cookie.includes('wm-pro-key=')) return true;
+    const cookieEntries = cookie.split(';').map((entry) => entry.trim()).filter(Boolean);
+    const hasCookieKey = (name: string): boolean => cookieEntries.some((entry) => {
+      const separatorIndex = entry.indexOf('=');
+      const key = separatorIndex >= 0 ? entry.slice(0, separatorIndex).trim() : entry.trim();
+      if (key !== name) return false;
+      const rawValue = separatorIndex >= 0 ? entry.slice(separatorIndex + 1).trim() : '';
+      if (!rawValue) return false;
+      try {
+        return decodeURIComponent(rawValue).trim().length > 0;
+      } catch {
+        return rawValue.length > 0;
+      }
+    });
+    if (hasCookieKey('wm-widget-key') || hasCookieKey('wm-pro-key')) return true;
   } catch {
     // ignore
   }
 
   try {
-    return Boolean(localStorage.getItem('wm-widget-key') || localStorage.getItem('wm-pro-key'));
+    const hasStoredKey = (name: 'wm-widget-key' | 'wm-pro-key'): boolean => {
+      const value = localStorage.getItem(name);
+      return typeof value === 'string' && value.trim().length > 0;
+    };
+    return hasStoredKey('wm-widget-key') || hasStoredKey('wm-pro-key');
   } catch {
     return false;
   }

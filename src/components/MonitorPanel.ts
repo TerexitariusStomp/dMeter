@@ -5,6 +5,7 @@ import {
   FREE_MONITOR_LIMIT,
   evaluateMonitorMatches,
   hasMonitorProAccess,
+  mergeMonitorEdits,
   monitorUsesProFeatures,
   normalizeMonitor,
   normalizeMonitors,
@@ -222,12 +223,12 @@ export class MonitorPanel extends Panel {
     this.statusEl.style.color = tone === 'warn' ? getCSSColor('--semantic-elevated') : 'var(--text-dim)';
   }
 
-  private selectedSources(): MonitorSourceKind[] {
+  private selectedSources(fallbackWhenEmpty = true): MonitorSourceKind[] {
     const out: MonitorSourceKind[] = [];
     for (const [source, input] of this.sourceInputs) {
       if (input.checked) out.push(source);
     }
-    return out.length > 0 ? out : ['news'];
+    return out.length > 0 || !fallbackWhenEmpty ? out : ['news'];
   }
 
   private addMonitor(): void {
@@ -242,7 +243,11 @@ export class MonitorPanel extends Panel {
     }
 
     const excludeKeywords = parseKeywords(this.excludeInput?.value || '');
-    const sources = this.selectedSources();
+    const existing = this.editingMonitorId
+      ? this.monitors.find((item) => item.id === this.editingMonitorId)
+      : undefined;
+    const preserveLockedFields = Boolean(existing && !proAccess && monitorUsesProFeatures(existing));
+    const sources = this.selectedSources(!preserveLockedFields);
     const hasAdvancedRule = excludeKeywords.length > 0 || sources.some((source) => isProOnlySource(source));
     if (!proAccess && hasAdvancedRule) {
       track('gate-hit', { feature: 'monitor-advanced-rules' });
@@ -250,7 +255,7 @@ export class MonitorPanel extends Panel {
       return;
     }
 
-    const monitor = normalizeMonitor({
+    const draftMonitor: Monitor = {
       id: '',
       name: this.nameInput?.value.trim() || undefined,
       keywords: includeKeywords,
@@ -259,22 +264,25 @@ export class MonitorPanel extends Panel {
       color: MONITOR_COLORS[this.monitors.length % MONITOR_COLORS.length] ?? getCSSColor('--status-live'),
       matchMode: (this.modeSelect?.value === 'all' ? 'all' : 'any') as MonitorMatchMode,
       sources,
-    }, this.monitors.length);
+    };
 
     if (this.editingMonitorId) {
       const idx = this.monitors.findIndex((item) => item.id === this.editingMonitorId);
       if (idx >= 0) {
         const existing = this.monitors[idx]!;
+        const nextMonitor = preserveLockedFields
+          ? mergeMonitorEdits(existing, draftMonitor, false)
+          : draftMonitor;
         this.monitors[idx] = normalizeMonitor({
           ...existing,
-          ...monitor,
+          ...nextMonitor,
           id: existing.id,
           color: existing.color,
           createdAt: existing.createdAt,
         }, idx);
       }
     } else {
-      this.monitors.push(monitor);
+      this.monitors.push(normalizeMonitor(draftMonitor, this.monitors.length));
     }
 
     this.resetComposer();
@@ -295,17 +303,25 @@ export class MonitorPanel extends Panel {
   private startEdit(id: string): void {
     const monitor = this.monitors.find((item) => item.id === id);
     if (!monitor) return;
+    const proAccess = hasMonitorProAccess();
     this.editingMonitorId = id;
     if (this.nameInput) this.nameInput.value = monitor.name || '';
     if (this.includeInput) this.includeInput.value = (monitor.includeKeywords ?? monitor.keywords).join(', ');
-    if (this.excludeInput) this.excludeInput.value = (monitor.excludeKeywords ?? []).join(', ');
+    if (this.excludeInput) {
+      this.excludeInput.value = proAccess ? (monitor.excludeKeywords ?? []).join(', ') : '';
+    }
     if (this.modeSelect) this.modeSelect.value = monitor.matchMode === 'all' ? 'all' : 'any';
     for (const [source, input] of this.sourceInputs) {
-      input.checked = (monitor.sources ?? ['news']).includes(source);
+      const selected = (monitor.sources ?? ['news']).includes(source);
+      input.checked = proAccess ? selected : (selected && !isProOnlySource(source));
     }
     if (this.addBtn) this.addBtn.textContent = t('components.monitor.save');
     if (this.cancelBtn) this.cancelBtn.style.display = 'inline-flex';
-    this.setComposerStatus(t('components.monitor.editing'), 'info');
+    if (!proAccess && monitorUsesProFeatures(monitor)) {
+      this.setComposerStatus(t('components.monitor.lockedRule'), 'warn');
+    } else {
+      this.setComposerStatus(t('components.monitor.editing'), 'info');
+    }
   }
 
   private cancelEdit(): void {
