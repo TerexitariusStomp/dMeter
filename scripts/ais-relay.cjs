@@ -2266,15 +2266,22 @@ async function seedAviationDelays() {
     const ok = await upstashSet(AVIATION_REDIS_KEY, { alerts }, AVIATION_SEED_TTL);
     await upstashSet('seed-meta:aviation:intl', { fetchedAt: Date.now(), recordCount: alerts.length }, 604800);
     console.log(`[Aviation] Seeded ${alerts.length} alerts (${succeeded} ok, ${failed} failed, redis: ${ok ? 'OK' : 'FAIL'}) in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-    const notifyAlerts = alerts.filter(a =>
+    const severeAlerts = alerts.filter(a =>
       a.severity === 'FLIGHT_DELAY_SEVERITY_SEVERE' || a.severity === 'FLIGHT_DELAY_SEVERITY_MAJOR'
     );
-    for (const a of notifyAlerts.slice(0, 3)) {
+    // Change detection: only notify for airports newly entering severe/major state.
+    // aviationPrevAlertedSet persists across polls in-memory; dedupTtl (4h) guards restarts.
+    const currentIatas = new Set(severeAlerts.map(a => a.iata).filter(Boolean));
+    const newAlerts = severeAlerts.filter(a => a.iata && !aviationPrevAlertedSet.has(a.iata));
+    aviationPrevAlertedSet.clear();
+    currentIatas.forEach(iata => aviationPrevAlertedSet.add(iata));
+    for (const a of newAlerts.slice(0, 3)) {
       publishNotificationEvent({
         eventType: 'aviation_closure',
         payload: { title: `${a.iata}${a.city ? ` (${a.city})` : ''}: ${a.reason || 'Airport disruption'}`, source: 'AviationStack' },
         severity: a.severity === 'FLIGHT_DELAY_SEVERITY_SEVERE' ? 'critical' : 'high',
         variant: undefined,
+        dedupTtl: 14400, // 4h — well above the 30min poll interval
       }).catch(e => console.warn('[Notify] Aviation publish error:', e?.message));
     }
   } catch (e) {
@@ -2313,6 +2320,8 @@ const NOTAM_QUOTA_BACKOFF_MS = 24 * 60 * 60 * 1000; // 24h backoff when ICAO quo
 const NOTAM_REDIS_KEY = 'aviation:notam:closures:v2';
 const NOTAM_CLOSURE_QCODES = new Set(['FA', 'AH', 'AL', 'AW', 'AC', 'AM']);
 const notamPrevClosed = new Set();
+let notamStateLoaded = false; // true after first Redis load — prevents false positives on restart
+const aviationPrevAlertedSet = new Set(); // tracks IATA codes currently in severe/major state
 const cyberPrevAlertedIds = new Set(); // tracks indicators notified this session; cleared at 500 entries
 const ucdpPrevAlertedIds = new Set();  // tracks UCDP event IDs notified; cleared at 500 entries
 const NOTAM_MONITORED_ICAO = [
@@ -2436,15 +2445,27 @@ async function seedNotamClosures() {
   await upstashSet('seed-meta:aviation:notam', { fetchedAt: Date.now(), recordCount: closedIcaos.length }, 604800);
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
   console.log(`[NOTAM-Seed] ${notams.length} raw NOTAMs, ${closedIcaos.length} closures (redis: ${ok ? 'OK' : 'FAIL'}) in ${elapsed}s`);
+  // On first run after a restart, pre-populate notamPrevClosed from Redis so
+  // airports that were already closed before the restart are not treated as new.
+  if (!notamStateLoaded) {
+    notamStateLoaded = true;
+    try {
+      const saved = await upstashGet('notam:prev-closed-state:v1');
+      if (Array.isArray(saved)) saved.forEach(icao => notamPrevClosed.add(icao));
+    } catch {}
+  }
   const newClosures = closedIcaos.filter(icao => !notamPrevClosed.has(icao));
   notamPrevClosed.clear();
   closedIcaos.forEach(icao => notamPrevClosed.add(icao));
+  // Persist current closed set so next restart doesn't re-fire existing closures.
+  upstashSet('notam:prev-closed-state:v1', closedIcaos, NOTAM_SEED_TTL * 2).catch(() => {});
   for (const icao of newClosures.slice(0, 3)) {
     publishNotificationEvent({
       eventType: 'notam_closure',
       payload: { title: `NOTAM: ${icao} — ${reasons[icao] || 'Airport closure'}`, source: 'ICAO NOTAM' },
       severity: 'high',
       variant: undefined,
+      dedupTtl: 21600, // 6h — well above the 2h poll interval; guards across restarts
     }).catch(e => console.warn('[Notify] NOTAM publish error:', e?.message));
   }
   } catch (e) {
@@ -4095,7 +4116,7 @@ async function seedWeatherAlerts() {
     for (const a of highSeverityAlerts.slice(0, 3)) {
       publishNotificationEvent({
         eventType: 'weather_alert',
-        payload: { title: a.headline || a.event, source: 'NWS' },
+        payload: { title: a.headline || a.event || 'Weather alert', source: 'NWS' },
         severity: a.severity === 'Extreme' ? 'critical' : 'high',
         variant: undefined,
       }).catch(e => console.warn('[Notify] Weather publish error:', e?.message));
