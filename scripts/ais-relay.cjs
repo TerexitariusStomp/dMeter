@@ -315,6 +315,31 @@ function upstashSetNx(key, value, ttlSeconds) {
   });
 }
 
+function upstashDel(key) {
+  return new Promise((resolve) => {
+    if (!UPSTASH_ENABLED) return resolve(false);
+    const url = new URL('/', UPSTASH_REDIS_REST_URL);
+    const body = JSON.stringify(['DEL', key]);
+    const req = https.request(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${UPSTASH_REDIS_REST_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: 5000,
+    }, (resp) => {
+      let data = '';
+      resp.on('data', (chunk) => { data += chunk; });
+      resp.on('end', () => {
+        try { resolve(JSON.parse(data)?.result === 1); } catch { resolve(false); }
+      });
+    });
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => { req.destroy(); resolve(false); });
+    req.end(body);
+  });
+}
+
 function notifySimpleHash(str) {
   let h = 0;
   for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
@@ -323,7 +348,10 @@ function notifySimpleHash(str) {
 
 async function publishNotificationEvent({ eventType, payload, severity, variant, dedupTtl = 1800 }) {
   try {
-    const dedupKey = `wm:notif:scan-dedup:${eventType}:${notifySimpleHash(`${eventType}:${payload.title ?? ''}`)}`;
+    // Include variant in dedup key so each variant can independently publish the same title
+    // (e.g. finance and world users both receive an alert for the same headline)
+    const variantSuffix = variant ? `:${variant}` : '';
+    const dedupKey = `wm:notif:scan-dedup:${eventType}${variantSuffix}:${notifySimpleHash(`${eventType}:${payload.title ?? ''}`)}`;
     const isNew = await upstashSetNx(dedupKey, '1', dedupTtl);
     if (!isNew) {
       console.log(`[Notify] Dedup hit — ${eventType}: ${String(payload.title ?? '').slice(0, 60)}`);
@@ -334,7 +362,10 @@ async function publishNotificationEvent({ eventType, payload, severity, variant,
     if (ok) {
       console.log(`[Notify] Queued ${severity} event: ${eventType} — ${String(payload.title ?? '').slice(0, 60)}`);
     } else {
-      console.warn(`[Notify] LPUSH failed for ${eventType}`);
+      // Rollback the dedup key so the next poll cycle can retry — avoids silent
+      // suppression for the full dedupTtl when a transient LPUSH fails.
+      console.warn(`[Notify] LPUSH failed for ${eventType} — rolling back dedup key`);
+      upstashDel(dedupKey).catch(() => {});
     }
   } catch (e) {
     console.warn(`[Notify] publishNotificationEvent error (${eventType}):`, e?.message || e);
