@@ -321,10 +321,10 @@ function notifySimpleHash(str) {
   return Math.abs(h).toString(36);
 }
 
-async function publishNotificationEvent({ eventType, payload, severity, variant }) {
+async function publishNotificationEvent({ eventType, payload, severity, variant, dedupTtl = 1800 }) {
   try {
     const dedupKey = `wm:notif:scan-dedup:${eventType}:${notifySimpleHash(`${eventType}:${payload.title ?? ''}`)}`;
-    const isNew = await upstashSetNx(dedupKey, '1', 1800);
+    const isNew = await upstashSetNx(dedupKey, '1', dedupTtl);
     if (!isNew) {
       console.log(`[Notify] Dedup hit — ${eventType}: ${String(payload.title ?? '').slice(0, 60)}`);
       return;
@@ -1223,6 +1223,19 @@ async function seedUcdpEvents() {
     const ok = await upstashSet(UCDP_REDIS_KEY, payload, UCDP_TTL_SECONDS);
     await upstashSet('seed-meta:conflict:ucdp-events', { fetchedAt: Date.now(), recordCount: mapped.length }, 604800);
     console.log(`[UCDP] Seeded ${mapped.length} events (raw: ${allEvents.length}, failed pages: ${failedPages}, redis: ${ok ? 'OK' : 'FAIL'})`);
+    const newConflicts = mapped.filter(e => e.deathsBest >= 10 && !ucdpPrevAlertedIds.has(e.id)).sort((a, b) => b.deathsBest - a.deathsBest);
+    for (const e of newConflicts.slice(0, 2)) {
+      ucdpPrevAlertedIds.add(e.id);
+      const parties = e.sideA && e.sideB ? `${e.sideA.slice(0, 40)} vs ${e.sideB.slice(0, 40)}` : e.sideA || e.sideB || 'Unknown parties';
+      publishNotificationEvent({
+        eventType: 'conflict_escalation',
+        payload: { title: `${e.country}: ${parties} — ${e.deathsBest} casualties`, source: 'UCDP' },
+        severity: e.deathsBest >= 50 ? 'critical' : 'high',
+        variant: undefined,
+        dedupTtl: 86400,
+      }).catch(err => console.warn('[Notify] UCDP publish error:', err?.message));
+    }
+    if (ucdpPrevAlertedIds.size > 500) ucdpPrevAlertedIds.clear();
   } catch (e) {
     console.warn('[UCDP] Seed error:', e?.message || e);
   }
@@ -1507,6 +1520,18 @@ async function seedMarketQuotes() {
   const ok2 = await upstashSet('market:stocks-bootstrap:v1', payload, MARKET_SEED_TTL);
   const ok3 = await upstashSet('seed-meta:market:stocks', { fetchedAt: Date.now(), recordCount: quotes.length }, 604800);
   console.log(`[Market] Seeded ${quotes.length}/${MARKET_SYMBOLS.length} quotes (redis: ${ok && ok2 && ok3 ? 'OK' : 'PARTIAL'})`);
+  const movingStocks = quotes.filter(q => Math.abs(q.change ?? 0) >= 5).sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
+  for (const q of movingStocks.slice(0, 3)) {
+    const pct = Math.round(q.change);
+    const dir = q.change < 0 ? 'decline' : 'surge';
+    publishNotificationEvent({
+      eventType: 'market_alert',
+      payload: { title: `${q.symbol}: ${pct > 0 ? '+' : ''}${pct}% ${dir}`, source: 'Equity Market' },
+      severity: Math.abs(q.change) >= 10 ? 'critical' : 'high',
+      variant: undefined,
+      dedupTtl: 3600,
+    }).catch(e => console.warn('[Notify] Market stock publish error:', e?.message));
+  }
   return quotes.length;
 }
 
@@ -1549,6 +1574,18 @@ async function seedCommodityQuotes() {
   const ok3 = await upstashSet('market:commodities-bootstrap:v1', quotesPayload, MARKET_SEED_TTL);
   const ok4 = await upstashSet('seed-meta:market:commodities', { fetchedAt: Date.now(), recordCount: quotes.length }, 604800);
   console.log(`[Market] Seeded ${quotes.length}/${COMMODITY_SYMBOLS.length} commodities (redis: ${ok && ok2 && ok3 && ok4 ? 'OK' : 'PARTIAL'})`);
+  const movingCommodities = quotes.filter(q => Math.abs(q.change ?? 0) >= 5).sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
+  for (const q of movingCommodities.slice(0, 3)) {
+    const pct = Math.round(q.change);
+    const dir = q.change < 0 ? 'decline' : 'surge';
+    publishNotificationEvent({
+      eventType: 'market_alert',
+      payload: { title: `${q.name || q.symbol}: ${pct > 0 ? '+' : ''}${pct}% ${dir}`, source: 'Commodity Market' },
+      severity: Math.abs(q.change) >= 10 ? 'critical' : 'high',
+      variant: undefined,
+      dedupTtl: 3600,
+    }).catch(e => console.warn('[Notify] Commodity publish error:', e?.message));
+  }
   return quotes.length;
 }
 
@@ -1737,6 +1774,18 @@ async function seedCryptoQuotes() {
   const ok1 = await upstashSet('market:crypto:v1', { quotes }, CRYPTO_SEED_TTL);
   const ok2 = await upstashSet('seed-meta:market:crypto', { fetchedAt: Date.now(), recordCount: quotes.length }, 604800);
   console.log(`[Crypto] Seeded ${quotes.length}/${CRYPTO_IDS.length} quotes (redis: ${ok1 && ok2 ? 'OK' : 'PARTIAL'})`);
+  const movingCrypto = quotes.filter(q => Math.abs(q.change ?? 0) >= 10).sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
+  for (const q of movingCrypto.slice(0, 3)) {
+    const pct = Math.round(q.change);
+    const dir = q.change < 0 ? 'decline' : 'surge';
+    publishNotificationEvent({
+      eventType: 'market_alert',
+      payload: { title: `${q.symbol}: ${pct > 0 ? '+' : ''}${pct}% ${dir}`, source: 'Crypto Market' },
+      severity: Math.abs(q.change) >= 20 ? 'critical' : 'high',
+      variant: undefined,
+      dedupTtl: 3600,
+    }).catch(e => console.warn('[Notify] Crypto publish error:', e?.message));
+  }
   return quotes.length;
 }
 
@@ -2233,6 +2282,8 @@ const NOTAM_QUOTA_BACKOFF_MS = 24 * 60 * 60 * 1000; // 24h backoff when ICAO quo
 const NOTAM_REDIS_KEY = 'aviation:notam:closures:v2';
 const NOTAM_CLOSURE_QCODES = new Set(['FA', 'AH', 'AL', 'AW', 'AC', 'AM']);
 const notamPrevClosed = new Set();
+const cyberPrevAlertedIds = new Set(); // tracks indicators notified this session; cleared at 500 entries
+const ucdpPrevAlertedIds = new Set();  // tracks UCDP event IDs notified; cleared at 500 entries
 const NOTAM_MONITORED_ICAO = [
   // MENA
   'OEJN', 'OERK', 'OEMA', 'OEDF', 'OMDB', 'OMAA', 'OMSJ',
@@ -2726,6 +2777,22 @@ async function seedCyberThreats() {
     const ok2 = await upstashSet(CYBER_BOOTSTRAP_KEY, payload, CYBER_SEED_TTL);
     const ok3 = await upstashSet('seed-meta:cyber:threats', { fetchedAt: Date.now(), recordCount: threats.length }, 604800);
     console.log(`[Cyber] Seeded ${threats.length} threats (feodo:${feodo.length} urlhaus:${urlhaus.length} c2intel:${c2intel.length} otx:${otx.length} abuseipdb:${abuseipdb.length} redis:${ok1 && ok2 && ok3 ? 'OK' : 'PARTIAL'}) in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    const newCyber = hydrated.filter(t =>
+      (t.severity === 'critical' || t.severity === 'high') && !cyberPrevAlertedIds.has(t.indicator)
+    );
+    for (const t of newCyber.slice(0, 2)) {
+      cyberPrevAlertedIds.add(t.indicator);
+      const typeLabel = (t.type || 'threat').replace(/_/g, ' ');
+      const familyTag = t.malwareFamily ? ` (${t.malwareFamily.slice(0, 30)})` : '';
+      publishNotificationEvent({
+        eventType: 'cyber_threat',
+        payload: { title: `${typeLabel}: ${t.indicator?.slice(0, 50)}${familyTag}`, source: t.source || 'Cyber Intel' },
+        severity: t.severity === 'critical' ? 'critical' : 'high',
+        variant: undefined,
+        dedupTtl: 43200,
+      }).catch(err => console.warn('[Notify] Cyber publish error:', err?.message));
+    }
+    if (cyberPrevAlertedIds.size > 500) cyberPrevAlertedIds.clear();
     return threats.length;
   } catch (e) {
     console.warn('[Cyber] Seed error:', e?.message || e, '— extending TTL, retrying in 20min');
@@ -4883,6 +4950,17 @@ async function seedCorridorRisk() {
     await upstashSet('seed-meta:supply_chain:corridorrisk', { fetchedAt: Date.now(), recordCount: Object.keys(result).length }, 604800);
     console.log(`[CorridorRisk] Seeded ${Object.keys(result).length} corridors (redis: ${ok ? 'OK' : 'FAIL'}) in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     seedTransitSummaries().catch(e => console.warn('[TransitSummary] Post-CorridorRisk seed error:', e?.message || e));
+    for (const [corridorId, c] of Object.entries(result)) {
+      if (c.riskScore < 50) continue;
+      const label = corridorId.replace(/_/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase());
+      publishNotificationEvent({
+        eventType: 'corridor_risk',
+        payload: { title: `${label}: risk score ${c.riskScore}${c.riskSummary ? ' — ' + c.riskSummary.slice(0, 80) : ''}`, source: 'Corridor Risk' },
+        severity: c.riskScore >= 70 ? 'critical' : 'high',
+        variant: undefined,
+        dedupTtl: 3600,
+      }).catch(err => console.warn('[Notify] CorridorRisk publish error:', err?.message));
+    }
   } catch (e) {
     console.warn('[CorridorRisk] Seed error:', e?.message || e);
   } finally {
@@ -5203,6 +5281,15 @@ async function seedShippingStress() {
     const ok = await upstashSet(SHIPPING_STRESS_REDIS_KEY, payload, SHIPPING_STRESS_TTL);
     await upstashSet('seed-meta:supply_chain:shipping_stress', { fetchedAt: Date.now(), recordCount: results.length }, 604800);
     console.log(`[ShippingStress] Seeded ${results.length} carriers score=${stressScore}/${stressLevel} (redis: ${ok ? 'OK' : 'FAIL'}) in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    if (stressScore >= 75) {
+      publishNotificationEvent({
+        eventType: 'shipping_stress',
+        payload: { title: `Global shipping stress: score ${stressScore}/100 (${stressLevel})`, source: 'Shipping Index' },
+        severity: stressScore >= 90 ? 'critical' : 'high',
+        variant: undefined,
+        dedupTtl: 7200,
+      }).catch(err => console.warn('[Notify] ShippingStress publish error:', err?.message));
+    }
   } catch (e) {
     console.warn('[ShippingStress] Seed error:', e?.message || e, '— extending TTL, retrying in 20min');
     try { await upstashExpire(SHIPPING_STRESS_REDIS_KEY, SHIPPING_STRESS_TTL); } catch {}
