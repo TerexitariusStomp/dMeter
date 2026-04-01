@@ -108,7 +108,7 @@ async function sendTelegram(userId, chatId, text) {
     return sendTelegram(userId, chatId, text); // single retry
   }
   if (res.status === 401) {
-    console.error('[relay] Telegram 401 Unauthorized — TELEGRAM_BOT_TOKEN is invalid or belongs to a different bot; Telegram delivery will be disabled until the token is corrected');
+    console.error('[relay] Telegram 401 Unauthorized — TELEGRAM_BOT_TOKEN is invalid or belongs to a different bot; correct the Railway env var to restore Telegram delivery');
     return;
   }
   if (!res.ok) {
@@ -277,7 +277,7 @@ async function processEvent(event) {
           await sendEmail(ch.email, subject, text);
         }
       } catch (err) {
-        console.warn(`[relay] Delivery error for ${rule.userId}/${ch.channelType}:`, err.message);
+        console.warn(`[relay] Delivery error for ${rule.userId}/${ch.channelType}:`, err instanceof Error ? err.message : String(err));
       }
     }
   }
