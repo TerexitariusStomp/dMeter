@@ -3298,21 +3298,23 @@ async function seedClassifyForVariant(variant, seenTitles) {
       classifiedSet.add(idx);
       await upstashSet(classifyCacheKey(chunk[idx]), { level, category, timestamp: Date.now() }, CLASSIFY_CACHE_TTL);
       classified++;
-      // Attribute newly classified title while it's still in scope
+      // Attribute newly classified title to country stats (global dedup via seenTitles)
       if (!seenTitles.has(chunk[idx])) {
         seenTitles.add(chunk[idx]);
         for (const code of matchCountryNamesInText(chunk[idx])) {
           if (!byCountry[code]) byCountry[code] = emptyLevel();
           byCountry[code][level]++;
         }
-        if (level === 'critical' || level === 'high') {
-          publishNotificationEvent({
-            eventType: 'rss_alert',
-            payload: { title: chunk[idx], source: variant },
-            severity: level,
-            variant,
-          }).catch(e => console.warn('[Notify] Classify publish error:', e?.message));
-        }
+      }
+      // Notifications are outside seenTitles guard — each variant publishes
+      // independently, protected by the variant-scoped Redis scan-dedup key.
+      if (level === 'critical' || level === 'high') {
+        publishNotificationEvent({
+          eventType: 'rss_alert',
+          payload: { title: chunk[idx], source: variant },
+          severity: level,
+          variant,
+        }).catch(e => console.warn('[Notify] Classify publish error:', e?.message));
       }
     }
 
