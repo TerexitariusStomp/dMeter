@@ -257,6 +257,90 @@ function upstashMGet(keys) {
   });
 }
 
+function upstashLpush(key, value) {
+  return new Promise((resolve) => {
+    if (!UPSTASH_ENABLED) return resolve(false);
+    const url = new URL('/', UPSTASH_REDIS_REST_URL);
+    const serialized = typeof value === 'string' ? value : JSON.stringify(value);
+    const body = JSON.stringify(['LPUSH', key, serialized]);
+    const req = https.request(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${UPSTASH_REDIS_REST_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: 5000,
+    }, (resp) => {
+      let data = '';
+      resp.on('data', (chunk) => { data += chunk; });
+      resp.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          resolve(typeof parsed?.result === 'number' && parsed.result > 0);
+        } catch { resolve(false); }
+      });
+    });
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => { req.destroy(); resolve(false); });
+    req.end(body);
+  });
+}
+
+function upstashSetNx(key, value, ttlSeconds) {
+  return new Promise((resolve) => {
+    if (!UPSTASH_ENABLED) return resolve(null);
+    const url = new URL('/', UPSTASH_REDIS_REST_URL);
+    const serialized = typeof value === 'string' ? value : JSON.stringify(value);
+    const body = JSON.stringify(['SET', key, serialized, 'NX', 'EX', String(ttlSeconds)]);
+    const req = https.request(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${UPSTASH_REDIS_REST_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: 5000,
+    }, (resp) => {
+      let data = '';
+      resp.on('data', (chunk) => { data += chunk; });
+      resp.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          resolve(parsed?.result === 'OK' ? 'OK' : null);
+        } catch { resolve(null); }
+      });
+    });
+    req.on('error', () => resolve(null));
+    req.on('timeout', () => { req.destroy(); resolve(null); });
+    req.end(body);
+  });
+}
+
+function notifySimpleHash(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
+  return Math.abs(h).toString(36);
+}
+
+async function publishNotificationEvent({ eventType, payload, severity, variant }) {
+  try {
+    const dedupKey = `wm:notif:scan-dedup:${eventType}:${notifySimpleHash(`${eventType}:${payload.title ?? ''}`)}`;
+    const isNew = await upstashSetNx(dedupKey, '1', 1800);
+    if (!isNew) {
+      console.log(`[Notify] Dedup hit — ${eventType}: ${String(payload.title ?? '').slice(0, 60)}`);
+      return;
+    }
+    const msg = JSON.stringify({ eventType, payload, severity, ...(variant ? { variant } : {}), publishedAt: Date.now() });
+    const ok = await upstashLpush('wm:events:queue', msg);
+    if (ok) {
+      console.log(`[Notify] Queued ${severity} event: ${eventType} — ${String(payload.title ?? '').slice(0, 60)}`);
+    } else {
+      console.warn(`[Notify] LPUSH failed for ${eventType}`);
+    }
+  } catch (e) {
+    console.warn(`[Notify] publishNotificationEvent error (${eventType}):`, e?.message || e);
+  }
+}
+
 let upstreamSocket = null;
 let upstreamPaused = false;
 let upstreamQueue = [];
@@ -717,6 +801,20 @@ async function orefFetchAlerts() {
         timestamp: new Date().toISOString(),
       });
       orefState._persistVersion++;
+
+      const orefTitle = alerts[0]?.title || 'Siren alert';
+      const orefLocations = alerts.flatMap(a => Array.isArray(a.data) ? a.data : []);
+      const orefShown = orefLocations.slice(0, 3);
+      const orefOverflow = orefLocations.length - orefShown.length;
+      const orefLocationSuffix = orefShown.length
+        ? ' — ' + orefShown.join(', ') + (orefOverflow > 0 ? ` +${orefOverflow} areas` : '')
+        : '';
+      publishNotificationEvent({
+        eventType: 'oref_siren',
+        payload: { title: orefTitle + orefLocationSuffix, source: 'OREF Pikud HaOref' },
+        severity: 'critical',
+        variant: undefined,
+      }).catch(e => console.warn('[Notify] OREF publish error:', e?.message));
     }
 
     const cutoff = Date.now() - 24 * 60 * 60 * 1000;
@@ -2088,6 +2186,17 @@ async function seedAviationDelays() {
     const ok = await upstashSet(AVIATION_REDIS_KEY, { alerts }, AVIATION_SEED_TTL);
     await upstashSet('seed-meta:aviation:intl', { fetchedAt: Date.now(), recordCount: alerts.length }, 604800);
     console.log(`[Aviation] Seeded ${alerts.length} alerts (${succeeded} ok, ${failed} failed, redis: ${ok ? 'OK' : 'FAIL'}) in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    const notifyAlerts = alerts.filter(a =>
+      a.severity === 'FLIGHT_DELAY_SEVERITY_SEVERE' || a.severity === 'FLIGHT_DELAY_SEVERITY_MAJOR'
+    );
+    for (const a of notifyAlerts.slice(0, 3)) {
+      publishNotificationEvent({
+        eventType: 'aviation_closure',
+        payload: { title: `${a.iata}${a.city ? ` (${a.city})` : ''}: ${a.reason || 'Airport disruption'}`, source: 'AviationStack' },
+        severity: a.severity === 'FLIGHT_DELAY_SEVERITY_SEVERE' ? 'critical' : 'high',
+        variant: undefined,
+      }).catch(e => console.warn('[Notify] Aviation publish error:', e?.message));
+    }
   } catch (e) {
     console.warn('[Aviation] Seed error:', e?.message || e, '— extending TTL, retrying in 20min');
     try { await upstashExpire(AVIATION_REDIS_KEY, AVIATION_SEED_TTL); } catch {}
@@ -2123,6 +2232,7 @@ const NOTAM_RETRY_MS = 20 * 60 * 1000;
 const NOTAM_QUOTA_BACKOFF_MS = 24 * 60 * 60 * 1000; // 24h backoff when ICAO quota is exhausted
 const NOTAM_REDIS_KEY = 'aviation:notam:closures:v2';
 const NOTAM_CLOSURE_QCODES = new Set(['FA', 'AH', 'AL', 'AW', 'AC', 'AM']);
+const notamPrevClosed = new Set();
 const NOTAM_MONITORED_ICAO = [
   // MENA
   'OEJN', 'OERK', 'OEMA', 'OEDF', 'OMDB', 'OMAA', 'OMSJ',
@@ -2244,6 +2354,17 @@ async function seedNotamClosures() {
   await upstashSet('seed-meta:aviation:notam', { fetchedAt: Date.now(), recordCount: closedIcaos.length }, 604800);
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
   console.log(`[NOTAM-Seed] ${notams.length} raw NOTAMs, ${closedIcaos.length} closures (redis: ${ok ? 'OK' : 'FAIL'}) in ${elapsed}s`);
+  const newClosures = closedIcaos.filter(icao => !notamPrevClosed.has(icao));
+  notamPrevClosed.clear();
+  closedIcaos.forEach(icao => notamPrevClosed.add(icao));
+  for (const icao of newClosures.slice(0, 3)) {
+    publishNotificationEvent({
+      eventType: 'notam_closure',
+      payload: { title: `NOTAM: ${icao} — ${reasons[icao] || 'Airport closure'}`, source: 'ICAO NOTAM' },
+      severity: 'high',
+      variant: undefined,
+    }).catch(e => console.warn('[Notify] NOTAM publish error:', e?.message));
+  }
   } catch (e) {
     console.warn('[NOTAM-Seed] Seed error:', e?.message || e, '— extending TTL, retrying in 20min');
     try { await upstashExpire(NOTAM_REDIS_KEY, NOTAM_SEED_TTL); } catch {}
@@ -3086,6 +3207,14 @@ async function seedClassifyForVariant(variant, seenTitles) {
           if (!byCountry[code]) byCountry[code] = emptyLevel();
           byCountry[code][level]++;
         }
+        if (level === 'critical' || level === 'high') {
+          publishNotificationEvent({
+            eventType: 'rss_alert',
+            payload: { title: chunk[idx], source: variant },
+            severity: level,
+            variant,
+          }).catch(e => console.warn('[Notify] Classify publish error:', e?.message));
+        }
       }
     }
 
@@ -3862,6 +3991,15 @@ async function seedWeatherAlerts() {
     const ok1 = await upstashSet(WEATHER_REDIS_KEY, payload, WEATHER_CACHE_TTL);
     const ok2 = await upstashSet('seed-meta:weather:alerts', { fetchedAt: Date.now(), recordCount: alerts.length }, 604800);
     console.log(`[Weather] Seeded ${alerts.length} alerts (redis: ${ok1 && ok2 ? 'OK' : 'PARTIAL'}) in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    const highSeverityAlerts = alerts.filter(a => a.severity === 'Extreme' || a.severity === 'Severe');
+    for (const a of highSeverityAlerts.slice(0, 3)) {
+      publishNotificationEvent({
+        eventType: 'weather_alert',
+        payload: { title: a.headline || a.event, source: 'NWS' },
+        severity: a.severity === 'Extreme' ? 'critical' : 'high',
+        variant: undefined,
+      }).catch(e => console.warn('[Notify] Weather publish error:', e?.message));
+    }
   } catch (e) {
     console.warn('[Weather] Seed error:', e?.message || e);
   } finally {
