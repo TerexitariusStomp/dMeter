@@ -233,6 +233,18 @@ export const COMMANDS: Command[] = [
   { id: 'panel:species', keywords: ['conservation', 'wildlife', 'endangered species', 'conservation wins'], label: 'Panel: Conservation Wins', icon: '\u{1F43C}', category: 'panels' },
   { id: 'panel:renewable', keywords: ['renewable energy', 'solar', 'wind energy', 'green energy'], label: 'Panel: Renewable Energy', icon: '\u2600\uFE0F', category: 'panels' },
 
+  // Country deep-dive section shortcuts (scroll-to within open country panel)
+  { id: 'panel:cdp-brief', keywords: ['intel brief', 'country brief', 'ai brief', 'intelligence summary'], label: 'Country: Intel Brief', icon: '\u{1F9E0}', category: 'panels' },
+  { id: 'panel:cdp-facts', keywords: ['country facts', 'population', 'capital city', 'languages'], label: 'Country: Facts', icon: '\u{1F4CB}', category: 'panels' },
+  { id: 'panel:cdp-energy', keywords: ['energy profile', 'energy mix', 'fuel mix', 'oil stocks', 'gas storage', 'electricity price', 'jodi', 'iea stocks'], label: 'Country: Energy Profile', icon: '\u26A1', category: 'panels' },
+  { id: 'panel:cdp-signals', keywords: ['active signals', 'threat signals', 'country signals', 'live signals'], label: 'Country: Active Signals', icon: '\u{1F4E1}', category: 'panels' },
+  { id: 'panel:cdp-news', keywords: ['country news', 'top news', 'local headlines'], label: 'Country: Top News', icon: '\u{1F4F0}', category: 'panels' },
+  { id: 'panel:cdp-military', keywords: ['country military', 'flights near', 'military activity', 'vessels near'], label: 'Country: Military Activity', icon: '\u2708\uFE0F', category: 'panels' },
+  { id: 'panel:cdp-infra', keywords: ['country infrastructure', 'nearby pipelines', 'nearby cables', 'nearby ports'], label: 'Country: Infrastructure', icon: '\u{1F3D7}\uFE0F', category: 'panels' },
+  { id: 'panel:cdp-economic', keywords: ['economic indicators', 'country gdp', 'country inflation', 'country currency'], label: 'Country: Economic Indicators', icon: '\u{1F4B9}', category: 'panels' },
+  { id: 'panel:cdp-markets', keywords: ['prediction markets', 'polymarket', 'country bets', 'country odds'], label: 'Country: Prediction Markets', icon: '\u{1F3AF}', category: 'panels' },
+  { id: 'panel:cdp-timeline', keywords: ['country timeline', 'event history', 'event timeline'], label: 'Country: Timeline', icon: '\u{1F4C5}', category: 'panels' },
+
   // View / settings
   { id: 'view:dark', keywords: ['dark', 'dark mode', 'night'], label: 'Switch to dark mode', icon: '\u{1F319}', category: 'view' },
   { id: 'view:light', keywords: ['light', 'light mode', 'day'], label: 'Switch to light mode', icon: '\u2600\uFE0F', category: 'view' },
