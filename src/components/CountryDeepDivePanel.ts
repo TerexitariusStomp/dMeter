@@ -699,16 +699,16 @@ export class CountryDeepDivePanel implements CountryBriefPanel {
     summaryGrid.append(scoreCard, this.resilienceWidget.getElement());
 
     const bodyGrid = this.el('div', 'cdp-grid');
-    const [signalsCard, signalBody] = this.sectionCard(t('countryBrief.activeSignals'));
-    const [timelineCard, timelineBody] = this.sectionCard(t('countryBrief.timeline'));
-    const [newsCard, newsBody] = this.sectionCard(t('countryBrief.topNews'));
-    const [militaryCard, militaryBody] = this.sectionCard(t('countryBrief.militaryActivity'));
-    const [infraCard, infraBody] = this.sectionCard(t('countryBrief.infrastructure'));
-    const [economicCard, economicBody] = this.sectionCard(t('countryBrief.economicIndicators'));
-    const [marketsCard, marketsBody] = this.sectionCard(t('countryBrief.predictionMarkets'));
-    const [briefCard, briefBody] = this.sectionCard(t('countryBrief.intelBrief'));
+    const [signalsCard, signalBody] = this.sectionCard(t('countryBrief.activeSignals'), 'Live threat and intelligence signals from 40+ feeds. Severity-ranked events affecting this country in the last 24–72 hours.', 'cdp-signals');
+    const [timelineCard, timelineBody] = this.sectionCard(t('countryBrief.timeline'), 'Chronological record of significant events for this country, drawn from intel and news sources.', 'cdp-timeline');
+    const [newsCard, newsBody] = this.sectionCard(t('countryBrief.topNews'), 'Latest headlines from global news sources filtered to this country.', 'cdp-news');
+    const [militaryCard, militaryBody] = this.sectionCard(t('countryBrief.militaryActivity'), 'Nearby military flights, vessel movements, and foreign military presence detected via AIS and ADS-B tracking.', 'cdp-military');
+    const [infraCard, infraBody] = this.sectionCard(t('countryBrief.infrastructure'), 'Critical infrastructure assets near this country — pipelines, cables, ports, nuclear facilities.', 'cdp-infra');
+    const [economicCard, economicBody] = this.sectionCard(t('countryBrief.economicIndicators'), 'Macro indicators including GDP, inflation, currency, and stock index data.', 'cdp-economic');
+    const [marketsCard, marketsBody] = this.sectionCard(t('countryBrief.predictionMarkets'), 'Prediction market probabilities for geopolitical events involving this country (Polymarket, Metaculus).', 'cdp-markets');
+    const [briefCard, briefBody] = this.sectionCard(t('countryBrief.intelBrief'), 'AI-generated intelligence summary based on active signals, news, and regional context.', 'cdp-brief');
 
-    const [factsCard, factsBody] = this.sectionCard(t('countryBrief.countryFacts'));
+    const [factsCard, factsBody] = this.sectionCard(t('countryBrief.countryFacts'), 'Basic country profile — population, capital, languages, currencies, area. Source: REST Countries API.', 'cdp-facts');
     this.factsBody = factsBody;
     factsBody.append(this.makeLoading(t('countryBrief.loadingFacts')));
     const factsExpanded = this.el('div', 'cdp-expanded-only');
@@ -724,6 +724,9 @@ export class CountryDeepDivePanel implements CountryBriefPanel {
     this.marketsBody = marketsBody;
     this.briefBody = briefBody;
 
+    const [energyCard, energyBody] = this.sectionCard('Energy Profile', 'Country energy mix (OWID), oil product supply (JODI), gas flows (JODI), oil stock reserves (IEA), EU gas storage and electricity prices (GIE/ENTSO-E). Data updated monthly to quarterly.', 'cdp-energy');
+    energyBody.append(this.makeLoading('Loading energy profile…'));
+
     this.renderInitialSignals(signals);
     newsBody.append(this.makeLoading('Loading country headlines…'));
     militaryBody.append(this.makeLoading('Loading flights, vessels, and nearby bases…'));
@@ -732,7 +735,7 @@ export class CountryDeepDivePanel implements CountryBriefPanel {
     marketsBody.append(this.makeLoading(t('countryBrief.loadingMarkets')));
     briefBody.append(this.makeLoading(t('countryBrief.generatingBrief')));
 
-    bodyGrid.append(briefCard, factsExpanded, signalsCard, timelineCard, newsCard, militaryCard, infraCard, economicCard, marketsCard);
+    bodyGrid.append(briefCard, factsExpanded, signalsCard, timelineCard, newsCard, militaryCard, infraCard, economicCard, marketsCard, energyCard);
     shell.append(header, summaryGrid, bodyGrid);
     this.content.append(shell);
   }
@@ -953,9 +956,16 @@ export class CountryDeepDivePanel implements CountryBriefPanel {
     return panel;
   }
 
-  private sectionCard(title: string): [HTMLElement, HTMLElement] {
+  private sectionCard(title: string, helpText: string, panelId: string): [HTMLElement, HTMLElement] {
     const card = this.el('section', 'cdp-card');
-    const heading = this.el('h3', 'cdp-card-title', title);
+    card.dataset.panel = panelId;
+    const heading = this.el('h3', 'cdp-card-title');
+    const titleSpan = this.el('span', '', title);
+    const helpBtn = this.el('button', 'cdp-help-btn', '?');
+    helpBtn.setAttribute('aria-label', helpText);
+    helpBtn.title = helpText;
+    helpBtn.type = 'button';
+    heading.append(titleSpan, helpBtn);
     const body = this.el('div', 'cdp-card-body');
     card.append(heading, body);
     return [card, body];

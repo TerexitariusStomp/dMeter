@@ -158,6 +158,18 @@ export const COMMANDS: Command[] = [
   { id: 'panel:thermal-escalation', keywords: ['thermal', 'thermal escalation', 'heat signature', 'infrared'], label: 'Panel: Thermal Escalation', icon: '\u{1F321}\uFE0F', category: 'panels' },
   { id: 'panel:security', keywords: ['cybersecurity', 'security news', 'hacking', 'breaches', 'vulnerabilities'], label: 'Panel: Cybersecurity', icon: '\u{1F512}', category: 'panels' },
 
+  // Country deep-dive section shortcuts (scroll-to within open country panel)
+  { id: 'panel:cdp-brief', keywords: ['intel brief', 'country brief', 'ai brief', 'intelligence summary'], label: 'Country: Intel Brief', icon: '\u{1F9E0}', category: 'panels' },
+  { id: 'panel:cdp-facts', keywords: ['country facts', 'population', 'capital city', 'languages'], label: 'Country: Facts', icon: '\u{1F4CB}', category: 'panels' },
+  { id: 'panel:cdp-energy', keywords: ['energy profile', 'energy mix', 'fuel mix', 'oil stocks', 'gas storage', 'electricity price', 'jodi', 'iea stocks'], label: 'Country: Energy Profile', icon: '\u26A1', category: 'panels' },
+  { id: 'panel:cdp-signals', keywords: ['active signals', 'threat signals', 'country signals', 'live signals'], label: 'Country: Active Signals', icon: '\u{1F4E1}', category: 'panels' },
+  { id: 'panel:cdp-news', keywords: ['country news', 'top news', 'local headlines'], label: 'Country: Top News', icon: '\u{1F4F0}', category: 'panels' },
+  { id: 'panel:cdp-military', keywords: ['country military', 'flights near', 'military activity', 'vessels near'], label: 'Country: Military Activity', icon: '\u2708\uFE0F', category: 'panels' },
+  { id: 'panel:cdp-infra', keywords: ['country infrastructure', 'nearby pipelines', 'nearby cables', 'nearby ports'], label: 'Country: Infrastructure', icon: '\u{1F3D7}\uFE0F', category: 'panels' },
+  { id: 'panel:cdp-economic', keywords: ['economic indicators', 'country gdp', 'country inflation', 'country currency'], label: 'Country: Economic Indicators', icon: '\u{1F4B9}', category: 'panels' },
+  { id: 'panel:cdp-markets', keywords: ['prediction markets', 'polymarket', 'country bets', 'country odds'], label: 'Country: Prediction Markets', icon: '\u{1F3AF}', category: 'panels' },
+  { id: 'panel:cdp-timeline', keywords: ['country timeline', 'event history', 'event timeline'], label: 'Country: Timeline', icon: '\u{1F4C5}', category: 'panels' },
+
   // Economic / price panels
   { id: 'panel:consumer-prices', keywords: ['consumer prices', 'cpi', 'inflation', 'cost of living'], label: 'Panel: Consumer Prices', icon: '\u{1F6D2}', category: 'panels' },
   { id: 'panel:grocery-basket', keywords: ['grocery', 'grocery basket', 'grocery index', 'food prices', 'supermarket'], label: 'Panel: Grocery Index', icon: '\u{1F96C}', category: 'panels' },
