@@ -321,7 +321,7 @@ async function fetchReliefWeb() {
           console.log(`  [ReliefWeb] ${mapped.length} disasters from ${rows.length} rows`);
           return mapped;
         }
-        if (rows.length > 0) console.warn(`[climate-disasters] ${rows.length} ReliefWeb rows returned but all mapped to null`);
+        if (rows.length > 0) console.log(`  [ReliefWeb] ${rows.length} rows returned but all mapped to null`);
       } catch (err) {
         lastError = err;
         const message = String(err?.message || err);
