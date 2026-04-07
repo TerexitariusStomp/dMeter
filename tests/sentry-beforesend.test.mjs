@@ -86,20 +86,29 @@ describe('first-party file detection', () => {
     ['/assets/deck-stack-x1y2z3.js', 'deck-stack (vendor)'],
     ['/assets/maplibre-AbC123.js', 'maplibre (vendor)'],
     ['/assets/d3-xyz.js', 'd3 (vendor)'],
-    ['/assets/sentry-AbC123.js', 'sentry (vendor)'],
     ['/assets/transformers-xyz.js', 'transformers (vendor)'],
     ['/assets/onnxruntime-xyz.js', 'onnxruntime (vendor)'],
   ];
 
   for (const [filename, label] of vendorChunks) {
     it(`does NOT treat ${label} (${filename}) as first-party`, () => {
-      // Use "Maximum call stack size exceeded" which is suppressed by the extension-style block
       const event = makeEvent('Maximum call stack size exceeded', 'RangeError', [
         { filename, lineno: 10, function: 'doStuff' },
       ]);
       assert.equal(beforeSend(event), null, `${filename} should NOT be treated as first-party`);
     });
   }
+
+  it('filters sentry chunk frames as infrastructure (not even counted as third-party)', () => {
+    // Sentry frames are excluded from nonInfraFrames entirely, so a sentry-only stack
+    // is treated as empty (no confirming third-party frames, no first-party frames).
+    // With the hasAnyStack requirement, the error surfaces.
+    const event = makeEvent('Maximum call stack size exceeded', 'RangeError', [
+      { filename: '/assets/sentry-AbC123.js', lineno: 10, function: 'captureException' },
+    ]);
+    const result = beforeSend(event);
+    assert.ok(result !== null, 'sentry-only stack should be treated as empty (no suppression)');
+  });
 
   it('does NOT treat blob: URLs as first-party', () => {
     const event = makeEvent('.trim is not a function', 'TypeError', [
@@ -160,10 +169,10 @@ describe('empty-stack network/timeout errors are NOT suppressed', () => {
   }
 });
 
-// ─── Extension-style errors: safe to suppress even with empty stack ──────
+// ─── All ambiguous errors require confirmed third-party stack ────────────
 
-describe('extension-style runtime errors', () => {
-  const extensionErrors = [
+describe('ambiguous runtime errors', () => {
+  const ambiguousErrors = [
     '.trim is not a function',
     'e.toLowerCase is not a function',
     '.indexOf is not a function',
@@ -175,14 +184,22 @@ describe('extension-style runtime errors', () => {
     'Element not found',
   ];
 
-  for (const msg of extensionErrors) {
-    it(`suppresses "${msg}" with empty stack`, () => {
+  for (const msg of ambiguousErrors) {
+    it(`lets through "${msg}" with empty stack (origin unknown)`, () => {
       const event = makeEvent(msg, 'TypeError', []);
-      assert.equal(beforeSend(event), null);
+      const result = beforeSend(event);
+      assert.ok(result !== null, `"${msg}" with empty stack should NOT be suppressed (could be our code)`);
     });
   }
 
-  for (const msg of extensionErrors) {
+  for (const msg of ambiguousErrors) {
+    it(`suppresses "${msg}" with confirmed third-party stack`, () => {
+      const event = makeEvent(msg, 'TypeError', [extensionFrame()]);
+      assert.equal(beforeSend(event), null, `"${msg}" with extension-only stack should be suppressed`);
+    });
+  }
+
+  for (const msg of ambiguousErrors) {
     it(`lets through "${msg}" with first-party stack`, () => {
       const event = makeEvent(msg, 'TypeError', [firstPartyFrame()]);
       const result = beforeSend(event);

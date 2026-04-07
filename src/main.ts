@@ -309,10 +309,11 @@ Sentry.init({
     // (Safari kills open IDB transactions in background tabs — not actionable noise)
     // First-party paths in storage.ts / persistent-cache.ts / vector-db.ts must still surface.
     if ((/TransactionInactiveError/.test(msg) || excType === 'TransactionInactiveError') && !hasFirstParty) return null;
-    // Suppress extension-style runtime errors when stack confirms non-first-party origin.
-    // These are safe to drop with empty stacks because they are almost always extension noise
-    // and are not actionable without a stack trace anyway.
-    if (!hasFirstParty && (
+    // Suppress ambiguous runtime errors ONLY when stack positively identifies third-party
+    // origin. Empty stacks are NOT suppressed because we cannot confirm the error didn't
+    // come from our own code (OOM, stack overflow, network failures all commonly arrive
+    // without frames even when our code triggered them).
+    if (hasAnyStack && !hasFirstParty && (
       /\.(?:toLowerCase|trim|indexOf|findIndex) is not a function/.test(msg)
       || /Maximum call stack size exceeded/.test(msg)
       || /out of memory/i.test(msg)
@@ -322,12 +323,7 @@ Sentry.init({
       || /NotSupportedError/.test(msg)
       || /^Key not found$/.test(msg)
       || /^Element not found$/.test(msg)
-    )) return null;
-    // Suppress network/timeout/deploy errors ONLY when stack positively identifies third-party
-    // origin. Empty stacks are NOT suppressed because these errors commonly arrive without
-    // frames even when our own code triggered them (fetch failures, module load failures).
-    if (hasAnyStack && !hasFirstParty && (
-      /^TypeError: Failed to fetch/.test(msg)
+      || /^TypeError: Failed to fetch/.test(msg)
       || /^TypeError: NetworkError/.test(msg)
       || /Could not connect to the server/.test(msg)
       || /(?:Failed to fetch|Importing a module script failed|error loading) dynamically imported module/i.test(msg)
