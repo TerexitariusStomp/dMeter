@@ -77,15 +77,10 @@ Sentry.init({
     /Attempted to assign to readonly property/,
     /Cannot assign to read only property/,
     /FetchEvent\.respondWith/,
-    /e\.toLowerCase is not a function/,
-    /\.trim is not a function/,
-    /\.(indexOf|findIndex) is not a function/,
     /QuotaExceededError/,
     /^TypeError: 已取消$/,
-    /Maximum call stack size exceeded/,
     /^fetchError: Network request failed$/,
     /window\.ethereum/,
-    /^SyntaxError: Unexpected token/,
     /^Operation timed out\.?$/,
     /setting 'luma'/,
     /ML request .* timed out/,
@@ -108,7 +103,6 @@ Sentry.init({
     /maxTextureDimension2D/,
     /Container app not found/,
     /this\.St\.unref/,
-    /Invalid or unexpected token/,
     /evaluating 'elemFound\.value'/,
     /[Cc]an(?:'t|not) access (?:'\w+'|lexical declaration '\w+') before initialization/,
     /^Uint8Array$/,
@@ -180,7 +174,6 @@ Sentry.init({
     /undefined is not an object \(evaluating '(?:this\.)?media(?:Controller)?\.(?:duration|videoTracks|readyState|audioTracks|media)/,
     /\$ is not defined/,
     /Qt\([^)]*\) is not a function/,
-    /out of memory/,
     /Could not connect to the server/,
     /shaderSource must be an instance of WebGLShader/,
     /WebGL2RenderingContext\.shaderSource: Argument 1 is not an object/,
@@ -244,14 +237,12 @@ Sentry.init({
     /^UnavailableError(:.*)?$/,
     /null is not an object \(evaluating '\w{1,3}\.indexOf'\)/,
     /export declarations may only appear at top level/,
-    /^SyntaxError: Unexpected keyword/,
     /ucConfig is not defined/,
     /getShaderPrecisionFormat/,
     /Cannot read properties of null \(reading 'touches'\)/,
     /Failed to execute 'querySelectorAll' on '[^']*': ':[a-z]+\(/,
     /args\.site\.enabledFeatures/,
     /can't access property "\w+", FONTS\[/,
-    /^\w{1,2} is not a function\. \(In '\w{1,2}\(/,
     /null is not an object \(evaluating '\w+\.magnitude\.toFixed'\)/,
     /start offset of Int16Array should be a multiple of 2/,
     /Cannot read properties of undefined \(reading 'then'\)/,
@@ -271,6 +262,9 @@ Sentry.init({
     const msg = event.exception?.values?.[0]?.value ?? '';
     if (msg.length <= 3 && /^[a-zA-Z_$]+$/.test(msg)) return null;
     const frames = event.exception?.values?.[0]?.stacktrace?.frames ?? [];
+    const firstPartyFile = /\.(ts|tsx)$|^src\/|\/(main|index|app|panels|deck-stack|map|maplibre)-[A-Za-z0-9_-]+\.js/;
+    const nonInfraFrames = frames.filter(f => f.filename && f.filename !== '<anonymous>' && f.filename !== '[native code]' && !/\/sentry-[A-Za-z0-9_-]+\.js/.test(f.filename));
+    const hasFirstParty = nonInfraFrames.some(f => firstPartyFile.test(f.filename ?? ''));
     // Suppress maplibre internal null-access crashes (light, placement) only when stack is in map chunk
     if (/this\.style\._layers|reading '_layers'|this\.(light|sky) is null|can't access property "(id|type|setFilter)"[,] ?\w+ is (null|undefined)|can't access property "(id|type)" of null|Cannot read properties of null \(reading '(id|type|setFilter|_layers)'\)|null is not an object \(evaluating '\w{1,3}\.(id|style)|^\w{1,2} is null$/.test(msg)) {
       if (frames.some(f => /\/(map|maplibre|deck-stack)-[A-Za-z0-9_-]+\.js/.test(f.filename ?? ''))) return null;
@@ -278,14 +272,11 @@ Sentry.init({
     // Suppress any TypeError that happens entirely within maplibre or deck.gl internals
     const excType = event.exception?.values?.[0]?.type ?? '';
     if ((excType === 'TypeError' || /^TypeError:/.test(msg)) && frames.length > 0) {
-      const nonSentryFrames = frames.filter(f => f.filename && f.filename !== '<anonymous>' && f.filename !== '[native code]' && !/\/sentry-[A-Za-z0-9_-]+\.js/.test(f.filename));
-      if (nonSentryFrames.length > 0 && nonSentryFrames.every(f => /\/(map|maplibre|deck-stack)-[A-Za-z0-9_-]+\.js/.test(f.filename ?? ''))) return null;
+      if (nonInfraFrames.length > 0 && nonInfraFrames.every(f => /\/(map|maplibre|deck-stack)-[A-Za-z0-9_-]+\.js/.test(f.filename ?? ''))) return null;
     }
     // Suppress Three.js/globe.gl TypeError crashes in main bundle (reading 'type'/'pathType'/'count'/'__globeObjType' on undefined during WebGL traversal/raycast)
     if (/reading '(?:type|pathType|count|__globeObjType)'|can't access property "(?:type|pathType|count|__globeObjType)",? \w+ is (?:undefined|null)|undefined is not an object \(evaluating '\w+\.(?:pathType|count|__globeObjType)'\)|null is not an object \(evaluating '\w+\.__globeObjType'\)/.test(msg)) {
-      const nonSentryFrames = frames.filter(f => f.filename && f.filename !== '<anonymous>' && f.filename !== '[native code]' && !/\/sentry-[A-Za-z0-9_-]+\.js/.test(f.filename));
-      const hasSourceMapped = nonSentryFrames.some(f => /\.(ts|tsx)$/.test(f.filename ?? '') || /^src\//.test(f.filename ?? ''));
-      if (!hasSourceMapped) return null;
+      if (!hasFirstParty) return null;
     }
     // Suppress minified Three.js/globe.gl crashes (e.g. "l is undefined" in raycast, "b is undefined" in update/initGlobe)
     if (/^\w{1,2} is (?:undefined|not an object)$/.test(msg) && frames.length > 0) {
@@ -293,9 +284,7 @@ Sentry.init({
     }
     // Suppress Three.js OrbitControls touch crashes (finger lifted during pinch-zoom)
     if (/undefined is not an object \(evaluating 't\.x'\)|Cannot read properties of undefined \(reading 'x'\)/.test(msg)) {
-      const nonSentryFrames = frames.filter(f => f.filename && f.filename !== '<anonymous>' && f.filename !== '[native code]' && !/\/sentry-[A-Za-z0-9_-]+\.js/.test(f.filename));
-      const hasSourceMapped = nonSentryFrames.some(f => /\.(ts|tsx)$/.test(f.filename ?? '') || /^src\//.test(f.filename ?? ''));
-      if (!hasSourceMapped) return null;
+      if (!hasFirstParty) return null;
     }
     // Suppress deck.gl/maplibre null-access crashes with no usable stack trace (requestAnimationFrame wrapping)
     if (/null is not an object \(evaluating '\w{1,3}\.(id|type|style)'\)/.test(msg) && frames.length === 0) return null;
@@ -326,17 +315,18 @@ Sentry.init({
     // Suppress TransactionInactiveError only when no first-party frames are present
     // (Safari kills open IDB transactions in background tabs — not actionable noise)
     // First-party paths in storage.ts / persistent-cache.ts / vector-db.ts must still surface.
-    if (/TransactionInactiveError/.test(msg) || excType === 'TransactionInactiveError') {
-      const appFrames = frames.filter(
-        f => f.filename && f.filename !== '<anonymous>' && f.filename !== '[native code]'
-          && !/\/sentry-[A-Za-z0-9_-]+\.js/.test(f.filename)
-      );
-      const hasFirstParty = appFrames.some(
-        f => /\.(ts|tsx)$/.test(f.filename ?? '') || /^src\//.test(f.filename ?? '')
-          || /\/(main|index|app)-[A-Za-z0-9_-]+\.js/.test(f.filename ?? '')
-      );
-      if (!hasFirstParty) return null;
-    }
+    if ((/TransactionInactiveError/.test(msg) || excType === 'TransactionInactiveError') && !hasFirstParty) return null;
+    // Suppress ambiguous runtime errors only when stack has NO first-party frames.
+    // These are common in extension/injected code but also genuine app bugs, so we
+    // must let them through when our own bundle appears in the trace.
+    if (!hasFirstParty && (
+      /\.(?:toLowerCase|trim|indexOf|findIndex) is not a function/.test(msg)
+      || /Maximum call stack size exceeded/.test(msg)
+      || /out of memory/i.test(msg)
+      || /^SyntaxError: Unexpected (?:token|keyword)/.test(msg)
+      || /Invalid or unexpected token/.test(msg)
+      || /^\w{1,2} is not a function\. \(In '\w{1,2}\(/.test(msg)
+    )) return null;
     return event;
   },
 });
