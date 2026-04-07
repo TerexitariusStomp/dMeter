@@ -286,9 +286,10 @@ function mapReliefItem(item) {
 async function fetchReliefWeb() {
   const appname = getReliefWebAppname();
   if (!appname) {
-    console.warn('  [ReliefWeb] RELIEFWEB_APPNAME not set, skipping ReliefWeb fetch');
+    console.log('  [ReliefWeb] RELIEFWEB_APPNAME not set, skipping ReliefWeb fetch');
     return [];
   }
+  console.log(`  [ReliefWeb] Fetching with appname="${appname}"`);
   const requestBodies = buildReliefWebRequestBodies();
 
   let lastError = null;
@@ -316,7 +317,10 @@ async function fetchReliefWeb() {
         if (!rows.length) continue;
 
         const mapped = rows.map(mapReliefItem).filter(Boolean);
-        if (mapped.length > 0) return mapped;
+        if (mapped.length > 0) {
+          console.log(`  [ReliefWeb] ${mapped.length} disasters from ${rows.length} rows`);
+          return mapped;
+        }
         if (rows.length > 0) console.warn(`[climate-disasters] ${rows.length} ReliefWeb rows returned but all mapped to null`);
       } catch (err) {
         lastError = err;
@@ -446,7 +450,7 @@ function collectDisasterSourceResults(results) {
     if (err?.isConfigError) throw err;
     failures.push(err);
     const message = String(err?.message || err || 'unknown source failure');
-    console.warn(`[seed-climate-disasters] partial source failure: ${message}`);
+    console.log(`  [seed-climate-disasters] partial source failure: ${message}`);
   }
 
   const disasters = dedupeAndSort(combined);
