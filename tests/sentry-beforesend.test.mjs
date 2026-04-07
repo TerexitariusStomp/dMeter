@@ -136,9 +136,13 @@ describe('empty-stack network/timeout errors are NOT suppressed', () => {
     'Importing a module script failed.',
     'Operation timed out',
     'signal timed out',
-    'SyntaxError: Unexpected token <',
-    'SyntaxError: Unexpected keyword \'const\'',
     'Invalid or unexpected token',
+  ];
+
+  // SyntaxErrors split by Sentry: type='SyntaxError', value='Unexpected token <'
+  const syntaxErrors = [
+    ['Unexpected token <', 'SyntaxError'],
+    ['Unexpected keyword \'const\'', 'SyntaxError'],
   ];
 
   for (const msg of networkErrors) {
@@ -167,6 +171,25 @@ describe('empty-stack network/timeout errors are NOT suppressed', () => {
       assert.ok(result !== null, `"${msg}" with first-party stack should NOT be suppressed`);
     });
   }
+
+  // Sentry splits SyntaxError into type='SyntaxError' + value='Unexpected token <'
+  // The value field never contains the 'SyntaxError:' prefix.
+  for (const [value, type] of syntaxErrors) {
+    it(`suppresses SyntaxError (split: value="${value}") with third-party stack`, () => {
+      const event = makeEvent(value, type, [extensionFrame()]);
+      assert.equal(beforeSend(event), null);
+    });
+
+    it(`lets through SyntaxError (split: value="${value}") with empty stack`, () => {
+      const event = makeEvent(value, type, []);
+      assert.ok(beforeSend(event) !== null);
+    });
+
+    it(`lets through SyntaxError (split: value="${value}") with first-party stack`, () => {
+      const event = makeEvent(value, type, [firstPartyFrame()]);
+      assert.ok(beforeSend(event) !== null);
+    });
+  }
 });
 
 // ─── All ambiguous errors require confirmed third-party stack ────────────
@@ -183,6 +206,17 @@ describe('ambiguous runtime errors', () => {
     'Key not found',
     'Element not found',
   ];
+
+  // Chrome V8 emits "xy is not a function" without Safari's "(In 'xy(...')" suffix
+  it('suppresses Chrome-style "t is not a function" with third-party stack', () => {
+    const event = makeEvent('t is not a function', 'TypeError', [extensionFrame()]);
+    assert.equal(beforeSend(event), null);
+  });
+
+  it('suppresses Safari-style "t is not a function. (In \'t(..." with third-party stack', () => {
+    const event = makeEvent("t is not a function. (In 't(1,2)')", 'TypeError', [extensionFrame()]);
+    assert.equal(beforeSend(event), null);
+  });
 
   for (const msg of ambiguousErrors) {
     it(`lets through "${msg}" with empty stack (origin unknown)`, () => {
