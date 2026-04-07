@@ -31,9 +31,7 @@ Sentry.init({
     /InvalidAccessError/,
     /importScripts/,
     /^TypeError: Load failed( \(.*\))?$/,
-    /^TypeError: Failed to fetch( \(.*\))?$/,
     /^TypeError: (?:cancelled|avbruten)$/,
-    /^TypeError: NetworkError/,
     /runtime\.sendMessage\(\)/,
     /Java object is gone/,
     /^Object captured as promise rejection with keys:/,
@@ -56,8 +54,6 @@ Sentry.init({
     /invalid origin/,
     /\.data\.split is not a function/,
     /signal is aborted without reason/,
-    /Failed to fetch dynamically imported module/,
-    /Importing a module script failed/,
     /contentWindow\.postMessage/,
     /Could not compile vertex shader/,
     /objectStoreNames/,
@@ -68,7 +64,6 @@ Sentry.init({
     /userScripts is not defined/,
     /NS_ERROR_ABORT/,
     /NS_ERROR_OUT_OF_MEMORY/,
-    /^Key not found$/,
     /DataCloneError.*could not be cloned/,
     /cannot decode message/,
     /WKWebView was deallocated/,
@@ -81,13 +76,10 @@ Sentry.init({
     /^TypeError: 已取消$/,
     /^fetchError: Network request failed$/,
     /window\.ethereum/,
-    /^Operation timed out\.?$/,
     /setting 'luma'/,
     /ML request .* timed out/,
-    /^Element not found$/,
     /(?:AbortError: )?The operation was aborted\.?\s*$/,
     /Unexpected end of script/,
-    /error loading dynamically imported module/,
     /Style is not done loading/,
     /Event `CustomEvent`.*captured as promise rejection/,
     /getProgramInfoLog/,
@@ -124,11 +116,9 @@ Sentry.init({
     /\w+ is not a function.*\/uv\/service\//,
     /__isInQueue__/,
     /^(?:LIDNotify(?:Id)?|onWebViewAppeared|onGetWiFiBSSID|onHide|onShow|onReady|tapAt|removeHighlight) is not defined$/,
-    /signal timed out/,
     /Se requiere plan premium/,
     /hybridExecute is not defined/,
     /reading 'postMessage'/,
-    /NotSupportedError/,
     /appendChild.*Unexpected token/,
     /\bmag is not defined\b/,
     /evaluating '[^']*\.luma/,
@@ -169,12 +159,10 @@ Sentry.init({
     /missing \) after argument list/,
     /Error invoking postMessage: Java exception/,
     /IndexSizeError/,
-    /Cannot add property \w+, object is not extensible/,
     /Failed to construct 'Worker'.*cannot be accessed from origin/,
     /undefined is not an object \(evaluating '(?:this\.)?media(?:Controller)?\.(?:duration|videoTracks|readyState|audioTracks|media)/,
     /\$ is not defined/,
     /Qt\([^)]*\) is not a function/,
-    /Could not connect to the server/,
     /shaderSource must be an instance of WebGLShader/,
     /WebGL2RenderingContext\.shaderSource: Argument 1 is not an object/,
     /Failed to initialize WebGL/,
@@ -196,7 +184,6 @@ Sentry.init({
     /ucapi is not defined/,
     /Identifier '(?:script|reportPage|element|Shop)' has already been declared/,
     /getAttribute is not a function.*getAttribute\("role"\)/,
-    /^TypeError: Internal error$/,
     /SCDynimacBridge/,
     /errTimes is not defined/,
     /Failed to get ServiceWorkerRegistration/,
@@ -326,6 +313,17 @@ Sentry.init({
       || /^SyntaxError: Unexpected (?:token|keyword)/.test(msg)
       || /Invalid or unexpected token/.test(msg)
       || /^\w{1,2} is not a function\. \(In '\w{1,2}\(/.test(msg)
+      || /^TypeError: Failed to fetch/.test(msg)
+      || /^TypeError: NetworkError/.test(msg)
+      || /Could not connect to the server/.test(msg)
+      || /(?:Failed to fetch|Importing a module script failed|error loading) dynamically imported module/i.test(msg)
+      || /^Operation timed out/.test(msg)
+      || /signal timed out/.test(msg)
+      || /NotSupportedError/.test(msg)
+      || /^Key not found$/.test(msg)
+      || /^Element not found$/.test(msg)
+      || /Cannot add property \w+, object is not extensible/.test(msg)
+      || /^TypeError: Internal error$/.test(msg)
     )) return null;
     return event;
   },
