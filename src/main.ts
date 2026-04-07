@@ -249,9 +249,15 @@ Sentry.init({
     const msg = event.exception?.values?.[0]?.value ?? '';
     if (msg.length <= 3 && /^[a-zA-Z_$]+$/.test(msg)) return null;
     const frames = event.exception?.values?.[0]?.stacktrace?.frames ?? [];
-    const firstPartyFile = /\.(ts|tsx)$|^src\/|\/(main|index|app|panels|deck-stack|map|maplibre)-[A-Za-z0-9_-]+\.js/;
+    const vendorChunk = /\/(maplibre|deck-stack|d3|topojson|i18n|sentry|transformers|onnxruntime)-[A-Za-z0-9_-]+\.js/;
+    const firstPartyFile = (filename: string) => {
+      if (/\.(ts|tsx)$/.test(filename) || /^src\//.test(filename)) return true;
+      if (/\/assets\/[A-Za-z0-9_-]+(-[A-Za-z0-9_-]+)*\.js/.test(filename)) return !vendorChunk.test(filename);
+      return false;
+    };
     const nonInfraFrames = frames.filter(f => f.filename && f.filename !== '<anonymous>' && f.filename !== '[native code]' && !/\/sentry-[A-Za-z0-9_-]+\.js/.test(f.filename));
-    const hasFirstParty = nonInfraFrames.some(f => firstPartyFile.test(f.filename ?? ''));
+    const hasFirstParty = nonInfraFrames.some(f => firstPartyFile(f.filename ?? ''));
+    const hasAnyStack = nonInfraFrames.length > 0;
     // Suppress maplibre internal null-access crashes (light, placement) only when stack is in map chunk
     if (/this\.style\._layers|reading '_layers'|this\.(light|sky) is null|can't access property "(id|type|setFilter)"[,] ?\w+ is (null|undefined)|can't access property "(id|type)" of null|Cannot read properties of null \(reading '(id|type|setFilter|_layers)'\)|null is not an object \(evaluating '\w{1,3}\.(id|style)|^\w{1,2} is null$/.test(msg)) {
       if (frames.some(f => /\/(map|maplibre|deck-stack)-[A-Za-z0-9_-]+\.js/.test(f.filename ?? ''))) return null;
@@ -303,27 +309,32 @@ Sentry.init({
     // (Safari kills open IDB transactions in background tabs — not actionable noise)
     // First-party paths in storage.ts / persistent-cache.ts / vector-db.ts must still surface.
     if ((/TransactionInactiveError/.test(msg) || excType === 'TransactionInactiveError') && !hasFirstParty) return null;
-    // Suppress ambiguous runtime errors only when stack has NO first-party frames.
-    // These are common in extension/injected code but also genuine app bugs, so we
-    // must let them through when our own bundle appears in the trace.
+    // Suppress extension-style runtime errors when stack confirms non-first-party origin.
+    // These are safe to drop with empty stacks because they are almost always extension noise
+    // and are not actionable without a stack trace anyway.
     if (!hasFirstParty && (
       /\.(?:toLowerCase|trim|indexOf|findIndex) is not a function/.test(msg)
       || /Maximum call stack size exceeded/.test(msg)
       || /out of memory/i.test(msg)
-      || /^SyntaxError: Unexpected (?:token|keyword)/.test(msg)
-      || /Invalid or unexpected token/.test(msg)
       || /^\w{1,2} is not a function\. \(In '\w{1,2}\(/.test(msg)
-      || /^TypeError: Failed to fetch/.test(msg)
-      || /^TypeError: NetworkError/.test(msg)
-      || /Could not connect to the server/.test(msg)
-      || /(?:Failed to fetch|Importing a module script failed|error loading) dynamically imported module/i.test(msg)
-      || /^Operation timed out/.test(msg)
-      || /signal timed out/.test(msg)
+      || /Cannot add property \w+, object is not extensible/.test(msg)
+      || /^TypeError: Internal error$/.test(msg)
       || /NotSupportedError/.test(msg)
       || /^Key not found$/.test(msg)
       || /^Element not found$/.test(msg)
-      || /Cannot add property \w+, object is not extensible/.test(msg)
-      || /^TypeError: Internal error$/.test(msg)
+    )) return null;
+    // Suppress network/timeout/deploy errors ONLY when stack positively identifies third-party
+    // origin. Empty stacks are NOT suppressed because these errors commonly arrive without
+    // frames even when our own code triggered them (fetch failures, module load failures).
+    if (hasAnyStack && !hasFirstParty && (
+      /^TypeError: Failed to fetch/.test(msg)
+      || /^TypeError: NetworkError/.test(msg)
+      || /Could not connect to the server/.test(msg)
+      || /(?:Failed to fetch|Importing a module script failed|error loading) dynamically imported module/i.test(msg)
+      || /^SyntaxError: Unexpected (?:token|keyword)/.test(msg)
+      || /Invalid or unexpected token/.test(msg)
+      || /^Operation timed out/.test(msg)
+      || /signal timed out/.test(msg)
     )) return null;
     return event;
   },
