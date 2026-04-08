@@ -421,7 +421,10 @@ export default async function handler(req) {
     const size = metaCount ?? (hasData ? 1 : 0);
 
     let status;
-    if (!hasData) {
+    if (seedError === true) {
+      status = 'SEED_ERROR';
+      warnCount++;
+    } else if (!hasData) {
       if (EMPTY_DATA_OK_KEYS.has(name)) {
         if (seedStale === true) {
           status = 'STALE_SEED';
@@ -447,9 +450,6 @@ export default async function handler(req) {
         status = 'EMPTY_DATA';
         critCount++;
       }
-    } else if (seedError === true) {
-      status = 'SEED_ERROR';
-      warnCount++;
     } else if (seedStale === true) {
       status = 'STALE_SEED';
       warnCount++;
@@ -511,7 +511,10 @@ export default async function handler(req) {
     }
 
     let status;
-    if (!hasData) {
+    if (seedError === true) {
+      status = 'SEED_ERROR';
+      warnCount++;
+    } else if (!hasData) {
       if (cascadeCovered) {
         status = 'OK_CASCADE';
         okCount++;
@@ -549,9 +552,6 @@ export default async function handler(req) {
         status = 'EMPTY_DATA';
         critCount++;
       }
-    } else if (seedError === true) {
-      status = 'SEED_ERROR';
-      warnCount++;
     } else if (seedStale === true) {
       status = 'STALE_SEED';
       warnCount++;

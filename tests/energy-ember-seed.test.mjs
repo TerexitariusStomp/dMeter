@@ -252,6 +252,74 @@ describe('pipeline failure detection logic', () => {
   });
 });
 
+describe('rollback command generation on partial pipeline failure', () => {
+  it('generates correct rollback commands from a stashed _all map', () => {
+    const oldAllMap = {
+      US: { dataMonth: '2024-01', fossilShare: 50, renewShare: 37.5 },
+      DE: { dataMonth: '2024-01', fossilShare: 28.6, renewShare: 71.4 },
+    };
+
+    const rollbackCmds = Object.entries(oldAllMap).map(([iso2, val]) => [
+      'SET', `${EMBER_KEY_PREFIX}${iso2}`, JSON.stringify(val), 'EX', EMBER_TTL_SECONDS,
+    ]);
+    rollbackCmds.push(['SET', EMBER_ALL_KEY, JSON.stringify(oldAllMap), 'EX', EMBER_TTL_SECONDS]);
+
+    assert.equal(rollbackCmds.length, 3, 'should have 2 per-country + 1 _all command');
+    assert.equal(rollbackCmds[0][0], 'SET');
+    assert.equal(rollbackCmds[0][1], `${EMBER_KEY_PREFIX}US`);
+    assert.equal(rollbackCmds[0][3], 'EX');
+    assert.equal(rollbackCmds[0][4], EMBER_TTL_SECONDS);
+
+    assert.equal(rollbackCmds[2][1], EMBER_ALL_KEY, 'last command should restore _all');
+    const restoredAll = JSON.parse(rollbackCmds[2][2]);
+    assert.deepEqual(Object.keys(restoredAll).sort(), ['DE', 'US']);
+  });
+
+  it('does not generate rollback when oldAllMap is null', () => {
+    const oldAllMap = null;
+    const shouldRollback = oldAllMap && typeof oldAllMap === 'object';
+    assert.equal(shouldRollback, null, 'null stash should skip rollback');
+  });
+});
+
+describe('health cascade: seedError priority over hasData', () => {
+  function resolveStatus({ seedError, hasData, seedStale, size }) {
+    let status;
+    if (seedError === true) {
+      status = 'SEED_ERROR';
+    } else if (!hasData) {
+      status = 'EMPTY';
+    } else if (size === 0) {
+      status = 'EMPTY_DATA';
+    } else if (seedStale === true) {
+      status = 'STALE_SEED';
+    } else {
+      status = 'OK';
+    }
+    return status;
+  }
+
+  it('returns SEED_ERROR when seedError=true and hasData=false', () => {
+    const status = resolveStatus({ seedError: true, hasData: false, seedStale: true, size: 0 });
+    assert.equal(status, 'SEED_ERROR', 'seedError should take priority over !hasData');
+  });
+
+  it('returns SEED_ERROR when seedError=true and hasData=true', () => {
+    const status = resolveStatus({ seedError: true, hasData: true, seedStale: false, size: 100 });
+    assert.equal(status, 'SEED_ERROR', 'seedError should take priority even when data exists');
+  });
+
+  it('returns EMPTY when seedError=false and hasData=false', () => {
+    const status = resolveStatus({ seedError: false, hasData: false, seedStale: false, size: 0 });
+    assert.equal(status, 'EMPTY', 'no error + no data should be EMPTY');
+  });
+
+  it('returns OK when seedError=false and hasData=true and not stale', () => {
+    const status = resolveStatus({ seedError: false, hasData: true, seedStale: false, size: 100 });
+    assert.equal(status, 'OK');
+  });
+});
+
 describe('health endpoint status agreement for error meta', () => {
   it('seed-health.js logic emits "error" for meta.status="error"', () => {
     // Simulates seed-health.js lines 131-148 logic

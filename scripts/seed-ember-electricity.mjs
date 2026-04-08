@@ -224,25 +224,34 @@ async function redisGet(key) {
   return data.result ? JSON.parse(data.result) : null;
 }
 
-async function preservePreviousSnapshot(errorMsg) {
+async function preservePreviousSnapshot(errorMsg, stashedAllMap = null) {
   console.error('[EmberElectricity] Preserving previous snapshot:', errorMsg);
 
-  const [existingAll, existingMeta] = await Promise.all([
-    redisGet(EMBER_ALL_KEY).catch(() => null),
-    redisGet(EMBER_META_KEY).catch(() => null),
-  ]);
-  const iso2Keys = existingAll && typeof existingAll === 'object'
-    ? Object.keys(existingAll).map((iso2) => `${EMBER_KEY_PREFIX}${iso2}`)
-    : [];
+  const existingMeta = await redisGet(EMBER_META_KEY).catch(() => null);
 
-  await extendExistingTtl(
-    [...iso2Keys, EMBER_ALL_KEY, EMBER_META_KEY],
-    EMBER_TTL_SECONDS,
-  );
+  if (stashedAllMap && typeof stashedAllMap === 'object') {
+    const restoreCmds = Object.entries(stashedAllMap).map(([iso2, val]) => [
+      'SET', `${EMBER_KEY_PREFIX}${iso2}`, JSON.stringify(val), 'EX', EMBER_TTL_SECONDS,
+    ]);
+    restoreCmds.push(['SET', EMBER_ALL_KEY, JSON.stringify(stashedAllMap), 'EX', EMBER_TTL_SECONDS]);
+    await redisPipeline(restoreCmds).catch((e) =>
+      console.error('[EmberElectricity] Snapshot restore failed:', e),
+    );
+  } else {
+    const existingAll = await redisGet(EMBER_ALL_KEY).catch(() => null);
+    const iso2Keys = existingAll && typeof existingAll === 'object'
+      ? Object.keys(existingAll).map((iso2) => `${EMBER_KEY_PREFIX}${iso2}`)
+      : [];
+
+    await extendExistingTtl(
+      [...iso2Keys, EMBER_ALL_KEY, EMBER_META_KEY],
+      EMBER_TTL_SECONDS,
+    );
+  }
 
   const metaPayload = {
     fetchedAt: Date.now(),
-    recordCount: existingMeta?.recordCount ?? 0, // preserve previous count so drop guard stays active
+    recordCount: existingMeta?.recordCount ?? 0,
     status: 'error',
     error: errorMsg,
   };
@@ -263,6 +272,8 @@ export async function main() {
     console.log('[EmberElectricity] Lock held by another run, skipping');
     return;
   }
+
+  let oldAllMap = null;
 
   try {
     const csvText = await withRetry(
@@ -305,10 +316,13 @@ export async function main() {
       sourceVersion: 'ember-monthly-v1',
     };
 
-    // Phase A: write all per-country keys
-    const countryCommands = [];
+    // Stash old _all for rollback on partial failure
+    oldAllMap = await redisGet(EMBER_ALL_KEY).catch(() => null);
+
+    // Phase A: write all per-country keys + _all in a single pipeline
+    const dataCommands = [];
     for (const [iso2, payload] of countries) {
-      countryCommands.push([
+      dataCommands.push([
         'SET',
         `${EMBER_KEY_PREFIX}${iso2}`,
         JSON.stringify(payload),
@@ -316,30 +330,38 @@ export async function main() {
         EMBER_TTL_SECONDS,
       ]);
     }
-    const countryResults = await redisPipeline(countryCommands);
-    const countryFailures = countryResults.filter((r) => r?.error || r?.result === 'ERR');
-    if (countryFailures.length > 0) {
+    dataCommands.push([
+      'SET',
+      EMBER_ALL_KEY,
+      JSON.stringify(allCountriesMap),
+      'EX',
+      EMBER_TTL_SECONDS,
+    ]);
+
+    const dataResults = await redisPipeline(dataCommands);
+    const dataFailures = dataResults.filter((r) => r?.error || r?.result === 'ERR');
+    if (dataFailures.length > 0) {
+      if (oldAllMap && typeof oldAllMap === 'object') {
+        const rollbackCmds = Object.entries(oldAllMap).map(([iso2, val]) => [
+          'SET', `${EMBER_KEY_PREFIX}${iso2}`, JSON.stringify(val), 'EX', EMBER_TTL_SECONDS,
+        ]);
+        rollbackCmds.push(['SET', EMBER_ALL_KEY, JSON.stringify(oldAllMap), 'EX', EMBER_TTL_SECONDS]);
+        await redisPipeline(rollbackCmds).catch((e) =>
+          console.error('[EmberElectricity] Rollback pipeline failed:', e),
+        );
+      }
       throw new Error(
-        `Redis pipeline: ${countryFailures.length}/${countryCommands.length} country commands failed`,
+        `Redis pipeline: ${dataFailures.length}/${dataCommands.length} data commands failed`,
       );
     }
 
-    // Phase A2: write _all only after all per-country writes succeed
-    // _all is always the last-written key so preservePreviousSnapshot always reads the previous good snapshot
-    const allResults = await redisPipeline([
-      ['SET', EMBER_ALL_KEY, JSON.stringify(allCountriesMap), 'EX', EMBER_TTL_SECONDS],
-    ]);
-    if (allResults[0]?.error || allResults[0]?.result === 'ERR') {
-      throw new Error('Redis pipeline: _all write failed');
-    }
-
-    // Phase B: seed-meta (only after _all is fully written)
+    // Phase B: seed-meta (only after all data is fully written)
     await redisPipeline([['SET', EMBER_META_KEY, JSON.stringify(metaPayload), 'EX', EMBER_TTL_SECONDS]]);
 
     logSeedResult('energy:ember', countries.size, Date.now() - startedAt);
     console.log(`[EmberElectricity] Seeded ${countries.size} countries`);
   } catch (err) {
-    await preservePreviousSnapshot(String(err)).catch((e) =>
+    await preservePreviousSnapshot(String(err), oldAllMap).catch((e) =>
       console.error('[EmberElectricity] Failed to preserve snapshot:', e),
     );
     throw err;
