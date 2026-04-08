@@ -4309,7 +4309,9 @@ export class DeckGLMap {
 
     this.container.appendChild(toggles);
 
-    // Unlock premium layers when auth state resolves (e.g., Clerk JWT arrives after map init)
+    // Unlock premium layers when auth state resolves (e.g., Clerk JWT arrives after map init).
+    // subscribeAuthState fires the callback synchronously if state is already available,
+    // so we defer the self-unsubscribe with queueMicrotask to ensure the assignment completes.
     this._unsubscribeAuthState = subscribeAuthState((state) => {
       if (!hasPremiumAccess(state)) return;
       toggles.querySelectorAll('.layer-toggle-locked').forEach(label => {
@@ -4319,8 +4321,10 @@ export class DeckGLMap {
         const labelSpan = label.querySelector('.toggle-label');
         if (labelSpan) labelSpan.textContent = labelSpan.textContent!.replace(' \uD83D\uDD12', '');
       });
-      this._unsubscribeAuthState?.();
-      this._unsubscribeAuthState = null;
+      queueMicrotask(() => {
+        this._unsubscribeAuthState?.();
+        this._unsubscribeAuthState = null;
+      });
     });
 
     // Bind toggle events
