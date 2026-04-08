@@ -256,17 +256,7 @@ export async function main() {
   const runId = `energy:ember:${startedAt}`;
   const lock = await acquireLockSafely(LOCK_DOMAIN, runId, LOCK_TTL_MS, { label: LOCK_DOMAIN });
   if (lock.skipped) {
-    // Refresh TTL on existing meta without resetting recordCount or status
-    // so the count-drop guard stays active and health endpoints reflect real state
-    const existingMeta = await redisGet(EMBER_META_KEY).catch(() => null);
-    await redisPipeline([
-      ['SET', EMBER_META_KEY, JSON.stringify({
-        fetchedAt: Date.now(),                               // update to prevent staleness
-        recordCount: existingMeta?.recordCount ?? 0,         // preserve; 0 only if never seeded
-        status: existingMeta?.status ?? 'skipped',           // preserve real status
-        sourceVersion: existingMeta?.sourceVersion ?? null,
-      }), 'EX', EMBER_TTL_SECONDS],
-    ]).catch(() => {});
+    console.log('[EmberElectricity] Lock held by concurrent run, skipping');
     return;
   }
   if (!lock.locked) {
