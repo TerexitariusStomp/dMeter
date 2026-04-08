@@ -93,6 +93,7 @@ const BOOTSTRAP_CACHE_KEYS = {
   chokepointBaselines:  'energy:chokepoint-baselines:v1',
   portwatchChokepointsRef: 'portwatch:chokepoints:ref:v1',
   portwatchPortActivity: 'supply_chain:portwatch-ports:v1:_countries',
+  emberElectricity:      'energy:ember:v1:_all',
 };
 
 const SLOW_KEYS = new Set([
@@ -112,6 +113,7 @@ const SLOW_KEYS = new Set([
   'bigmac',
   'fuelPrices',
   'faoFoodPriceIndex',
+  'emberElectricity',
   'nationalDebt',
   'euGasStorage',
   'eurostatCountryData',
