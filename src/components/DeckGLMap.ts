@@ -356,6 +356,7 @@ export class DeckGLMap {
   private cyberThreats: CyberThreat[] = [];
   private aptGroups: import('@/types').APTGroup[] = [];
   private aptGroupsLoaded = false;
+  private _unsubscribeAuthState: (() => void) | null = null;
   private aptGroupsLayerFailed = false;
   private satelliteImageryLayerFailed = false;
   private iranEvents: IranEvent[] = [];
@@ -4309,8 +4310,8 @@ export class DeckGLMap {
     this.container.appendChild(toggles);
 
     // Unlock premium layers when auth state resolves (e.g., Clerk JWT arrives after map init)
-    subscribeAuthState(() => {
-      if (!hasPremiumAccess(getAuthState())) return;
+    this._unsubscribeAuthState = subscribeAuthState((state) => {
+      if (!hasPremiumAccess(state)) return;
       toggles.querySelectorAll('.layer-toggle-locked').forEach(label => {
         label.classList.remove('layer-toggle-locked');
         const input = label.querySelector('input') as HTMLInputElement | null;
@@ -4318,6 +4319,8 @@ export class DeckGLMap {
         const labelSpan = label.querySelector('.toggle-label');
         if (labelSpan) labelSpan.textContent = labelSpan.textContent!.replace(' \uD83D\uDD12', '');
       });
+      this._unsubscribeAuthState?.();
+      this._unsubscribeAuthState = null;
     });
 
     // Bind toggle events
@@ -6057,6 +6060,8 @@ export class DeckGLMap {
   }
 
   public destroy(): void {
+    this._unsubscribeAuthState?.();
+    this._unsubscribeAuthState = null;
     window.removeEventListener('theme-changed', this.handleThemeChange);
     window.removeEventListener('map-theme-changed', this.handleMapThemeChange);
     this.debouncedRebuildLayers.cancel();
