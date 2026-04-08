@@ -20,7 +20,7 @@ export const EMBER_META_KEY = 'seed-meta:energy:ember';
 export const EMBER_TTL_SECONDS = 259200; // 72h = 3× daily cron interval
 
 const EMBER_CSV_URL =
-  'https://ember-climate.org/app/uploads/2022/07/monthly_full_release_long_format.csv';
+  'https://storage.googleapis.com/emb-prod-bkt-publicdata/public-downloads/monthly_full_release_long_format.csv';
 const LOCK_DOMAIN = 'energy:ember';
 const LOCK_TTL_MS = 20 * 60 * 1000; // 20 min
 const MIN_COUNTRIES = 60;
@@ -218,7 +218,10 @@ async function redisGet(key) {
 async function preservePreviousSnapshot(errorMsg) {
   console.error('[EmberElectricity] Preserving previous snapshot:', errorMsg);
 
-  const existingAll = await redisGet(EMBER_ALL_KEY).catch(() => null);
+  const [existingAll, existingMeta] = await Promise.all([
+    redisGet(EMBER_ALL_KEY).catch(() => null),
+    redisGet(EMBER_META_KEY).catch(() => null),
+  ]);
   const iso2Keys = existingAll && typeof existingAll === 'object'
     ? Object.keys(existingAll).map((iso2) => `${EMBER_KEY_PREFIX}${iso2}`)
     : [];
@@ -230,7 +233,7 @@ async function preservePreviousSnapshot(errorMsg) {
 
   const metaPayload = {
     fetchedAt: Date.now(),
-    recordCount: 0,
+    recordCount: existingMeta?.recordCount ?? 0, // preserve previous count so drop guard stays active
     status: 'error',
     error: errorMsg,
   };

@@ -129,11 +129,12 @@ export default async function handler(req) {
     }
 
     const ageMs = now - (meta.fetchedAt || 0);
-    const stale = ageMs > maxStalenessMs;
+    const isError = meta.status === 'error';
+    const stale = ageMs > maxStalenessMs || isError;
     if (stale) staleCount++;
 
     seeds[domain] = {
-      status: stale ? 'stale' : 'ok',
+      status: stale ? (isError ? 'error' : 'stale') : 'ok',
       fetchedAt: meta.fetchedAt,
       recordCount: meta.recordCount ?? null,
       sourceVersion: meta.sourceVersion || null,
