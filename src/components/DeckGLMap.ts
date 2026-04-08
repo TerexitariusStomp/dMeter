@@ -4587,6 +4587,10 @@ export class DeckGLMap {
             { shape: shapes.circle('rgb(241, 196, 15)'), label: t('components.deckgl.legend.diseaseWatch'), layerKey: 'diseaseOutbreaks' },
             ...resilienceLegendItems,
           ]
+          : SITE_VARIANT === 'sports'
+            ? [
+              { shape: shapes.circle('rgb(96, 165, 250)'), label: t('components.deckgl.layers.dayNight'), layerKey: 'dayNight' },
+            ]
           : SITE_VARIANT === 'commodity'
             ? [
               { shape: shapes.hexagon(isLight ? 'rgb(180, 120, 0)' : 'rgb(255, 200, 0)'), label: t('components.deckgl.legend.commodityHub'), layerKey: 'commodityHubs' },

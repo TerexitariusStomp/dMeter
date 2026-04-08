@@ -47,6 +47,14 @@ import type { YieldCurvePanel } from '@/components/YieldCurvePanel';
 import type { EarningsCalendarPanel } from '@/components/EarningsCalendarPanel';
 import type { EconomicCalendarPanel } from '@/components/EconomicCalendarPanel';
 import type { CotPositioningPanel } from '@/components/CotPositioningPanel';
+import type { SportsFixturesPanel } from '@/components/SportsFixturesPanel';
+import type { SportsTablesPanel } from '@/components/SportsTablesPanel';
+import type { SportsStatsPanel } from '@/components/SportsStatsPanel';
+import type { SportsMajorTournamentsPanel } from '@/components/SportsMajorTournamentsPanel';
+import type { SportsNbaPanel } from '@/components/SportsNbaPanel';
+import type { SportsMotorsportPanel } from '@/components/SportsMotorsportPanel';
+import type { SportsTransferNewsPanel } from '@/components/SportsTransferNewsPanel';
+import type { SportsPlayerSearchPanel } from '@/components/SportsPlayerSearchPanel';
 import { isDesktopRuntime, waitForSidecarReady } from '@/services/runtime';
 import { hasPremiumAccess } from '@/services/panel-gating';
 import { BETA_MODE } from '@/config/beta';
@@ -328,6 +336,38 @@ export class App {
     if (shouldPrime('cot-positioning')) {
       const panel = this.state.panels['cot-positioning'] as CotPositioningPanel | undefined;
       if (panel) primeTask('cot-positioning', () => panel.fetchData());
+    }
+    if (shouldPrime('sports-fixtures')) {
+      const panel = this.state.panels['sports-fixtures'] as SportsFixturesPanel | undefined;
+      if (panel) primeTask('sports-fixtures', () => panel.fetchData());
+    }
+    if (shouldPrime('sports-tables')) {
+      const panel = this.state.panels['sports-tables'] as SportsTablesPanel | undefined;
+      if (panel) primeTask('sports-tables', () => panel.fetchData());
+    }
+    if (shouldPrime('sports-stats')) {
+      const panel = this.state.panels['sports-stats'] as SportsStatsPanel | undefined;
+      if (panel) primeTask('sports-stats', () => panel.fetchData());
+    }
+    if (shouldPrime('sports-tournaments')) {
+      const panel = this.state.panels['sports-tournaments'] as SportsMajorTournamentsPanel | undefined;
+      if (panel) primeTask('sports-tournaments', () => panel.fetchData());
+    }
+    if (shouldPrime('sports-nba')) {
+      const panel = this.state.panels['sports-nba'] as SportsNbaPanel | undefined;
+      if (panel) primeTask('sports-nba', () => panel.fetchData());
+    }
+    if (shouldPrime('sports-motorsport-standings')) {
+      const panel = this.state.panels['sports-motorsport-standings'] as SportsMotorsportPanel | undefined;
+      if (panel) primeTask('sports-motorsport-standings', () => panel.fetchData());
+    }
+    if (shouldPrime('sports-transfers')) {
+      const panel = this.state.panels['sports-transfers'] as SportsTransferNewsPanel | undefined;
+      if (panel) primeTask('sports-transfers', () => panel.fetchData());
+    }
+    if (shouldPrime('sports-player-search')) {
+      const panel = this.state.panels['sports-player-search'] as SportsPlayerSearchPanel | undefined;
+      if (panel) primeTask('sports-player-search', () => panel.fetchData());
     }
     if (shouldPrimeAny(['markets', 'heatmap', 'commodities', 'crypto', 'energy-complex'])) {
       primeTask('markets', () => this.dataLoader.loadMarkets());
@@ -1155,11 +1195,13 @@ export class App {
   }
 
   private setupRefreshIntervals(): void {
+    const skipsGeneralRefreshes = SITE_VARIANT === 'happy' || SITE_VARIANT === 'sports';
+
     // Always refresh news for all variants
     this.refreshScheduler.scheduleRefresh('news', () => this.dataLoader.loadNews(), REFRESH_INTERVALS.feeds);
 
-    // Happy variant only refreshes news -- skip all geopolitical/financial/military refreshes
-    if (SITE_VARIANT !== 'happy') {
+    // Happy and sports variants skip the general geopolitical/financial refresh suite.
+    if (!skipsGeneralRefreshes) {
       this.refreshScheduler.registerAll([
         {
           name: 'markets',
@@ -1284,7 +1326,7 @@ export class App {
     );
 
     // Server-side temporal anomalies (news + satellite_fires)
-    if (SITE_VARIANT !== 'happy') {
+    if (!skipsGeneralRefreshes) {
       this.refreshScheduler.scheduleRefresh('temporalBaseline', () => this.dataLoader.refreshTemporalBaseline(), REFRESH_INTERVALS.temporalBaseline, () => this.shouldRefreshIntelligence());
     }
 
@@ -1386,6 +1428,48 @@ export class App {
       () => (this.state.panels['cot-positioning'] as CotPositioningPanel).fetchData(),
       REFRESH_INTERVALS.cotPositioning,
       () => this.isPanelNearViewport('cot-positioning')
+    );
+    this.refreshScheduler.scheduleRefresh(
+      'sports-fixtures',
+      () => (this.state.panels['sports-fixtures'] as SportsFixturesPanel).fetchData(),
+      REFRESH_INTERVALS.sports,
+      () => this.isPanelNearViewport('sports-fixtures')
+    );
+    this.refreshScheduler.scheduleRefresh(
+      'sports-tables',
+      () => (this.state.panels['sports-tables'] as SportsTablesPanel).fetchData(),
+      REFRESH_INTERVALS.sports,
+      () => this.isPanelNearViewport('sports-tables')
+    );
+    this.refreshScheduler.scheduleRefresh(
+      'sports-stats',
+      () => (this.state.panels['sports-stats'] as SportsStatsPanel).fetchData(),
+      REFRESH_INTERVALS.sports,
+      () => this.isPanelNearViewport('sports-stats')
+    );
+    this.refreshScheduler.scheduleRefresh(
+      'sports-tournaments',
+      () => (this.state.panels['sports-tournaments'] as SportsMajorTournamentsPanel).fetchData(),
+      REFRESH_INTERVALS.sports,
+      () => this.isPanelNearViewport('sports-tournaments')
+    );
+    this.refreshScheduler.scheduleRefresh(
+      'sports-nba',
+      () => (this.state.panels['sports-nba'] as SportsNbaPanel).fetchData(),
+      REFRESH_INTERVALS.sports,
+      () => this.isPanelNearViewport('sports-nba')
+    );
+    this.refreshScheduler.scheduleRefresh(
+      'sports-motorsport-standings',
+      () => (this.state.panels['sports-motorsport-standings'] as SportsMotorsportPanel).fetchData(),
+      REFRESH_INTERVALS.sports,
+      () => this.isPanelNearViewport('sports-motorsport-standings')
+    );
+    this.refreshScheduler.scheduleRefresh(
+      'sports-transfers',
+      () => (this.state.panels['sports-transfers'] as SportsTransferNewsPanel).fetchData(),
+      REFRESH_INTERVALS.sports,
+      () => this.isPanelNearViewport('sports-transfers')
     );
 
     // Refresh intelligence signals for CII (geopolitical variant only)

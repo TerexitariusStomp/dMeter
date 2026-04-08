@@ -510,6 +510,185 @@ function rssProxyPlugin(): Plugin {
   };
 }
 
+function sportsDataProxyPlugin(): Plugin {
+  const PROVIDERS = {
+    thesportsdb: {
+      baseUrl: 'https://www.thesportsdb.com/api/v1/json/123',
+      endpoints: new Set([
+        '/all_leagues.php',
+        '/lookupleague.php',
+        '/search_all_seasons.php',
+        '/lookuptable.php',
+        '/eventslast.php',
+        '/eventsnext.php',
+        '/lookupeventstats.php',
+        '/searchplayers.php',
+        '/lookupplayer.php',
+      ]),
+      allowedParams: {
+        '/all_leagues.php': new Set<string>(),
+        '/lookupleague.php': new Set(['id']),
+        '/search_all_seasons.php': new Set(['id']),
+        '/lookuptable.php': new Set(['l', 's']),
+        '/eventslast.php': new Set(['id']),
+        '/eventsnext.php': new Set(['id']),
+        '/lookupeventstats.php': new Set(['id']),
+        '/searchplayers.php': new Set(['p']),
+        '/lookupplayer.php': new Set(['id']),
+      },
+    },
+    espn: {
+      baseUrl: 'https://www.espn.com',
+      endpoints: new Set(['/nba/standings']),
+      allowedParams: {
+        '/nba/standings': new Set<string>(),
+      },
+    },
+    espnsite: {
+      baseUrl: 'https://site.api.espn.com/apis/site/v2/sports',
+      endpoints: new Set([
+        '/soccer/eng.1/scoreboard',
+        '/soccer/eng.1/summary',
+        '/soccer/uefa.champions/scoreboard',
+        '/soccer/uefa.champions/summary',
+        '/soccer/fifa.world/scoreboard',
+        '/soccer/fifa.world/summary',
+        '/soccer/uefa.euro/scoreboard',
+        '/soccer/uefa.euro/summary',
+        '/soccer/conmebol.america/scoreboard',
+        '/soccer/conmebol.america/summary',
+        '/soccer/conmebol.libertadores/scoreboard',
+        '/soccer/conmebol.libertadores/summary',
+        '/basketball/nba/scoreboard',
+        '/basketball/nba/summary',
+      ]),
+      allowedParams: {
+        '/soccer/eng.1/scoreboard': new Set<string>(),
+        '/soccer/eng.1/summary': new Set(['event']),
+        '/soccer/uefa.champions/scoreboard': new Set<string>(),
+        '/soccer/uefa.champions/summary': new Set(['event']),
+        '/soccer/fifa.world/scoreboard': new Set<string>(),
+        '/soccer/fifa.world/summary': new Set(['event']),
+        '/soccer/uefa.euro/scoreboard': new Set<string>(),
+        '/soccer/uefa.euro/summary': new Set(['event']),
+        '/soccer/conmebol.america/scoreboard': new Set<string>(),
+        '/soccer/conmebol.america/summary': new Set(['event']),
+        '/soccer/conmebol.libertadores/scoreboard': new Set<string>(),
+        '/soccer/conmebol.libertadores/summary': new Set(['event']),
+        '/basketball/nba/scoreboard': new Set<string>(),
+        '/basketball/nba/summary': new Set(['event']),
+      },
+    },
+    jolpica: {
+      baseUrl: 'https://api.jolpi.ca',
+      endpoints: new Set([
+        '/ergast/f1/current/driverStandings.json',
+        '/ergast/f1/current/constructorStandings.json',
+        '/ergast/f1/current/last/results.json',
+        '/ergast/f1/current/next.json',
+      ]),
+      allowedParams: {
+        '/ergast/f1/current/driverStandings.json': new Set<string>(),
+        '/ergast/f1/current/constructorStandings.json': new Set<string>(),
+        '/ergast/f1/current/last/results.json': new Set<string>(),
+        '/ergast/f1/current/next.json': new Set<string>(),
+      },
+    },
+    openf1: {
+      baseUrl: 'https://api.openf1.org',
+      endpoints: new Set([
+        '/v1/drivers',
+      ]),
+      allowedParams: {
+        '/v1/drivers': new Set(['session_key']),
+      },
+    },
+  } as const;
+
+  return {
+    name: 'sports-data-proxy',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        if (!req.url?.startsWith('/api/sports-data')) {
+          return next();
+        }
+
+        const url = new URL(req.url, 'http://localhost');
+        const providerKey = (url.searchParams.get('provider') || 'thesportsdb') as keyof typeof PROVIDERS;
+        const rawPath = url.searchParams.get('path');
+        if (!rawPath) {
+          res.statusCode = 400;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Missing path parameter' }));
+          return;
+        }
+
+        const provider = PROVIDERS[providerKey];
+        if (!provider) {
+          res.statusCode = 400;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Invalid sports provider' }));
+          return;
+        }
+
+        let parsedPath: URL;
+        try {
+          parsedPath = new URL(rawPath, 'https://worldmonitor.app');
+        } catch {
+          res.statusCode = 400;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Invalid sports path' }));
+          return;
+        }
+
+        if (!provider.endpoints.has(parsedPath.pathname)) {
+          res.statusCode = 403;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Sports endpoint not allowed' }));
+          return;
+        }
+
+        const allowedParams = provider.allowedParams[parsedPath.pathname as keyof typeof provider.allowedParams];
+        for (const key of parsedPath.searchParams.keys()) {
+          if (!allowedParams?.has(key)) {
+            res.statusCode = 403;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: 'Sports parameter not allowed' }));
+            return;
+          }
+        }
+
+        const upstreamUrl = `${provider.baseUrl}${parsedPath.pathname}${parsedPath.search}`;
+
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 12000);
+          const response = await fetch(upstreamUrl, {
+            signal: controller.signal,
+            headers: {
+              'Accept': 'application/json',
+              'User-Agent': 'WorldMonitor-Sports-Proxy/1.0',
+            },
+          });
+          clearTimeout(timer);
+
+          const data = await response.text();
+          res.statusCode = response.status;
+          res.setHeader('Content-Type', response.headers.get('content-type') || 'application/json');
+          res.setHeader('Cache-Control', 'public, max-age=120');
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.end(data);
+        } catch (error: any) {
+          console.error('[sports-data]', upstreamUrl, error.message);
+          res.statusCode = error.name === 'AbortError' ? 504 : 502;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: error.name === 'AbortError' ? 'Sports feed timeout' : 'Failed to fetch sports data' }));
+        }
+      });
+    },
+  };
+}
+
 function youtubeLivePlugin(): Plugin {
   return {
     name: 'youtube-live',
@@ -621,6 +800,7 @@ export default defineConfig(({ mode }) => {
       htmlVariantPlugin(activeMeta, activeVariant, isDesktopBuild),
       polymarketPlugin(),
       rssProxyPlugin(),
+      sportsDataProxyPlugin(),
       youtubeLivePlugin(),
       gpsjamDevPlugin(),
       sebufApiPlugin(),

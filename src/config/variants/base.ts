@@ -60,6 +60,7 @@ export const REFRESH_INTERVALS = {
   earningsCalendar: 60 * 60 * 1000,
   economicCalendar: 60 * 60 * 1000,
   cotPositioning: 60 * 60 * 1000,
+  sports: 15 * 60 * 1000,
 };
 
 // Monitor colors - shared

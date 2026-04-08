@@ -404,7 +404,18 @@ export class MapComponent {
     const happyLayers: (keyof MapLayers)[] = [
       'positiveEvents', 'kindness', 'happiness', 'speciesRecovery', 'renewableInstallations',
     ];
-    const layers = SITE_VARIANT === 'tech' ? techLayers : SITE_VARIANT === 'finance' ? financeLayers : SITE_VARIANT === 'happy' ? happyLayers : fullLayers;
+    const sportsLayers: (keyof MapLayers)[] = [
+      'dayNight',
+    ];
+    const layers = SITE_VARIANT === 'tech'
+      ? techLayers
+      : SITE_VARIANT === 'finance'
+        ? financeLayers
+        : SITE_VARIANT === 'happy'
+          ? happyLayers
+          : SITE_VARIANT === 'sports'
+            ? sportsLayers
+            : fullLayers;
     const layerLabelKeys: Partial<Record<keyof MapLayers, string>> = {
       hotspots: 'components.deckgl.layers.intelHotspots',
       conflicts: 'components.deckgl.layers.conflictZones',
@@ -435,6 +446,7 @@ export class MapComponent {
       iranAttacks: 'components.deckgl.layers.iranAttacks',
       gpsJamming: 'components.deckgl.layers.gpsJamming',
       ciiChoropleth: 'components.deckgl.layers.ciiChoropleth',
+      dayNight: 'components.deckgl.layers.dayNight',
     };
     const getLayerLabel = (layer: keyof MapLayers): string => {
       if (layer === 'sanctions') return t('components.deckgl.layerHelp.labels.sanctions');
@@ -616,10 +628,22 @@ export class MapComponent {
       </div>
     `;
 
+    const sportsHelpContent = `
+      ${helpHeader}
+      <div class="layer-help-content">
+        <div class="layer-help-section">
+          <div class="layer-help-title">Sports Context</div>
+          <div class="layer-help-item"><span>${label('dayNight')}</span> Day/night shading helps track local kick-off, tip-off, and race windows across regions.</div>
+        </div>
+      </div>
+    `;
+
     popup.innerHTML = SITE_VARIANT === 'tech'
       ? techHelpContent
       : SITE_VARIANT === 'finance'
         ? financeHelpContent
+        : SITE_VARIANT === 'sports'
+          ? sportsHelpContent
         : fullHelpContent;
 
     popup.querySelector('.layer-help-close')?.addEventListener('click', () => popup.remove());
@@ -670,6 +694,10 @@ export class MapComponent {
       // Happy variant legend — natural events only
       legend.innerHTML = `
         <div class="map-legend-item"><span class="map-legend-icon earthquake">●</span>${escapeHtml(t('components.deckgl.layers.naturalEvents').toUpperCase())}</div>
+      `;
+    } else if (SITE_VARIANT === 'sports') {
+      legend.innerHTML = `
+        <div class="map-legend-item"><span class="map-legend-icon" style="color:#60a5fa">◐</span>${escapeHtml(t('components.deckgl.layers.dayNight').toUpperCase())}</div>
       `;
     } else {
       // Geopolitical variant legend
