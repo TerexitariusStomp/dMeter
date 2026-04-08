@@ -400,12 +400,14 @@ export default async function handler(req) {
 
     let seedAge = null;
     let seedStale = null;
+    let seedError = false;
     let metaCount = null;
     if (seedCfg) {
       const metaRaw = keyMetaValues.get(seedCfg.key);
       const meta = parseRedisValue(metaRaw);
       if (meta?.status === 'error') {
         seedStale = true;
+        seedError = true;
       } else if (meta?.fetchedAt) {
         seedAge = Math.round((now - meta.fetchedAt) / 60_000);
         seedStale = seedAge > seedCfg.maxStaleMin;
@@ -445,6 +447,9 @@ export default async function handler(req) {
         status = 'EMPTY_DATA';
         critCount++;
       }
+    } else if (seedError === true) {
+      status = 'SEED_ERROR';
+      warnCount++;
     } else if (seedStale === true) {
       status = 'STALE_SEED';
       warnCount++;
@@ -469,12 +474,14 @@ export default async function handler(req) {
     // Freshness tracking for standalone keys (same logic as bootstrap keys)
     let seedAge = null;
     let seedStale = null;
+    let seedError = false;
     let metaCount = null;
     if (seedCfg) {
       const metaRaw = keyMetaValues.get(seedCfg.key);
       const meta = parseRedisValue(metaRaw);
       if (meta?.status === 'error') {
         seedStale = true;
+        seedError = true;
       } else if (meta?.fetchedAt) {
         seedAge = Math.round((now - meta.fetchedAt) / 60_000);
         seedStale = seedAge > seedCfg.maxStaleMin;
@@ -542,6 +549,9 @@ export default async function handler(req) {
         status = 'EMPTY_DATA';
         critCount++;
       }
+    } else if (seedError === true) {
+      status = 'SEED_ERROR';
+      warnCount++;
     } else if (seedStale === true) {
       status = 'STALE_SEED';
       warnCount++;
@@ -570,7 +580,7 @@ export default async function handler(req) {
 
   if (overall !== 'HEALTHY' && overall !== 'WARNING') {
     const problemKeys = Object.entries(checks)
-      .filter(([, c]) => c.status === 'EMPTY' || c.status === 'EMPTY_DATA' || c.status === 'STALE_SEED')
+      .filter(([, c]) => c.status === 'EMPTY' || c.status === 'EMPTY_DATA' || c.status === 'STALE_SEED' || c.status === 'SEED_ERROR')
       .map(([k, c]) => `${k}:${c.status}${c.seedAgeMin != null ? `(${c.seedAgeMin}min)` : ''}`);
     console.log('[health] %s crits=[%s]', overall, problemKeys.join(', '));
     // Persist last failure snapshot to Redis (TTL 24h) for post-mortem inspection.

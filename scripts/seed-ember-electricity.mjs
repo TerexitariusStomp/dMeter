@@ -305,11 +305,10 @@ export async function main() {
       sourceVersion: 'ember-monthly-v1',
     };
 
-    // Phase A: write all per-country keys + _all (data)
-    const dataCommands = [];
-
+    // Phase A: write all per-country keys
+    const countryCommands = [];
     for (const [iso2, payload] of countries) {
-      dataCommands.push([
+      countryCommands.push([
         'SET',
         `${EMBER_KEY_PREFIX}${iso2}`,
         JSON.stringify(payload),
@@ -317,25 +316,24 @@ export async function main() {
         EMBER_TTL_SECONDS,
       ]);
     }
-
-    // _all bulk map
-    dataCommands.push([
-      'SET',
-      EMBER_ALL_KEY,
-      JSON.stringify(allCountriesMap),
-      'EX',
-      EMBER_TTL_SECONDS,
-    ]);
-
-    const dataResults = await redisPipeline(dataCommands);
-    const dataFailures = dataResults.filter((r) => r?.error || r?.result === 'ERR');
-    if (dataFailures.length > 0) {
+    const countryResults = await redisPipeline(countryCommands);
+    const countryFailures = countryResults.filter((r) => r?.error || r?.result === 'ERR');
+    if (countryFailures.length > 0) {
       throw new Error(
-        `Redis pipeline: ${dataFailures.length}/${dataCommands.length} data commands failed`,
+        `Redis pipeline: ${countryFailures.length}/${countryCommands.length} country commands failed`,
       );
     }
 
-    // Phase B: seed-meta (only after data is fully written)
+    // Phase A2: write _all only after all per-country writes succeed
+    // _all is always the last-written key so preservePreviousSnapshot always reads the previous good snapshot
+    const allResults = await redisPipeline([
+      ['SET', EMBER_ALL_KEY, JSON.stringify(allCountriesMap), 'EX', EMBER_TTL_SECONDS],
+    ]);
+    if (allResults[0]?.error || allResults[0]?.result === 'ERR') {
+      throw new Error('Redis pipeline: _all write failed');
+    }
+
+    // Phase B: seed-meta (only after _all is fully written)
     await redisPipeline([['SET', EMBER_META_KEY, JSON.stringify(metaPayload), 'EX', EMBER_TTL_SECONDS]]);
 
     logSeedResult('energy:ember', countries.size, Date.now() - startedAt);

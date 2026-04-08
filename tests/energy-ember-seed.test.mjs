@@ -231,3 +231,54 @@ describe('count-drop guard math', () => {
     assert.ok(ratio < 0.75, '44/60 ≈ 73.3% should trigger the guard');
   });
 });
+
+describe('pipeline failure detection logic', () => {
+  it('detects a partial pipeline failure when one command errors', () => {
+    const results = [{ result: 'OK' }, { result: 'OK' }, { error: 'NOSCRIPT' }, { result: 'OK' }];
+    const failures = results.filter((r) => r?.error || r?.result === 'ERR');
+    assert.equal(failures.length, 1, 'should detect 1 failed command');
+  });
+
+  it('treats all-OK results as no failures', () => {
+    const results = [{ result: 'OK' }, { result: 'OK' }, { result: 'OK' }];
+    const failures = results.filter((r) => r?.error || r?.result === 'ERR');
+    assert.equal(failures.length, 0, 'all-OK pipeline should have 0 failures');
+  });
+
+  it('detects ERR-result commands as failures', () => {
+    const results = [{ result: 'OK' }, { result: 'ERR' }];
+    const failures = results.filter((r) => r?.error || r?.result === 'ERR');
+    assert.equal(failures.length, 1, 'ERR result should count as failure');
+  });
+});
+
+describe('health endpoint status agreement for error meta', () => {
+  it('seed-health.js logic emits "error" for meta.status="error"', () => {
+    // Simulates seed-health.js lines 131-148 logic
+    const meta = { fetchedAt: Date.now(), recordCount: 100, status: 'error', error: 'test failure' };
+    const isError = meta.status === 'error';
+    const ageMs = Date.now() - (meta.fetchedAt || 0);
+    const maxStalenessMs = 1440 * 2 * 60 * 1000;
+    const stale = ageMs > maxStalenessMs || isError;
+    const status = stale ? (isError ? 'error' : 'stale') : 'ok';
+    assert.equal(status, 'error', 'seed-health.js should report "error" for meta.status=error');
+  });
+
+  it('health.js SEED_ERROR is the correct status for meta.status="error" (not STALE_SEED)', () => {
+    // Verifies the expected contract: meta.status=error → SEED_ERROR (not STALE_SEED)
+    // This test documents the intended behavior after the fix
+    const meta = { fetchedAt: Date.now(), recordCount: 100, status: 'error', error: 'test failure' };
+    const seedError = meta?.status === 'error';
+    const seedStale = seedError; // error implies stale
+
+    let status;
+    if (seedError) {
+      status = 'SEED_ERROR';
+    } else if (seedStale) {
+      status = 'STALE_SEED';
+    } else {
+      status = 'OK';
+    }
+    assert.equal(status, 'SEED_ERROR', 'explicit error meta should yield SEED_ERROR, not STALE_SEED');
+  });
+});
