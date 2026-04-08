@@ -11,13 +11,20 @@ import {
 
 // ─── Fixture builders ──────────────────────────────────────────────────────
 
+// Real Ember CSV column names (must match COLS in seed-ember-electricity.mjs)
+const ISO3_COL = 'ISO 3 code';
+const DATE_COL = 'Date';
+const SERIES_COL = 'Variable';
+const UNIT_COL = 'Unit';
+const VALUE_COL = 'Value';
+
 function makeRow(overrides = {}) {
   return {
-    country_code: 'USA',
-    date: '2024-01-01',
-    series: 'Coal',
-    unit: 'TWh',
-    value: '100',
+    [ISO3_COL]: 'USA',
+    [DATE_COL]: '2024-01-01',
+    [SERIES_COL]: 'Coal',
+    [UNIT_COL]: 'TWh',
+    [VALUE_COL]: '100',
     ...overrides,
   };
 }
@@ -27,7 +34,7 @@ function makeRow(overrides = {}) {
  * @param {Array<Record<string, string>>} rows
  */
 function buildCsv(rows) {
-  const headers = ['country_code', 'date', 'series', 'unit', 'value', 'category'];
+  const headers = [ISO3_COL, DATE_COL, SERIES_COL, UNIT_COL, VALUE_COL, 'Category'];
   const lines = [headers.join(',')];
   for (const row of rows) {
     lines.push(headers.map((h) => row[h] ?? '').join(','));
@@ -41,26 +48,26 @@ function threeCountryFixture() {
   // FRA: 2024-01 — Fossil=50, Renewables=100, Nuclear=400, Coal=20, Gas=30, Total=550
   const rows = [
     // USA
-    makeRow({ country_code: 'USA', date: '2024-01-01', series: 'Fossil',           value: '400' }),
-    makeRow({ country_code: 'USA', date: '2024-01-01', series: 'Renewables',       value: '300' }),
-    makeRow({ country_code: 'USA', date: '2024-01-01', series: 'Nuclear',          value: '100' }),
-    makeRow({ country_code: 'USA', date: '2024-01-01', series: 'Coal',             value: '200' }),
-    makeRow({ country_code: 'USA', date: '2024-01-01', series: 'Gas',              value: '200' }),
-    makeRow({ country_code: 'USA', date: '2024-01-01', series: 'Total Generation', value: '800' }),
+    makeRow({ [ISO3_COL]: 'USA', [DATE_COL]: '2024-01-01', [SERIES_COL]: 'Fossil',           [VALUE_COL]: '400' }),
+    makeRow({ [ISO3_COL]: 'USA', [DATE_COL]: '2024-01-01', [SERIES_COL]: 'Renewables',       [VALUE_COL]: '300' }),
+    makeRow({ [ISO3_COL]: 'USA', [DATE_COL]: '2024-01-01', [SERIES_COL]: 'Nuclear',          [VALUE_COL]: '100' }),
+    makeRow({ [ISO3_COL]: 'USA', [DATE_COL]: '2024-01-01', [SERIES_COL]: 'Coal',             [VALUE_COL]: '200' }),
+    makeRow({ [ISO3_COL]: 'USA', [DATE_COL]: '2024-01-01', [SERIES_COL]: 'Gas',              [VALUE_COL]: '200' }),
+    makeRow({ [ISO3_COL]: 'USA', [DATE_COL]: '2024-01-01', [SERIES_COL]: 'Total Generation', [VALUE_COL]: '800' }),
     // DEU (Germany)
-    makeRow({ country_code: 'DEU', date: '2024-01-01', series: 'Fossil',           value: '200' }),
-    makeRow({ country_code: 'DEU', date: '2024-01-01', series: 'Renewables',       value: '500' }),
-    makeRow({ country_code: 'DEU', date: '2024-01-01', series: 'Nuclear',          value: '0'   }),
-    makeRow({ country_code: 'DEU', date: '2024-01-01', series: 'Coal',             value: '100' }),
-    makeRow({ country_code: 'DEU', date: '2024-01-01', series: 'Gas',              value: '100' }),
-    makeRow({ country_code: 'DEU', date: '2024-01-01', series: 'Total Generation', value: '700' }),
+    makeRow({ [ISO3_COL]: 'DEU', [DATE_COL]: '2024-01-01', [SERIES_COL]: 'Fossil',           [VALUE_COL]: '200' }),
+    makeRow({ [ISO3_COL]: 'DEU', [DATE_COL]: '2024-01-01', [SERIES_COL]: 'Renewables',       [VALUE_COL]: '500' }),
+    makeRow({ [ISO3_COL]: 'DEU', [DATE_COL]: '2024-01-01', [SERIES_COL]: 'Nuclear',          [VALUE_COL]: '0'   }),
+    makeRow({ [ISO3_COL]: 'DEU', [DATE_COL]: '2024-01-01', [SERIES_COL]: 'Coal',             [VALUE_COL]: '100' }),
+    makeRow({ [ISO3_COL]: 'DEU', [DATE_COL]: '2024-01-01', [SERIES_COL]: 'Gas',              [VALUE_COL]: '100' }),
+    makeRow({ [ISO3_COL]: 'DEU', [DATE_COL]: '2024-01-01', [SERIES_COL]: 'Total Generation', [VALUE_COL]: '700' }),
     // FRA (France)
-    makeRow({ country_code: 'FRA', date: '2024-01-01', series: 'Fossil',           value: '50'  }),
-    makeRow({ country_code: 'FRA', date: '2024-01-01', series: 'Renewables',       value: '100' }),
-    makeRow({ country_code: 'FRA', date: '2024-01-01', series: 'Nuclear',          value: '400' }),
-    makeRow({ country_code: 'FRA', date: '2024-01-01', series: 'Coal',             value: '20'  }),
-    makeRow({ country_code: 'FRA', date: '2024-01-01', series: 'Gas',              value: '30'  }),
-    makeRow({ country_code: 'FRA', date: '2024-01-01', series: 'Total Generation', value: '550' }),
+    makeRow({ [ISO3_COL]: 'FRA', [DATE_COL]: '2024-01-01', [SERIES_COL]: 'Fossil',           [VALUE_COL]: '50'  }),
+    makeRow({ [ISO3_COL]: 'FRA', [DATE_COL]: '2024-01-01', [SERIES_COL]: 'Renewables',       [VALUE_COL]: '100' }),
+    makeRow({ [ISO3_COL]: 'FRA', [DATE_COL]: '2024-01-01', [SERIES_COL]: 'Nuclear',          [VALUE_COL]: '400' }),
+    makeRow({ [ISO3_COL]: 'FRA', [DATE_COL]: '2024-01-01', [SERIES_COL]: 'Coal',             [VALUE_COL]: '20'  }),
+    makeRow({ [ISO3_COL]: 'FRA', [DATE_COL]: '2024-01-01', [SERIES_COL]: 'Gas',              [VALUE_COL]: '30'  }),
+    makeRow({ [ISO3_COL]: 'FRA', [DATE_COL]: '2024-01-01', [SERIES_COL]: 'Total Generation', [VALUE_COL]: '550' }),
   ];
   return buildCsv(rows);
 }
@@ -110,11 +117,11 @@ describe('parseEmberCsv', () => {
   it('selects the most recent month when a country has two months of data', () => {
     const rows = [
       // Jan 2024
-      makeRow({ country_code: 'GBR', date: '2024-01-01', series: 'Fossil',           value: '100' }),
-      makeRow({ country_code: 'GBR', date: '2024-01-01', series: 'Total Generation', value: '200' }),
+      makeRow({ [ISO3_COL]: 'GBR', [DATE_COL]: '2024-01-01', [SERIES_COL]: 'Fossil',           [VALUE_COL]: '100' }),
+      makeRow({ [ISO3_COL]: 'GBR', [DATE_COL]: '2024-01-01', [SERIES_COL]: 'Total Generation', [VALUE_COL]: '200' }),
       // Feb 2024 (later — should be selected)
-      makeRow({ country_code: 'GBR', date: '2024-02-01', series: 'Fossil',           value: '80'  }),
-      makeRow({ country_code: 'GBR', date: '2024-02-01', series: 'Total Generation', value: '210' }),
+      makeRow({ [ISO3_COL]: 'GBR', [DATE_COL]: '2024-02-01', [SERIES_COL]: 'Fossil',           [VALUE_COL]: '80'  }),
+      makeRow({ [ISO3_COL]: 'GBR', [DATE_COL]: '2024-02-01', [SERIES_COL]: 'Total Generation', [VALUE_COL]: '210' }),
     ];
     const csv = buildCsv(rows);
     const result = parseEmberCsv(csv);
@@ -127,8 +134,8 @@ describe('parseEmberCsv', () => {
 
   it('skips rows where unit !== TWh', () => {
     const rows = [
-      makeRow({ country_code: 'AUS', date: '2024-01-01', series: 'Fossil',           unit: 'GW', value: '100' }),
-      makeRow({ country_code: 'AUS', date: '2024-01-01', series: 'Total Generation', unit: 'GW', value: '200' }),
+      makeRow({ [ISO3_COL]: 'AUS', [DATE_COL]: '2024-01-01', [SERIES_COL]: 'Fossil',           [UNIT_COL]: 'GW', [VALUE_COL]: '100' }),
+      makeRow({ [ISO3_COL]: 'AUS', [DATE_COL]: '2024-01-01', [SERIES_COL]: 'Total Generation', [UNIT_COL]: 'GW', [VALUE_COL]: '200' }),
     ];
     const csv = buildCsv(rows);
     const result = parseEmberCsv(csv);
@@ -138,7 +145,7 @@ describe('parseEmberCsv', () => {
 
   it('skips countries where Total Generation is missing', () => {
     const rows = [
-      makeRow({ country_code: 'JPN', date: '2024-01-01', series: 'Fossil', value: '100' }),
+      makeRow({ [ISO3_COL]: 'JPN', [DATE_COL]: '2024-01-01', [SERIES_COL]: 'Fossil', [VALUE_COL]: '100' }),
       // No Total Generation row for JPN
     ];
     const csv = buildCsv(rows);
@@ -150,8 +157,8 @@ describe('parseEmberCsv', () => {
 describe('schema sentinel', () => {
   it('throws when Fossil series is not present in any row', () => {
     const rows = [
-      makeRow({ country_code: 'USA', date: '2024-01-01', series: 'Coal',             value: '100' }),
-      makeRow({ country_code: 'USA', date: '2024-01-01', series: 'Total Generation', value: '200' }),
+      makeRow({ [ISO3_COL]: 'USA', [DATE_COL]: '2024-01-01', [SERIES_COL]: 'Coal',             [VALUE_COL]: '100' }),
+      makeRow({ [ISO3_COL]: 'USA', [DATE_COL]: '2024-01-01', [SERIES_COL]: 'Total Generation', [VALUE_COL]: '200' }),
     ];
     const csv = buildCsv(rows);
     assert.throws(

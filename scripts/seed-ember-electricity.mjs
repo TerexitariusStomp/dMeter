@@ -84,29 +84,38 @@ function safeFloat(value) {
  * @param {string} csvText
  * @returns {Map<string, {dataMonth: string, fossilShare: number|null, renewShare: number|null, nuclearShare: number|null, coalShare: number|null, gasShare: number|null, demandTwh: number|null}>}
  */
+// Real Ember monthly CSV column names (confirmed from header row)
+const COLS = {
+  iso3: 'ISO 3 code',
+  series: 'Variable',
+  unit: 'Unit',
+  value: 'Value',
+  date: 'Date',
+};
+
 export function parseEmberCsv(csvText) {
   const rows = parseDelimitedText(csvText, ',');
   if (rows.length === 0) throw new Error('Ember CSV: no data rows');
 
   // Schema sentinel — abort if Fossil series is missing entirely
-  const hasFossil = rows.some((r) => String(r.series || '').trim() === 'Fossil');
+  const hasFossil = rows.some((r) => String(r[COLS.series] || '').trim() === 'Fossil');
   if (!hasFossil) {
     throw new Error('Ember CSV schema changed — "Fossil" series not found; update parser');
   }
 
-  // Group by country_code, filter to TWh rows only
+  // Group by ISO 3 code, filter to TWh rows only
   /** @type {Map<string, Array<{date: string, series: string, value: number}>>} */
   const byIso3 = new Map();
   for (const row of rows) {
-    const iso3 = String(row.country_code || '').trim();
+    const iso3 = String(row[COLS.iso3] || '').trim();
     if (!iso3) continue;
-    if (String(row.unit || '').trim() !== 'TWh') continue;
+    if (String(row[COLS.unit] || '').trim() !== 'TWh') continue;
 
-    const value = safeFloat(row.value);
+    const value = safeFloat(row[COLS.value]);
     if (value === null) continue;
 
-    const series = String(row.series || '').trim();
-    const date = String(row.date || '').trim();
+    const series = String(row[COLS.series] || '').trim();
+    const date = String(row[COLS.date] || '').trim();
     if (!series || !date) continue;
 
     if (!byIso3.has(iso3)) byIso3.set(iso3, []);
@@ -247,9 +256,16 @@ export async function main() {
   const runId = `energy:ember:${startedAt}`;
   const lock = await acquireLockSafely(LOCK_DOMAIN, runId, LOCK_TTL_MS, { label: LOCK_DOMAIN });
   if (lock.skipped) {
-    // Write seed-meta with count=0 so health.js doesn't show STALE_SEED forever
+    // Refresh TTL on existing meta without resetting recordCount or status
+    // so the count-drop guard stays active and health endpoints reflect real state
+    const existingMeta = await redisGet(EMBER_META_KEY).catch(() => null);
     await redisPipeline([
-      ['SET', EMBER_META_KEY, JSON.stringify({ fetchedAt: Date.now(), recordCount: 0, status: 'skipped' }), 'EX', EMBER_TTL_SECONDS],
+      ['SET', EMBER_META_KEY, JSON.stringify({
+        fetchedAt: Date.now(),                               // update to prevent staleness
+        recordCount: existingMeta?.recordCount ?? 0,         // preserve; 0 only if never seeded
+        status: existingMeta?.status ?? 'skipped',           // preserve real status
+        sourceVersion: existingMeta?.sourceVersion ?? null,
+      }), 'EX', EMBER_TTL_SECONDS],
     ]).catch(() => {});
     return;
   }
