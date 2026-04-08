@@ -305,11 +305,11 @@ export async function main() {
       sourceVersion: 'ember-monthly-v1',
     };
 
-    const commands = [];
+    // Phase A: write all per-country keys + _all (data)
+    const dataCommands = [];
 
-    // Per-country keys
     for (const [iso2, payload] of countries) {
-      commands.push([
+      dataCommands.push([
         'SET',
         `${EMBER_KEY_PREFIX}${iso2}`,
         JSON.stringify(payload),
@@ -319,7 +319,7 @@ export async function main() {
     }
 
     // _all bulk map
-    commands.push([
+    dataCommands.push([
       'SET',
       EMBER_ALL_KEY,
       JSON.stringify(allCountriesMap),
@@ -327,22 +327,16 @@ export async function main() {
       EMBER_TTL_SECONDS,
     ]);
 
-    // seed-meta
-    commands.push([
-      'SET',
-      EMBER_META_KEY,
-      JSON.stringify(metaPayload),
-      'EX',
-      EMBER_TTL_SECONDS,
-    ]);
-
-    const results = await redisPipeline(commands);
-    const failures = results.filter((r) => r?.error || r?.result === 'ERR');
-    if (failures.length > 0) {
+    const dataResults = await redisPipeline(dataCommands);
+    const dataFailures = dataResults.filter((r) => r?.error || r?.result === 'ERR');
+    if (dataFailures.length > 0) {
       throw new Error(
-        `Redis pipeline: ${failures.length}/${commands.length} commands failed`,
+        `Redis pipeline: ${dataFailures.length}/${dataCommands.length} data commands failed`,
       );
     }
+
+    // Phase B: seed-meta (only after data is fully written)
+    await redisPipeline([['SET', EMBER_META_KEY, JSON.stringify(metaPayload), 'EX', EMBER_TTL_SECONDS]]);
 
     logSeedResult('energy:ember', countries.size, Date.now() - startedAt);
     console.log(`[EmberElectricity] Seeded ${countries.size} countries`);

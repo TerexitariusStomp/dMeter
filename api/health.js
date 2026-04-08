@@ -413,6 +413,7 @@ export default async function handler(req) {
         seedStale = true;
       }
       if (meta?.count != null) metaCount = meta.count;
+      else if (meta?.recordCount != null) metaCount = meta.recordCount;
     }
 
     const size = metaCount ?? (hasData ? 1 : 0);
@@ -482,6 +483,7 @@ export default async function handler(req) {
         seedStale = true;
       }
       if (meta?.count != null) metaCount = meta.count;
+      else if (meta?.recordCount != null) metaCount = meta.recordCount;
     }
 
     const size = metaCount ?? (hasData ? 1 : 0);
