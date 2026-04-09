@@ -47,6 +47,15 @@ message GetCountryEnergyProfileResponse {
   double crude_imports_kbd      = 30;
   double lpg_imports_kbd        = 42;
 
+  // Phase 3 — Ember monthly generation mix (~200+ countries)
+  double ember_fossil_share  = 43;   // Ember monthly: fossil generation share (%)
+  double ember_renew_share   = 44;   // Ember monthly: renewable generation share (%)
+  double ember_nuclear_share = 45;   // Ember monthly: nuclear generation share (%)
+  double ember_coal_share    = 46;   // Ember monthly: coal generation share (%)
+  double ember_gas_share     = 47;   // Ember monthly: gas generation share (%)
+  double ember_demand_twh    = 48;   // Ember monthly: total demand (TWh)
+  string ember_data_month    = 49;   // Ember monthly: data month (YYYY-MM)
+
   // Phase 2.5 — JODI Gas
   bool   jodi_gas_available     = 31;
   string jodi_gas_data_month    = 32;

@@ -519,6 +519,13 @@ export interface GetCountryEnergyProfileResponse {
   lpgDemandKbd: number;
   crudeImportsKbd: number;
   lpgImportsKbd: number;
+  emberFossilShare: number;
+  emberRenewShare: number;
+  emberNuclearShare: number;
+  emberCoalShare: number;
+  emberGasShare: number;
+  emberDemandTwh: number;
+  emberDataMonth: string;
   jodiGasAvailable: boolean;
   jodiGasDataMonth: string;
   gasTotalDemandTj: number;

@@ -63,6 +63,16 @@ interface IeaStocks {
   anomaly?: boolean | null;
 }
 
+interface EmberData {
+  dataMonth?: string | null;
+  fossilShare?: number | null;
+  renewShare?: number | null;
+  nuclearShare?: number | null;
+  coalShare?: number | null;
+  gasShare?: number | null;
+  demandTwh?: number | null;
+}
+
 interface EnergySpine {
   countryCode?: string;
   updatedAt?: string;
@@ -71,12 +81,14 @@ interface EnergySpine {
     jodiOilMonth?: string | null;
     jodiGasMonth?: string | null;
     ieaStocksMonth?: string | null;
+    emberMonth?: string | null;
   };
   coverage?: {
     hasMix?: boolean;
     hasJodiOil?: boolean;
     hasJodiGas?: boolean;
     hasIeaStocks?: boolean;
+    hasEmber?: boolean;
   };
   oil?: {
     crudeImportsKbd?: number;
@@ -108,6 +120,14 @@ interface EnergySpine {
     solarShare?: number;
     hydroShare?: number;
     importShare?: number;
+  };
+  electricity?: {
+    fossilShare?: number;
+    renewShare?: number;
+    nuclearShare?: number;
+    coalShare?: number;
+    gasShare?: number;
+    demandTwh?: number;
   };
 }
 
@@ -154,6 +174,13 @@ const EMPTY: GetCountryEnergyProfileResponse = {
   ieaDaysOfCover: 0,
   ieaNetExporter: false,
   ieaBelowObligation: false,
+  emberFossilShare: 0,
+  emberRenewShare: 0,
+  emberNuclearShare: 0,
+  emberCoalShare: 0,
+  emberGasShare: 0,
+  emberDemandTwh: 0,
+  emberDataMonth: '',
 };
 
 function n(v: number | null | undefined): number {
@@ -174,6 +201,7 @@ function buildResponseFromSpine(
   const oil = spine.oil ?? {};
   const gas = spine.gas ?? {};
   const mix = spine.mix ?? {};
+  const elec = spine.electricity ?? {};
 
   const electricityAvailable = electricity != null && electricity.priceMwhEur != null;
 
@@ -225,6 +253,14 @@ function buildResponseFromSpine(
     ieaDaysOfCover: n(oil.daysOfCover),
     ieaNetExporter: oil.netExporter === true,
     ieaBelowObligation: oil.belowObligation === true,
+
+    emberFossilShare: n(elec.fossilShare),
+    emberRenewShare: n(elec.renewShare),
+    emberNuclearShare: n(elec.nuclearShare),
+    emberCoalShare: n(elec.coalShare),
+    emberGasShare: n(elec.gasShare),
+    emberDemandTwh: n(elec.demandTwh),
+    emberDataMonth: s(src.emberMonth),
   };
 }
 
@@ -252,19 +288,21 @@ export async function getCountryEnergyProfile(
     return buildResponseFromSpine(spine, gasStorage, electricity);
   }
 
-  // Fallback: 4-key direct join (cold cache or countries not yet in spine)
-  const [mixResult, jodiOilResult, jodiGasResult, ieaStocksResult] =
+  // Fallback: 5-key direct join (cold cache or countries not yet in spine)
+  const [mixResult, jodiOilResult, jodiGasResult, ieaStocksResult, emberResult] =
     await Promise.allSettled([
       getCachedJson(`energy:mix:v1:${code}`, true),
       getCachedJson(`energy:jodi-oil:v1:${code}`, true),
       getCachedJson(`energy:jodi-gas:v1:${code}`, true),
       getCachedJson(`energy:iea-oil-stocks:v1:${code}`, true),
+      getCachedJson(`energy:ember:v1:${code}`, true),
     ]);
 
   const mix = mixResult.status === 'fulfilled' ? (mixResult.value as OwidMix | null) : null;
   const jodiOil = jodiOilResult.status === 'fulfilled' ? (jodiOilResult.value as JodiOil | null) : null;
   const jodiGas = jodiGasResult.status === 'fulfilled' ? (jodiGasResult.value as JodiGas | null) : null;
   const ieaStocks = ieaStocksResult.status === 'fulfilled' ? (ieaStocksResult.value as IeaStocks | null) : null;
+  const ember = emberResult.status === 'fulfilled' ? (emberResult.value as EmberData | null) : null;
 
   const electricityAvailable = electricity != null && electricity.priceMwhEur != null;
 
@@ -316,5 +354,13 @@ export async function getCountryEnergyProfile(
     ieaDaysOfCover: n(ieaStocks?.daysOfCover),
     ieaNetExporter: ieaStocks?.netExporter === true,
     ieaBelowObligation: ieaStocks?.belowObligation === true,
+
+    emberFossilShare: n(ember?.fossilShare),
+    emberRenewShare: n(ember?.renewShare),
+    emberNuclearShare: n(ember?.nuclearShare),
+    emberCoalShare: n(ember?.coalShare),
+    emberGasShare: n(ember?.gasShare),
+    emberDemandTwh: n(ember?.demandTwh),
+    emberDataMonth: s(ember?.dataMonth),
   };
 }
