@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 /**
- * Read-only health check for resilience country scores. Reads the static index
- * and checks how many countries have cached scores. Does NOT write rankings
- * (the Vercel ranking handler owns that with proper greyedOut split).
+ * Health check + warm-ping for resilience country scores. Reads the static
+ * index, checks how many countries have cached scores, and warms any missing
+ * ones by calling the Vercel score endpoint in batches of 10.
  *
  * Runs every 5 hours via Railway cron (slightly inside the 6-hour score cache
- * TTL to keep monitoring warm).
+ * TTL to keep caches warm). Does NOT write rankings (the Vercel ranking
+ * handler owns that with proper greyedOut split).
  *
- * Missing scores are handled on-demand by the Vercel ranking handler
- * (warmMissingResilienceScores with SYNC_WARM_LIMIT=200 covers the full index
- * in parallel).
+ * The warm-ping step requires WORLDMONITOR_API_KEY in env. When cache keys are
+ * bumped (formula change), this prevents 222 countries from needing on-demand
+ * warming, which can hit Vercel Edge timeout limits.
  */
 
 import {
@@ -68,19 +69,47 @@ async function seedResilienceScores() {
   const getCommands = countryCodes.map((c) => ['GET', `${RESILIENCE_SCORE_CACHE_PREFIX}${c}`]);
   const results = await redisPipeline(url, token, getCommands);
 
+  const missing = [];
   let scored = 0;
   for (let i = 0; i < countryCodes.length; i++) {
     const raw = results[i]?.result;
     if (typeof raw === 'string') {
-      try { JSON.parse(raw); scored++; } catch { /* skip malformed */ }
+      try { JSON.parse(raw); scored++; } catch { missing.push(countryCodes[i]); }
+    } else {
+      missing.push(countryCodes[i]);
     }
   }
 
   console.log(`[resilience-scores] ${scored}/${countryCodes.length} countries have cached scores`);
 
-  if (scored < countryCodes.length) {
-    const missing = countryCodes.length - scored;
-    console.warn(`[resilience-scores] ${missing} countries missing scores — will be warmed on-demand by ranking handler`);
+  if (missing.length > 0) {
+    const API_BASE = process.env.API_BASE_URL || 'https://api.worldmonitor.app';
+    const WM_KEY = process.env.WORLDMONITOR_API_KEY || '';
+    const CHROME_UA = 'Mozilla/5.0 (compatible; WorldMonitor-Seed/1.0)';
+    const BATCH_SIZE = 10;
+    const WARM_TIMEOUT_MS = 15_000;
+
+    if (WM_KEY) {
+      console.log(`  Warming ${missing.length} missing scores via Vercel API...`);
+      let warmed = 0;
+      for (let i = 0; i < missing.length; i += BATCH_SIZE) {
+        const batch = missing.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.allSettled(batch.map(async (cc) => {
+          const warmUrl = `${API_BASE}/api/resilience/v1/get-resilience-score?countryCode=${cc}`;
+          const resp = await fetch(warmUrl, {
+            headers: { 'User-Agent': CHROME_UA, 'X-WorldMonitor-Key': WM_KEY },
+            signal: AbortSignal.timeout(WARM_TIMEOUT_MS),
+          });
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          return cc;
+        }));
+        warmed += batchResults.filter((r) => r.status === 'fulfilled').length;
+      }
+      console.log(`  Warmed: ${warmed}/${missing.length} scores`);
+      scored += warmed;
+    } else {
+      console.log(`  ${missing.length} scores missing but WORLDMONITOR_API_KEY not set — skipping warm-ping`);
+    }
   }
 
   return { skipped: false, recordCount: scored, total: countryCodes.length };
