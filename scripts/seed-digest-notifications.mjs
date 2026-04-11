@@ -14,6 +14,15 @@
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import dns from 'node:dns/promises';
+import {
+  escapeHtml,
+  escapeTelegramHtml,
+  escapeSlackMrkdwn,
+  markdownToEmailHtml,
+  markdownToTelegramHtml,
+  markdownToSlackMrkdwn,
+  markdownToDiscord,
+} from './_digest-markdown.mjs';
 
 const require = createRequire(import.meta.url);
 const { decrypt } = require('./lib/crypto.cjs');
@@ -317,127 +326,6 @@ function formatDigest(stories, nowMs) {
 
   lines.push('View full dashboard \u2192 worldmonitor.app');
   return lines.join('\n');
-}
-
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-// Inline markdown → HTML (operates on already-HTML-escaped text, no block markup).
-function renderEmailInline(text) {
-  let out = text;
-  // Bold: **text** or __text__
-  out = out.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#fff;">$1</strong>');
-  out = out.replace(/__(.+?)__/g, '<strong style="color:#fff;">$1</strong>');
-  // Italic: *text* (not adjacent to another asterisk, avoids collision w/ bold)
-  out = out.replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, '<em>$1</em>');
-  // Section header (label at start of the block, e.g. "Assessment:", "Signals to watch:")
-  out = out.replace(
-    /^([A-Z][A-Za-z ]+): */,
-    '<strong style="color:#4ade80;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">$1:</strong> ',
-  );
-  return out;
-}
-
-// Block-level markdown → HTML. Splits the summary into paragraph and list
-// blocks first, then applies inline formatting within each block, so we
-// never nest <ul> inside <p> or split a list across paragraphs.
-function markdownToEmailHtml(md) {
-  const escaped = escapeHtml(md);
-  const lines = escaped.split('\n');
-
-  /** @type {Array<{type:'p'|'ul', items:string[]}>} */
-  const blocks = [];
-  let current = null;
-  const flush = () => { if (current) { blocks.push(current); current = null; } };
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) { flush(); continue; }
-
-    const bullet = line.match(/^\s*[\*\-]\s+(.+)$/);
-    if (bullet) {
-      if (!current || current.type !== 'ul') { flush(); current = { type: 'ul', items: [] }; }
-      current.items.push(bullet[1]);
-    } else {
-      if (!current || current.type !== 'p') { flush(); current = { type: 'p', items: [] }; }
-      current.items.push(trimmed);
-    }
-  }
-  flush();
-
-  return blocks.map((block) => {
-    if (block.type === 'ul') {
-      const items = block.items
-        .map((item) => `<li style="margin-bottom:6px;">${renderEmailInline(item)}</li>`)
-        .join('');
-      return `<ul style="margin:12px 0;padding-left:20px;list-style:disc;">${items}</ul>`;
-    }
-    const joined = block.items.map(renderEmailInline).join('<br/>');
-    return `<p style="margin:0 0 12px;">${joined}</p>`;
-  }).join('');
-}
-
-// Telegram HTML parse_mode escape: only &, <, > (no " or ')
-// See https://core.telegram.org/bots/api#html-style
-function escapeTelegramHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-
-function markdownToTelegramHtml(md) {
-  let html = escapeTelegramHtml(md);
-  // Bullets first (Telegram HTML has no list elements, render as • char)
-  html = html.replace(/^[\*\-]\s+/gm, '• ');
-  // Bold: **text** or __text__
-  html = html.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
-  html = html.replace(/__(.+?)__/g, '<b>$1</b>');
-  // Italic: *text* (single asterisk, not part of bold)
-  html = html.replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, '<i>$1</i>');
-  // Section headers: Assessment: / Signals to watch:
-  html = html.replace(/^([A-Z][A-Za-z ]+): */gm, '<b>$1:</b> ');
-  return html;
-}
-
-// Slack mrkdwn: escape &, <, > (Slack auto-parses these in regular text)
-function escapeSlackMrkdwn(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-
-function markdownToSlackMrkdwn(md) {
-  let txt = escapeSlackMrkdwn(md);
-  // Bullets first (avoid collision with italic single-asterisk regex)
-  txt = txt.replace(/^[\*\-]\s+/gm, '• ');
-  // Bold: **text** or __text__ → *text* (Slack uses single asterisk).
-  // Use \u0001 placeholder so italic pass below doesn't re-match.
-  txt = txt.replace(/\*\*(.+?)\*\*/g, '\u0001$1\u0001');
-  txt = txt.replace(/__(.+?)__/g, '\u0001$1\u0001');
-  // Italic: *text* → _text_
-  txt = txt.replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, '_$1_');
-  // Restore bold markers
-  txt = txt.replace(/\u0001/g, '*');
-  // Section headers → *bold*
-  txt = txt.replace(/^([A-Z][A-Za-z ]+): */gm, '*$1:* ');
-  return txt;
-}
-
-// Discord supports CommonMark **bold** and *italic* natively. Only normalize
-// what Discord doesn't handle: * bullets (Discord lists require -) and
-// trailing-colon section headers.
-function markdownToDiscord(md) {
-  let txt = String(md);
-  txt = txt.replace(/^\*\s+/gm, '- ');
-  txt = txt.replace(/^([A-Z][A-Za-z ]+): */gm, '**$1:** ');
-  return txt;
 }
 
 function formatDigestHtml(stories, nowMs) {
