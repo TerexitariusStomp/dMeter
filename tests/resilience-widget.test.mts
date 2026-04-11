@@ -5,6 +5,7 @@ import {
   formatBaselineStress,
   formatResilienceChange30d,
   formatResilienceConfidence,
+  formatResilienceDataVersion,
   getResilienceDomainLabel,
   getResilienceTrendArrow,
   getResilienceVisualLevel,
@@ -74,4 +75,36 @@ test('formatBaselineStress renders the expected breakdown string (no Impact)', (
   assert.equal(formatBaselineStress(80, 100), 'Baseline: 80 | Stress: 100');
   assert.equal(formatBaselineStress(50, 0), 'Baseline: 50 | Stress: 0');
   assert.equal(formatBaselineStress(NaN, 50), 'Baseline: 0 | Stress: 50');
+});
+
+// T1.4 Phase 1 of the country-resilience reference-grade upgrade plan.
+// dataVersion is sourced from the Railway static-seed job's seed-meta key
+// (fetchedAt → ISO date in _shared.ts buildResilienceScore). The widget
+// renders a footer label so analysts can see how fresh the underlying
+// source data is; a missing or malformed dataVersion returns an empty
+// string so the caller skips rendering rather than showing a dangling label.
+test('formatResilienceDataVersion renders a label for a valid ISO date', () => {
+  assert.equal(formatResilienceDataVersion('2026-04-11'), 'Data 2026-04-11');
+  assert.equal(formatResilienceDataVersion('2024-01-01'), 'Data 2024-01-01');
+});
+
+test('formatResilienceDataVersion returns empty for missing or malformed dataVersion', () => {
+  assert.equal(formatResilienceDataVersion(''), '');
+  assert.equal(formatResilienceDataVersion(null), '');
+  assert.equal(formatResilienceDataVersion(undefined), '');
+  // Guard against partially-formatted or non-ISO strings that the fallback
+  // path in _shared.ts should never emit but downstream code should still
+  // reject defensively:
+  assert.equal(formatResilienceDataVersion('2026-04'), '');
+  assert.equal(formatResilienceDataVersion('04/11/2026'), '');
+  assert.equal(formatResilienceDataVersion('not-a-date'), '');
+});
+
+test('baseResponse includes dataVersion (regression for T1.4 wiring)', () => {
+  // Guards against a future change that accidentally drops the dataVersion
+  // field from the service response shape. The scorer writes it from the
+  // seed-meta key; the widget footer renders it via formatResilienceDataVersion.
+  assert.equal(typeof baseResponse.dataVersion, 'string');
+  assert.ok(baseResponse.dataVersion.length > 0, 'baseResponse should carry a non-empty dataVersion for regression coverage');
+  assert.equal(formatResilienceDataVersion(baseResponse.dataVersion), `Data ${baseResponse.dataVersion}`);
 });

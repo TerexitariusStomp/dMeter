@@ -58,3 +58,13 @@ export function formatBaselineStress(baseline: number, stress: number): string {
   const s = Number.isFinite(stress) ? Math.round(stress) : 0;
   return `Baseline: ${b} | Stress: ${s}`;
 }
+
+// Formats the dataVersion field (ISO date YYYY-MM-DD, sourced from the
+// seed-meta key) for display in the widget footer. Returns an empty string
+// when dataVersion is missing or malformed so the caller can skip rendering.
+// Format is stable and regex-tested by resilience-widget.test.mts.
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+export function formatResilienceDataVersion(dataVersion: string | null | undefined): string {
+  if (typeof dataVersion !== 'string' || !ISO_DATE_PATTERN.test(dataVersion)) return '';
+  return `Data ${dataVersion}`;
+}

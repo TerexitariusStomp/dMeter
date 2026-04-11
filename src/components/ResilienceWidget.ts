@@ -11,6 +11,7 @@ import {
   formatBaselineStress,
   formatResilienceChange30d,
   formatResilienceConfidence,
+  formatResilienceDataVersion,
   getResilienceDomainLabel,
   getResilienceTrendArrow,
   getResilienceVisualLevel,
@@ -298,6 +299,16 @@ export class ResilienceWidget {
           formatResilienceConfidence(data),
         ),
         h('span', { className: 'resilience-widget__delta' }, formatResilienceChange30d(data.change30d)),
+        ...(formatResilienceDataVersion(data.dataVersion)
+          ? [h(
+              'span',
+              {
+                className: 'resilience-widget__data-version',
+                title: 'Date the underlying source data was last refreshed by the Railway static-seed job.',
+              },
+              formatResilienceDataVersion(data.dataVersion),
+            )]
+          : []),
       ),
     );
   }
