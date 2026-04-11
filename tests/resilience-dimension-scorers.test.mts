@@ -755,18 +755,47 @@ describe('resilience imputation taxonomy (T1.7)', () => {
     }
   });
 
-  it('stable-absence entries score higher than unmonitored (semantic sanity)', () => {
+  it('stable-absence entries score higher than unmonitored, across BOTH tables (semantic sanity)', () => {
     // stable-absence = strong positive signal (feed is comprehensive,
     // nothing happened). unmonitored = we do not know, penalized.
-    // If this assertion ever fails, the semantic meaning of the classes
-    // has drifted and the taxonomy needs to be re-argued.
+    // The invariant must hold across every entry in both IMPUTATION and
+    // IMPUTE, otherwise a per-metric override can silently break the
+    // ordering (e.g. a `stable-absence` override with a score lower than
+    // an `unmonitored` entry would pass a tables-only check but violate
+    // the taxonomy's semantic meaning).
+    //
+    // Raised in review of PR #2944: the earlier version of this test
+    // only checked the two base entries in IMPUTATION and would have
+    // missed a regression in an IMPUTE override.
+    const allEntries = [
+      ...Object.entries(IMPUTATION).map(([k, v]) => ({ label: `IMPUTATION.${k}`, entry: v })),
+      ...Object.entries(IMPUTE).map(([k, v]) => ({ label: `IMPUTE.${k}`, entry: v })),
+    ];
+
+    const stableAbsence = allEntries.filter((e) => e.entry.imputationClass === 'stable-absence');
+    const unmonitored = allEntries.filter((e) => e.entry.imputationClass === 'unmonitored');
+
+    assert.ok(stableAbsence.length > 0, 'expected at least one stable-absence entry across both tables');
+    assert.ok(unmonitored.length > 0, 'expected at least one unmonitored entry across both tables');
+
+    const minStableScore = Math.min(...stableAbsence.map((e) => e.entry.score));
+    const maxUnmonitoredScore = Math.max(...unmonitored.map((e) => e.entry.score));
     assert.ok(
-      IMPUTATION.crisis_monitoring_absent.score > IMPUTATION.curated_list_absent.score,
-      `stable-absence score (${IMPUTATION.crisis_monitoring_absent.score}) should be higher than unmonitored (${IMPUTATION.curated_list_absent.score})`,
+      minStableScore > maxUnmonitoredScore,
+      `every stable-absence entry must score higher than every unmonitored entry. ` +
+      `min stable-absence score = ${minStableScore}, max unmonitored score = ${maxUnmonitoredScore}. ` +
+      `stable-absence entries: ${stableAbsence.map((e) => `${e.label}=${e.entry.score}`).join(', ')}. ` +
+      `unmonitored entries: ${unmonitored.map((e) => `${e.label}=${e.entry.score}`).join(', ')}.`,
     );
+
+    const minStableCertainty = Math.min(...stableAbsence.map((e) => e.entry.certaintyCoverage));
+    const maxUnmonitoredCertainty = Math.max(...unmonitored.map((e) => e.entry.certaintyCoverage));
     assert.ok(
-      IMPUTATION.crisis_monitoring_absent.certaintyCoverage > IMPUTATION.curated_list_absent.certaintyCoverage,
-      `stable-absence certainty (${IMPUTATION.crisis_monitoring_absent.certaintyCoverage}) should be higher than unmonitored (${IMPUTATION.curated_list_absent.certaintyCoverage})`,
+      minStableCertainty > maxUnmonitoredCertainty,
+      `every stable-absence entry must have higher certaintyCoverage than every unmonitored entry. ` +
+      `min stable-absence certainty = ${minStableCertainty}, max unmonitored certainty = ${maxUnmonitoredCertainty}. ` +
+      `stable-absence entries: ${stableAbsence.map((e) => `${e.label}=${e.entry.certaintyCoverage}`).join(', ')}. ` +
+      `unmonitored entries: ${unmonitored.map((e) => `${e.label}=${e.entry.certaintyCoverage}`).join(', ')}.`,
     );
   });
 });
