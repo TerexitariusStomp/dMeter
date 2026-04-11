@@ -5,6 +5,10 @@
 
 import { clip, num, weightedAverage, percentile } from './_helpers.mjs';
 import { getRegionCountries, getRegionCorridors, countryCriticality, REGIONS } from '../../shared/geography.js';
+import iso3ToIso2Raw from '../../shared/iso3-to-iso2.json' with { type: 'json' };
+
+/** @type {Record<string, string>} */
+const ISO3_TO_ISO2 = iso3ToIso2Raw;
 
 const SCORING_VERSION = '1.0.0';
 
@@ -159,27 +163,37 @@ function computeDomesticFragility(countries, sources, drivers) {
 }
 
 function computeCapitalStress(countries, sources, drivers) {
+  // economic:macro-signals:v1 — seed-economy.mjs emits verdict: 'BUY' | 'CASH' | 'UNKNOWN'
+  //   BUY  = bullish signals dominate (low stress)
+  //   CASH = bearish, rotate to cash (high stress)
+  //   UNKNOWN = missing/stale (treat as neutral)
   const macro = sources['economic:macro-signals:v1'];
   const verdict = String(macro?.verdict ?? '').toUpperCase();
-  const cMacro = verdict === 'BEARISH' ? 1 : verdict === 'NEUTRAL' ? 0.5 : verdict === 'BULLISH' ? 0 : 0.5;
+  const cMacro = verdict === 'CASH' ? 1 : verdict === 'BUY' ? 0 : 0.5;
 
+  // economic:national-debt:v1 shape: { entries: [{ iso3, debtToGdp, ... }] }
+  // debtToGdp is a PERCENTAGE (e.g., 110 for 110% of GDP), not a 0-1 fraction.
+  // Filter to region via iso3 -> iso2 lookup, then compute average debt percentage.
   const debt = sources['economic:national-debt:v1'];
-  const debtCountries = Array.isArray(debt?.countries) ? debt.countries : [];
-  const inRegionDebt = debtCountries.filter((d) => countries.has(String(d?.country ?? '')));
-  const avgDebt = inRegionDebt.length
-    ? inRegionDebt.reduce((sum, d) => sum + num(d.debtToGdp), 0) / inRegionDebt.length
-    : 0.6;
-  const cDebt = clip((avgDebt - 0.6) / 0.8, 0, 1);
+  const debtEntries = Array.isArray(debt?.entries) ? debt.entries : [];
+  const inRegionDebt = debtEntries.filter((e) => {
+    const iso2 = ISO3_TO_ISO2[String(e?.iso3 ?? '')];
+    return iso2 && countries.has(iso2);
+  });
+  // Neutral baseline: 60%. Saturate at 140%+ (80 pct points above neutral).
+  const avgDebtPct = inRegionDebt.length
+    ? inRegionDebt.reduce((sum, e) => sum + num(e.debtToGdp), 0) / inRegionDebt.length
+    : 60;
+  const cDebt = clip((avgDebtPct - 60) / 80, 0, 1);
 
+  // economic:stress-index:v1 shape: { compositeScore, label, components, ... }
+  // Single global object (US-based FRED composite on 0-100 scale), NOT per-country.
+  // Apply as a global overlay that scales every region's capital_stress equally.
   const stress = sources['economic:stress-index:v1'];
-  const stressCountries = Array.isArray(stress?.countries) ? stress.countries : [];
-  const inRegionStress = stressCountries.filter((s) => countries.has(String(s?.country ?? '')));
-  const avgStress = inRegionStress.length
-    ? inRegionStress.reduce((sum, s) => sum + num(s.score), 0) / inRegionStress.length
-    : 0;
-  const cStress = clip(avgStress / 100, 0, 1);
+  const stressComposite = num(stress?.compositeScore);
+  const cStress = clip(stressComposite / 100, 0, 1);
 
-  // Sanctions count proxy: not in default sources, leave at 0 for Phase 0
+  // Sanctions count proxy: not in default sources, leave at 0 for Phase 0.
   const cSanctions = 0;
 
   const score = 0.25 * cMacro + 0.20 * cDebt + 0.30 * cStress + 0.25 * cSanctions;
@@ -193,12 +207,21 @@ function computeCapitalStress(countries, sources, drivers) {
       orientation: 'pressure',
     });
   }
+  if (cDebt > 0.4) {
+    drivers.push({
+      axis: 'capital_stress',
+      description: `Regional debt/GDP average: ${avgDebtPct.toFixed(0)}% across ${inRegionDebt.length} countries`,
+      magnitude: round(cDebt),
+      evidence_ids: ['debt:region-avg'],
+      orientation: 'pressure',
+    });
+  }
   if (cStress > 0.5) {
     drivers.push({
       axis: 'capital_stress',
-      description: `Average regional stress index ${(avgStress).toFixed(0)}`,
+      description: `Global stress index: ${stressComposite.toFixed(0)} (${stress?.label ?? 'n/a'})`,
       magnitude: round(cStress),
-      evidence_ids: ['stress:index'],
+      evidence_ids: ['stress:composite'],
       orientation: 'pressure',
     });
   }
@@ -207,6 +230,13 @@ function computeCapitalStress(countries, sources, drivers) {
 }
 
 function computeEnergyVulnerability(countries, sources, drivers) {
+  // energy:mix:v1:_all shape: Record<ISO2, {
+  //   year, coalShare, gasShare, oilShare, nuclearShare, renewShare,
+  //   windShare, solarShare, hydroShare, importShare: number|null
+  // }>
+  // Values are OWID PERCENTAGES (0-100), not 0-1 fractions. Field is
+  // `importShare`, not `imported`. Countries with null importShare are
+  // excluded from the average (not treated as zero).
   const mix = sources['energy:mix:v1:_all'];
   if (!mix || typeof mix !== 'object') return 0;
   const entries = Object.entries(mix).filter(([iso]) => countries.has(iso));
@@ -215,10 +245,13 @@ function computeEnergyVulnerability(countries, sources, drivers) {
   // Vulnerability = 0.5 * import share + 0.25 * (1 - storage proxy) + 0.25 * (1 - SPR proxy)
   // Phase 0: only import share is reliably present per-country.
   let totalImport = 0;
+  let validCount = 0;
   for (const [, m] of entries) {
-    totalImport += clip(num(m?.imported), 0, 1);
+    if (m == null || m.importShare == null) continue;
+    totalImport += clip(num(m.importShare) / 100, 0, 1);
+    validCount += 1;
   }
-  const avgImport = totalImport / entries.length;
+  const avgImport = validCount > 0 ? totalImport / validCount : 0;
 
   // Storage proxy from EU gas storage (single number for EU region)
   const euGas = sources['economic:eu-gas-storage:v1'];
@@ -233,10 +266,10 @@ function computeEnergyVulnerability(countries, sources, drivers) {
 
   const score = 0.5 * avgImport + 0.25 * cStorage + 0.25 * cSpr;
 
-  if (avgImport > 0.4) {
+  if (avgImport > 0.4 && validCount > 0) {
     drivers.push({
       axis: 'energy_vulnerability',
-      description: `Average import dependency ${(avgImport * 100).toFixed(0)}% across ${entries.length} countries`,
+      description: `Average import dependency ${(avgImport * 100).toFixed(0)}% across ${validCount} countries`,
       magnitude: round(avgImport),
       evidence_ids: ['energy:mix'],
       orientation: 'pressure',

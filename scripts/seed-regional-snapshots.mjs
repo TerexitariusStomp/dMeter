@@ -187,6 +187,7 @@ async function main() {
   let skipped = 0;
   let failed = 0;
   const summary = [];
+  const failedRegions = [];
 
   for (const region of REGIONS) {
     try {
@@ -208,27 +209,36 @@ async function main() {
       }
     } catch (err) {
       failed += 1;
-      console.error(`[${region.id}] FAILED: ${err.message || err}`);
+      failedRegions.push({ region: region.id, error: String(/** @type {any} */ (err)?.message ?? err) });
+      console.error(`[${region.id}] FAILED: ${/** @type {any} */ (err)?.message ?? err}`);
     }
   }
 
-  // Health: write seed-meta with the count of regions actually persisted
-  const ttlSec = 12 * 60 * 60; // 12h, 2x the 6h cron cadence
-  await writeExtraKeyWithMeta(
-    `intelligence:regional-snapshots:summary:v1`,
-    { regions: summary, generatedAt: Date.now() },
-    ttlSec,
-    persisted,
-    `seed-meta:${SEED_META_KEY}`,
-    ttlSec,
-  );
-
+  // Health: only write seed-meta when ALL regions succeeded. If any region
+  // failed, skip the meta write so /api/health flips to STALE after 12h of
+  // persistent degradation instead of silently reporting OK. The bundle
+  // runner's freshness gate will retry this seed on the next cycle.
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-  console.log(`[regional-snapshots] Done in ${elapsed}s: persisted=${persisted} skipped=${skipped} failed=${failed}`);
-
-  if (failed > 0 && persisted === 0) {
-    process.exit(1);
+  if (failed === 0) {
+    const ttlSec = 12 * 60 * 60; // 12h, 2x the 6h cron cadence
+    await writeExtraKeyWithMeta(
+      `intelligence:regional-snapshots:summary:v1`,
+      { regions: summary, generatedAt: Date.now() },
+      ttlSec,
+      persisted,
+      `seed-meta:${SEED_META_KEY}`,
+      ttlSec,
+    );
+    console.log(`[regional-snapshots] Done in ${elapsed}s: persisted=${persisted} skipped=${skipped} failed=0`);
+    return;
   }
+
+  console.error(`[regional-snapshots] Done in ${elapsed}s: persisted=${persisted} skipped=${skipped} failed=${failed}`);
+  for (const f of failedRegions) {
+    console.error(`  [${f.region}] ${f.error}`);
+  }
+  console.error('[regional-snapshots] Skipping seed-meta write due to partial failure. /api/health will reflect degradation after 12h.');
+  process.exit(1);
 }
 
 const isDirectRun = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
