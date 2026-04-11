@@ -1,3 +1,4 @@
+// @ts-check
 // Builds SnapshotMeta. Confidence is computed from input freshness +
 // completeness, then merged with model/scoring/geography versions.
 //

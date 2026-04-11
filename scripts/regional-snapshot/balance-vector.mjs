@@ -1,3 +1,4 @@
+// @ts-check
 // Balance vector computation. Deterministic, no LLM.
 // Mirrors the per-axis formulas in
 // docs/internal/pro-regional-intelligence-appendix-scoring.md.

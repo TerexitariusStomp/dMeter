@@ -1,3 +1,4 @@
+// @ts-check
 // Source freshness registry. Mirrors the table in
 // docs/internal/pro-regional-intelligence-appendix-scoring.md "Source Freshness Registry".
 //
@@ -12,23 +13,28 @@
  * @property {string[]} feedsAxes - Which balance axes / sections this input drives
  */
 
-/** @type {SourceFreshnessSpec[]} */
+/**
+ * Only keys that compute modules actually consume via sources['...'].
+ * Keys must be added here in lockstep with new compute consumers, never
+ * speculatively. Drift between this list and the consumers is an alerting
+ * blind spot (a missing key drags down snapshot_confidence and a present
+ * key with no consumer wastes a Redis read).
+ *
+ * @type {SourceFreshnessSpec[]}
+ */
 export const FRESHNESS_REGISTRY = [
   { key: 'risk:scores:sebuf:stale:v1',          maxAgeMin: 30,    feedsAxes: ['domestic_fragility', 'coercive_pressure'] },
   { key: 'forecast:predictions:v2',              maxAgeMin: 180,   feedsAxes: ['scenarios', 'actors'] },
   { key: 'supply_chain:chokepoints:v4',          maxAgeMin: 30,    feedsAxes: ['maritime_access', 'corridors'] },
   { key: 'supply_chain:transit-summaries:v1',    maxAgeMin: 30,    feedsAxes: ['maritime_access'] },
-  { key: 'supply_chain:shipping_stress:v1',      maxAgeMin: 480,   feedsAxes: ['transmission'] },
   { key: 'intelligence:cross-source-signals:v1', maxAgeMin: 45,    feedsAxes: ['coercive_pressure', 'evidence'] },
+  { key: 'relay:oref:history:v1',                maxAgeMin: 15,    feedsAxes: ['coercive_pressure', 'triggers'] },
   { key: 'economic:macro-signals:v1',            maxAgeMin: 60,    feedsAxes: ['capital_stress'] },
   { key: 'economic:national-debt:v1',            maxAgeMin: 10080, feedsAxes: ['capital_stress'] },
   { key: 'economic:stress-index:v1',             maxAgeMin: 120,   feedsAxes: ['capital_stress'] },
   { key: 'energy:mix:v1:_all',                   maxAgeMin: 50400, feedsAxes: ['energy_vulnerability'] },
   { key: 'economic:eu-gas-storage:v1',           maxAgeMin: 2880,  feedsAxes: ['energy_vulnerability'] },
   { key: 'economic:spr:v1',                      maxAgeMin: 10080, feedsAxes: ['energy_buffer'] },
-  { key: 'energy:chokepoint-flows:v1',           maxAgeMin: 240,   feedsAxes: ['transmission'] },
-  { key: 'intelligence:advisories-bootstrap:v2', maxAgeMin: 240,   feedsAxes: ['mobility', 'evidence'] },
-  { key: 'market:commodities-bootstrap:v1',      maxAgeMin: 90,    feedsAxes: ['transmission'] },
 ];
 
 export const ALL_INPUT_KEYS = FRESHNESS_REGISTRY.map((s) => s.key);

@@ -1,3 +1,4 @@
+// @ts-check
 // Actor scoring extracts ActorState entries from forecast case files.
 // Phase 0: lightweight extraction. Phase 1+ adds dedicated actor tracking.
 
@@ -51,6 +52,7 @@ export function scoreActors(regionId, sources) {
     }
   }
 
+  /** @type {import('../../shared/regions.types.js').ActorState[]} */
   const actors = [];
   const totalMentions = [...counts.values()].reduce((s, e) => s + e.mentions, 0) || 1;
   for (const [name, entry] of counts.entries()) {
@@ -60,7 +62,7 @@ export function scoreActors(regionId, sources) {
       actor_id: name.toLowerCase().replace(/\s+/g, '-'),
       name,
       role,
-      leverage_domains: [...entry.domains],
+      leverage_domains: /** @type {import('../../shared/regions.types.js').ActorLeverageDomain[]} */ ([...entry.domains]),
       leverage_score: round(leverageScore),
       delta: 0, // No history in Phase 0
       evidence_ids: entry.evidence,
@@ -74,6 +76,11 @@ export function scoreActors(regionId, sources) {
   };
 }
 
+/**
+ * @param {string} name
+ * @param {{ domains: Set<string> }} entry
+ * @returns {import('../../shared/regions.types.js').ActorRole}
+ */
 function inferRole(name, entry) {
   const aggressors = new Set(['Iran', 'IRGC', 'Russia', 'Houthis', 'Hamas', 'Hezbollah', 'China']);
   const stabilizers = new Set(['United States', 'NATO', 'Saudi Arabia']);

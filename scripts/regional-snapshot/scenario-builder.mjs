@@ -1,3 +1,4 @@
+// @ts-check
 // Builds scenario sets per horizon, normalized so lane probabilities sum to 1.0.
 // See docs/internal/pro-regional-intelligence-appendix-scoring.md
 // "Scenario Set Normalization".
@@ -5,7 +6,9 @@
 import { num } from './_helpers.mjs';
 import { REGIONS } from '../../shared/geography.js';
 
+/** @type {import('../../shared/regions.types.js').ScenarioHorizon[]} */
 const HORIZONS = ['24h', '7d', '30d'];
+/** @type {import('../../shared/regions.types.js').ScenarioName[]} */
 const LANE_NAMES = ['base', 'escalation', 'containment', 'fragmentation'];
 
 /**

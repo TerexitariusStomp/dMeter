@@ -1,3 +1,4 @@
+// @ts-check
 // Trigger threshold configuration. Each trigger is a structured assertion
 // against a metric, evaluated by trigger-evaluator.mjs.
 //

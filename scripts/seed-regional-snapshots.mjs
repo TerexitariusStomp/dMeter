@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 /**
  * Regional Intelligence snapshot seeder.
  *
@@ -136,6 +137,10 @@ async function computeSnapshot(regionId, sources) {
   const previousLabel = previous?.regime?.label ?? '';
   const regime = buildRegimeState(balance, previousLabel, '');
 
+  // Build a tentative snapshot purely so the diff engine can compare against
+  // the previously-persisted snapshot. The tentative snapshot's meta is a
+  // throwaway placeholder; the real meta is built after the diff so trigger_reason
+  // can be derived from the diff result.
   const tentativeSnapshot = {
     region_id: regionId,
     generated_at: Date.now(),
@@ -161,7 +166,12 @@ async function computeSnapshot(regionId, sources) {
     trigger_reason: triggerReason,
   });
 
-  return { ...tentativeSnapshot, meta: finalMeta, diff };
+  // Return the snapshot WITHOUT the diff. The diff is a runtime artifact for
+  // alert emission; persisting it would leak a non-RegionalSnapshot field into
+  // Redis and break Phase 1 proto codegen consumers.
+  /** @type {import('../shared/regions.types.js').RegionalSnapshot} */
+  const snapshot = { ...tentativeSnapshot, meta: finalMeta };
+  return { snapshot, diff };
 }
 
 async function main() {
@@ -180,7 +190,7 @@ async function main() {
 
   for (const region of REGIONS) {
     try {
-      const snapshot = await computeSnapshot(region.id, sources);
+      const { snapshot } = await computeSnapshot(region.id, sources);
       const result = await persistSnapshot(snapshot);
       if (result.persisted) {
         persisted += 1;

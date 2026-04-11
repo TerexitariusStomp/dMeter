@@ -1,3 +1,4 @@
+// @ts-check
 // Idempotent persistence + index pruning + dedup guard.
 // Implements the persist step of the seed pipeline.
 

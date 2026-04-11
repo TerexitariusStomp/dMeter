@@ -1,3 +1,4 @@
+// @ts-check
 // Rule-based regime derivation. Mirrors the rule table in
 // docs/internal/pro-regional-intelligence-upgrade.md.
 // Pure function: takes a balance vector, returns a regime label.

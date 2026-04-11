@@ -1,3 +1,4 @@
+// @ts-check
 // Evaluates structured trigger thresholds against current snapshot inputs.
 // Each trigger maps to one of three states: active, watching, or dormant.
 
@@ -93,9 +94,16 @@ function resolveMetric(metric, sources, balance, regionId) {
   }
 
   // oref:active_alerts_count
+  // Reads the canonical relay:oref:history:v1 key shape:
+  //   { history, historyCount24h, totalHistoryCount, activeAlertCount, persistedAt }
+  // Prefer activeAlertCount when present (live count), fall back to historyCount24h
+  // (rolling 24h window) so the trigger still fires after the relay restarts.
   if (metric === 'oref:active_alerts_count') {
-    const oref = sources['intelligence:oref-alerts:v1'];
-    return Array.isArray(oref?.alerts) ? oref.alerts.length : 0;
+    const oref = sources['relay:oref:history:v1'];
+    if (!oref || typeof oref !== 'object') return 0;
+    if (typeof oref.activeAlertCount === 'number') return oref.activeAlertCount;
+    if (typeof oref.historyCount24h === 'number') return oref.historyCount24h;
+    return 0;
   }
 
   // theater:* metrics not yet implemented in Phase 0

@@ -1,3 +1,4 @@
+// @ts-check
 // Shared helpers for snapshot compute modules.
 
 /** Clamp a number to the [lo, hi] range. */

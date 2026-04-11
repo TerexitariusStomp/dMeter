@@ -1,3 +1,4 @@
+// @ts-check
 // Builds the evidence chain for a snapshot. Each evidence item is attributed
 // to a theater (and corridor where applicable) and is referenced by ID from
 // balance drivers, narrative sections, and triggers.
@@ -16,6 +17,7 @@ export function collectEvidence(regionId, sources) {
   const region = REGIONS.find((r) => r.id === regionId);
   if (!region) return [];
 
+  /** @type {import('../../shared/regions.types.js').EvidenceItem[]} */
   const out = [];
 
   // Cross-source signals

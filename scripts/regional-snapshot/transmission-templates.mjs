@@ -1,3 +1,4 @@
+// @ts-check
 // Pre-built transmission path templates. ~15 covering major corridors.
 // Each template is matched at runtime against active triggers and corridor
 // status, then enriched with live data (current rates, prices) when available.
@@ -100,6 +101,7 @@ export const TRANSMISSION_TEMPLATES = [
  */
 export function resolveTransmissions(regionId, triggers) {
   const activeIds = new Set(triggers.active.map((t) => t.id));
+  /** @type {import('../../shared/regions.types.js').TransmissionPath[]} */
   const out = [];
   for (const tpl of TRANSMISSION_TEMPLATES) {
     if (!activeIds.has(tpl.trigger)) continue;
@@ -114,7 +116,7 @@ export function resolveTransmissions(regionId, triggers) {
         confidence: step.confidence,
         latency_hours: step.latencyHours,
         impacted_asset_class: step.assetClass,
-        impacted_regions: tpl.affectedRegions,
+        impacted_regions: /** @type {import('../../shared/regions.types.js').RegionId[]} */ (tpl.affectedRegions),
         magnitude_low: step.magnitudeLow,
         magnitude_high: step.magnitudeHigh,
         magnitude_unit: step.magnitudeUnit,

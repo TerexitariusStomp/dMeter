@@ -1,3 +1,4 @@
+// @ts-check
 // Diff engine. Compares prev vs curr snapshot and returns a SnapshotDiff
 // that drives all alert types. Single source of truth for state changes.
 
