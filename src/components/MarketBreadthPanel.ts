@@ -19,6 +19,28 @@ interface BreadthData {
   unavailable?: boolean;
 }
 
+interface RawSeedPayload {
+  current?: { pctAbove20d?: number | null; pctAbove50d?: number | null; pctAbove200d?: number | null };
+  currentPctAbove20d?: number;
+  currentPctAbove50d?: number;
+  currentPctAbove200d?: number;
+  updatedAt?: string;
+  history?: BreadthSnapshot[];
+  unavailable?: boolean;
+}
+
+function normalizeBreadthData(raw: RawSeedPayload): BreadthData {
+  const current = raw.current;
+  return {
+    currentPctAbove20d: raw.currentPctAbove20d ?? current?.pctAbove20d ?? 0,
+    currentPctAbove50d: raw.currentPctAbove50d ?? current?.pctAbove50d ?? 0,
+    currentPctAbove200d: raw.currentPctAbove200d ?? current?.pctAbove200d ?? 0,
+    updatedAt: raw.updatedAt ?? '',
+    history: raw.history ?? [],
+    unavailable: raw.unavailable,
+  };
+}
+
 const SVG_W = 480;
 const SVG_H = 160;
 const ML = 32;
@@ -120,9 +142,9 @@ export class MarketBreadthPanel extends Panel {
   }
 
   public async fetchData(): Promise<boolean> {
-    const hydrated = getHydratedData('breadthHistory') as BreadthData | undefined;
-    if (hydrated && !hydrated.unavailable && hydrated.history?.length > 0) {
-      this.data = hydrated;
+    const hydrated = getHydratedData('breadthHistory') as RawSeedPayload | undefined;
+    if (hydrated && !hydrated.unavailable && hydrated.history?.length) {
+      this.data = normalizeBreadthData(hydrated);
       this.renderPanel();
       void this.refreshFromRpc();
       return true;

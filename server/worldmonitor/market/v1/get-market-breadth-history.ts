@@ -37,9 +37,9 @@ export async function getMarketBreadthHistory(
 
     const history: BreadthSnapshot[] = raw.history.map((e) => ({
       date: e.date,
-      pctAbove20d: e.pctAbove20d ?? 0,
-      pctAbove50d: e.pctAbove50d ?? 0,
-      pctAbove200d: e.pctAbove200d ?? 0,
+      pctAbove20d: e.pctAbove20d ?? null as unknown as number,
+      pctAbove50d: e.pctAbove50d ?? null as unknown as number,
+      pctAbove200d: e.pctAbove200d ?? null as unknown as number,
     }));
 
     return {
