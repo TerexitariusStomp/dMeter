@@ -82,9 +82,9 @@ fails the build if a scorer disagrees with the declared direction.
 
 **What this commits the plan to.** Tasks T2.1 and T2.3 ship the penalized
 weighted mean as the v2.0 aggregation. Phase 2 sensitivity (T2.6) includes
-α ∈ {0, 0.25, 0.5, 0.75, 1} as a perturbation axis and publishes the curve;
-the chosen α is documented in the methodology changelog with the backtest
-evidence that justified it.
+α in `{0, 0.25, 0.5, 0.75, 1}` as a perturbation axis and publishes the
+curve; the chosen α is documented in the methodology changelog with the
+backtest evidence that justified it.
 
 ## Product Split: Reference Edition vs Live Monitor
 
@@ -426,7 +426,7 @@ good core-ranking inputs yet."*)
 | Import concentration (HHI, HS2) | Comtrade | **Core** | Wide reporter coverage via bilateral expansion (memory: `comtrade_reporters_actual`, current seeded reporters US/CN/RU/IR/IN/TW, expand in T2.2) |
 | Hospital beds / 10k | WHO GHO | **Core** | Already in health dimension, unchanged |
 | State continuity composite | WGI + UCDP + ACLED + displacement velocity | **Core** | All sources already Core-tier |
-| ICU surge capacity | OECD health data | **Enrichment** | OECD-only; <80 countries |
+| ICU surge capacity | OECD health data | **Enrichment** | OECD-only, fewer than 80 countries |
 | Grid reliability (SAIDI/SAIFI) | WB Doing Business archive + ENTSO-E | **Enrichment** | EU + archived WB only; definitional variance across sources |
 | Fuel-stock days | IEA strategic reserves, EIA weekly, EMSA | **Enrichment** | IEA members only (~35 countries); Experimental for non-IEA until an open global source lands |
 | Telecom redundancy (submarine cables, IXP count) | TeleGeography, PCH | **Enrichment** | Counts differ by source; no standard denominator |
@@ -452,8 +452,8 @@ interval computation anywhere near the read path"*.)
   6 hours):
   - Bootstrap: N=500 resamples of non-missing signals per country, recompute
     per-pillar and overall scores.
-  - Monte Carlo: perturb domain weights (±20% Dirichlet) and α ∈
-    {0, 0.25, 0.5, 0.75, 1} across the penalty factor.
+  - Monte Carlo: perturb domain weights (±20% Dirichlet) and α in
+    `{0, 0.25, 0.5, 0.75, 1}` across the penalty factor.
   - Combine bootstrap and MC samples into a joint distribution; store
     per-pillar p05/p50/p95 and a joint overall p05/p50/p95.
   - Re-rank each sample and store per-country p05/p95 **rank band**.
@@ -532,11 +532,11 @@ all seven families, even when only one family gated the release.
 
 **Sensitivity suite** extends `scripts/validate-resilience-sensitivity.mjs`.
 Perturbation axes: domain weights (±20%), goalposts (±10%),
-α ∈ {0, 0.25, 0.5, 0.75, 1} for the penalized weighted mean, imputation-class
-defaults (shift one class up and one class down), and goalpost normalization
-method (linear vs percentile-based). Publishes a curve per axis. Blocks
-release if any single-axis perturbation moves a top-50 country by more than
-5 rank positions.
+α in `{0, 0.25, 0.5, 0.75, 1}` for the penalized weighted mean,
+imputation-class defaults (shift one class up and one class down), and
+goalpost normalization method (linear vs percentile-based). Publishes a
+curve per axis. Blocks release if any single-axis perturbation moves a
+top-50 country by more than 5 rank positions.
 
 All three scripts run as Railway cron jobs (weekly, bundled if service count
 is a concern, memory: `railway_seed_bundle_pattern`) and publish results to
@@ -682,7 +682,7 @@ sensitivity suite, new indicators live.
 - [ ] Cross-index benchmark published with per-pillar hypotheses, every
       row within expected band OR annotated with signed outlier commentary.
 - [ ] Per-event-family backtest gates met for all 7 families (or shortfall
-      < 0.03 AUC and documented in changelog).
+      under 0.03 AUC and documented in changelog).
 - [ ] Sensitivity suite: no single-axis perturbation moves any top-50
       country by more than 5 rank positions.
 - [ ] α-sensitivity curve published; chosen α justified by held-out
@@ -891,7 +891,7 @@ rewrites the key.
       sovereign stress, prolonged power outages, food-crisis escalation,
       refugee surges, sanctions shocks, conflict spillover). Each family
       ships when AUC ≥ its per-family naive baseline + 0.05 using its own
-      lead window, OR when the shortfall is < 0.03 AUC and explicitly
+      lead window, OR when the shortfall is under 0.03 AUC and explicitly
       documented in the methodology changelog.
 - [ ] Sensitivity suite: no single-axis perturbation moves any top-50
       country by more than 5 rank positions. α-sensitivity curve published.
@@ -958,8 +958,8 @@ ones"*.)
   **Target: ≤5 positions.**
 - **Benchmark uplift over naive baseline**: weighted average AUC uplift
   across the 7 event-family backtests vs per-family naive baselines.
-  **Target: ≥0.05 weighted mean; every family ≥ baseline (or gap < 0.03
-  AUC and documented).**
+  **Target: ≥0.05 weighted mean; every family ≥ baseline (or gap under
+  0.03 AUC and documented).**
 - **World coverage**: non-greyed countries in the Live Monitor ranking.
   **Target: ≥190**, `feedback_world_coverage_never_subset`, non-negotiable.
 - **Methodology doc completeness**: % of dimensions with every required
