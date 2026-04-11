@@ -327,26 +327,59 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-function markdownToEmailHtml(md) {
-  // Escape HTML first, then convert markdown formatting
-  let html = escapeHtml(md);
+// Inline markdown → HTML (operates on already-HTML-escaped text, no block markup).
+function renderEmailInline(text) {
+  let out = text;
   // Bold: **text** or __text__
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#fff;">$1</strong>');
-  html = html.replace(/__(.+?)__/g, '<strong style="color:#fff;">$1</strong>');
-  // Italic: *text* (single asterisk, but not bullet points at line start)
-  html = html.replace(/(?<!\n|\*)\*([^*\n]+?)\*/g, '<em>$1</em>');
-  // Bullet points: lines starting with * or -
-  html = html.replace(/^[\*\-]\s+(.+)$/gm, '<li style="margin-bottom:6px;">$1</li>');
-  // Wrap consecutive <li> in <ul>
-  html = html.replace(/((?:<li[^>]*>.*?<\/li>\s*)+)/g, '<ul style="margin:12px 0;padding-left:20px;list-style:disc;">$1</ul>');
-  // Section headers: lines ending with colon (Assessment:, Signals to watch:)
-  // Use [A-Za-z ] (not \s) and ` *` to avoid swallowing newlines.
-  html = html.replace(/^([A-Z][A-Za-z ]+): */gm, '<strong style="color:#4ade80;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">$1:</strong> ');
-  // Paragraphs: double newlines
-  html = html.replace(/\n\n+/g, '</p><p style="margin:12px 0;">');
-  // Single newlines (not inside lists)
-  html = html.replace(/(?<!<\/li>)\n(?!<)/g, '<br/>');
-  return `<p style="margin:0 0 12px;">${html}</p>`;
+  out = out.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#fff;">$1</strong>');
+  out = out.replace(/__(.+?)__/g, '<strong style="color:#fff;">$1</strong>');
+  // Italic: *text* (not adjacent to another asterisk, avoids collision w/ bold)
+  out = out.replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, '<em>$1</em>');
+  // Section header (label at start of the block, e.g. "Assessment:", "Signals to watch:")
+  out = out.replace(
+    /^([A-Z][A-Za-z ]+): */,
+    '<strong style="color:#4ade80;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">$1:</strong> ',
+  );
+  return out;
+}
+
+// Block-level markdown → HTML. Splits the summary into paragraph and list
+// blocks first, then applies inline formatting within each block, so we
+// never nest <ul> inside <p> or split a list across paragraphs.
+function markdownToEmailHtml(md) {
+  const escaped = escapeHtml(md);
+  const lines = escaped.split('\n');
+
+  /** @type {Array<{type:'p'|'ul', items:string[]}>} */
+  const blocks = [];
+  let current = null;
+  const flush = () => { if (current) { blocks.push(current); current = null; } };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) { flush(); continue; }
+
+    const bullet = line.match(/^\s*[\*\-]\s+(.+)$/);
+    if (bullet) {
+      if (!current || current.type !== 'ul') { flush(); current = { type: 'ul', items: [] }; }
+      current.items.push(bullet[1]);
+    } else {
+      if (!current || current.type !== 'p') { flush(); current = { type: 'p', items: [] }; }
+      current.items.push(trimmed);
+    }
+  }
+  flush();
+
+  return blocks.map((block) => {
+    if (block.type === 'ul') {
+      const items = block.items
+        .map((item) => `<li style="margin-bottom:6px;">${renderEmailInline(item)}</li>`)
+        .join('');
+      return `<ul style="margin:12px 0;padding-left:20px;list-style:disc;">${items}</ul>`;
+    }
+    const joined = block.items.map(renderEmailInline).join('<br/>');
+    return `<p style="margin:0 0 12px;">${joined}</p>`;
+  }).join('');
 }
 
 // Telegram HTML parse_mode escape: only &, <, > (no " or ')
