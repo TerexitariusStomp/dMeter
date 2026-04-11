@@ -5,38 +5,57 @@ import { getHydratedData } from '@/services/bootstrap';
 
 interface BreadthSnapshot {
   date: string;
-  pctAbove20d: number;
-  pctAbove50d: number;
-  pctAbove200d: number;
+  // null = reading was missing (partial seed failure); 0 = legitimate 0%.
+  pctAbove20d: number | null;
+  pctAbove50d: number | null;
+  pctAbove200d: number | null;
 }
 
 interface BreadthData {
-  currentPctAbove20d: number;
-  currentPctAbove50d: number;
-  currentPctAbove200d: number;
+  currentPctAbove20d: number | null;
+  currentPctAbove50d: number | null;
+  currentPctAbove200d: number | null;
   updatedAt: string;
   history: BreadthSnapshot[];
   unavailable?: boolean;
 }
 
+interface RawHistoryEntry {
+  date: string;
+  pctAbove20d?: number | null;
+  pctAbove50d?: number | null;
+  pctAbove200d?: number | null;
+}
+
 interface RawSeedPayload {
   current?: { pctAbove20d?: number | null; pctAbove50d?: number | null; pctAbove200d?: number | null };
-  currentPctAbove20d?: number;
-  currentPctAbove50d?: number;
-  currentPctAbove200d?: number;
+  currentPctAbove20d?: number | null;
+  currentPctAbove50d?: number | null;
+  currentPctAbove200d?: number | null;
   updatedAt?: string;
-  history?: BreadthSnapshot[];
+  history?: RawHistoryEntry[];
   unavailable?: boolean;
+}
+
+function toNullable(v: number | null | undefined): number | null {
+  if (v === null || v === undefined) return null;
+  return Number.isFinite(v) ? v : null;
 }
 
 function normalizeBreadthData(raw: RawSeedPayload): BreadthData {
   const current = raw.current;
+  const history: BreadthSnapshot[] = (raw.history ?? []).map((e) => ({
+    date: e.date,
+    pctAbove20d: toNullable(e.pctAbove20d),
+    pctAbove50d: toNullable(e.pctAbove50d),
+    pctAbove200d: toNullable(e.pctAbove200d),
+  }));
   return {
-    currentPctAbove20d: raw.currentPctAbove20d ?? current?.pctAbove20d ?? 0,
-    currentPctAbove50d: raw.currentPctAbove50d ?? current?.pctAbove50d ?? 0,
-    currentPctAbove200d: raw.currentPctAbove200d ?? current?.pctAbove200d ?? 0,
+    currentPctAbove20d: toNullable(raw.currentPctAbove20d ?? current?.pctAbove20d),
+    currentPctAbove50d: toNullable(raw.currentPctAbove50d ?? current?.pctAbove50d),
+    currentPctAbove200d: toNullable(raw.currentPctAbove200d ?? current?.pctAbove200d),
     updatedAt: raw.updatedAt ?? '',
-    history: raw.history ?? [],
+    history,
     unavailable: raw.unavailable,
   };
 }
@@ -50,7 +69,10 @@ const MB = 22;
 const CW = SVG_W - ML - MR;
 const CH = SVG_H - MT - MB;
 
-const SERIES: { key: keyof BreadthSnapshot; color: string; label: string; fillOpacity: number }[] = [
+type NumericSeriesKey = 'pctAbove20d' | 'pctAbove50d' | 'pctAbove200d';
+type SeriesRun = Array<{ x: number; y: number }>;
+
+const SERIES: { key: NumericSeriesKey; color: string; label: string; fillOpacity: number }[] = [
   { key: 'pctAbove20d',  color: '#3b82f6', label: '20-day SMA', fillOpacity: 0.08 },
   { key: 'pctAbove50d',  color: '#f59e0b', label: '50-day SMA', fillOpacity: 0.06 },
   { key: 'pctAbove200d', color: '#22c55e', label: '200-day SMA', fillOpacity: 0.04 },
@@ -65,28 +87,42 @@ function yPos(v: number): number {
   return MT + CH - (v / 100) * CH;
 }
 
-function buildAreaPath(points: BreadthSnapshot[], key: keyof BreadthSnapshot): string {
-  const coords: string[] = [];
+/**
+ * Split a series into contiguous runs of valid points. Any null/non-finite
+ * reading breaks the run so the chart renders visible gaps at missing days
+ * instead of smoothing over them with a continuous line. Without this, a
+ * seed partial failure would look like real uninterrupted trend data.
+ */
+function splitSeriesByNulls(points: BreadthSnapshot[], key: NumericSeriesKey): SeriesRun[] {
+  const runs: SeriesRun[] = [];
+  let current: SeriesRun = [];
   for (let i = 0; i < points.length; i++) {
-    const v = points[i]![key] as number;
-    if (!Number.isFinite(v)) continue;
-    coords.push(`${xPos(i, points.length).toFixed(1)},${yPos(v).toFixed(1)}`);
+    const v = points[i]![key];
+    if (v === null || v === undefined || !Number.isFinite(v)) {
+      if (current.length > 0) {
+        runs.push(current);
+        current = [];
+      }
+      continue;
+    }
+    current.push({ x: xPos(i, points.length), y: yPos(v as number) });
   }
-  if (coords.length < 2) return '';
-  const first = xPos(0, points.length).toFixed(1);
-  const last = xPos(points.length - 1, points.length).toFixed(1);
+  if (current.length > 0) runs.push(current);
+  return runs;
+}
+
+function runToAreaPath(run: SeriesRun): string {
+  if (run.length < 2) return '';
   const baseline = yPos(0).toFixed(1);
+  const first = run[0]!.x.toFixed(1);
+  const last = run[run.length - 1]!.x.toFixed(1);
+  const coords = run.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`);
   return `M${first},${baseline} L${coords.join(' L')} L${last},${baseline} Z`;
 }
 
-function buildLinePath(points: BreadthSnapshot[], key: keyof BreadthSnapshot): string {
-  const coords: string[] = [];
-  for (let i = 0; i < points.length; i++) {
-    const v = points[i]![key] as number;
-    if (!Number.isFinite(v)) continue;
-    coords.push(`${xPos(i, points.length).toFixed(1)},${yPos(v).toFixed(1)}`);
-  }
-  return coords.join(' ');
+function runToPolylinePoints(run: SeriesRun): string {
+  if (run.length === 0) return '';
+  return run.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
 }
 
 function buildChart(points: BreadthSnapshot[]): string {
@@ -107,16 +143,28 @@ function buildChart(points: BreadthSnapshot[]): string {
     return `<text x="${x.toFixed(1)}" y="${SVG_H - MB + 13}" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="7">${escapeHtml(label)}</text>`;
   }).join('');
 
+  // Render each contiguous run separately so null/missing days leave visible
+  // gaps instead of being bridged by a continuous polyline.
   const areas = SERIES.map(s => {
-    const d = buildAreaPath(points, s.key);
-    if (!d) return '';
-    return `<path d="${d}" fill="${s.color}" opacity="${s.fillOpacity}"/>`;
+    const runs = splitSeriesByNulls(points, s.key as NumericSeriesKey);
+    return runs
+      .map((run) => {
+        const d = runToAreaPath(run);
+        if (!d) return '';
+        return `<path d="${d}" fill="${s.color}" opacity="${s.fillOpacity}"/>`;
+      })
+      .join('');
   }).join('');
 
   const lines = SERIES.map(s => {
-    const coords = buildLinePath(points, s.key);
-    if (!coords) return '';
-    return `<polyline points="${coords}" fill="none" stroke="${s.color}" stroke-width="1.5" opacity="0.9"/>`;
+    const runs = splitSeriesByNulls(points, s.key as NumericSeriesKey);
+    return runs
+      .map((run) => {
+        if (run.length < 2) return '';
+        const coords = runToPolylinePoints(run);
+        return `<polyline points="${coords}" fill="none" stroke="${s.color}" stroke-width="1.5" opacity="0.9"/>`;
+      })
+      .join('');
   }).join('');
 
   const midLine = yPos(50);
@@ -164,7 +212,10 @@ export class MarketBreadthPanel extends Panel {
         if (!this.data) this.showError(t('common.noDataShort'), () => void this.fetchData());
         return false;
       }
-      this.data = resp as BreadthData;
+      // The RPC interface types these as `number` but the JSON wire preserves
+      // null for missing readings — normalize through the same path as the
+      // hydrated payload so partial failures become `null` not `0`.
+      this.data = normalizeBreadthData(resp as unknown as RawSeedPayload);
       this.renderPanel();
       return true;
     } catch (e) {
@@ -182,20 +233,23 @@ export class MarketBreadthPanel extends Panel {
     const d = this.data;
     const chart = buildChart(d.history);
 
-    const currentMap: Record<string, number> = {
+    const currentMap: Record<NumericSeriesKey, number | null> = {
       pctAbove20d: d.currentPctAbove20d,
       pctAbove50d: d.currentPctAbove50d,
       pctAbove200d: d.currentPctAbove200d,
     };
 
     const legend = SERIES.map(s => {
-      const val = currentMap[s.key] ?? 0;
+      const val = currentMap[s.key];
+      // Distinguish missing (null) from a real 0% reading — a seed partial
+      // failure shows "—", a legit zero renders a badge at 0.0%.
+      const hasCurrent = typeof val === 'number' && Number.isFinite(val) && val >= 0;
       return `<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0">
         <span style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-dim)">
           <span style="width:8px;height:3px;border-radius:1px;background:${s.color}"></span>
           % Above ${escapeHtml(s.label)}
         </span>
-        ${val > 0 ? readingBadge(val, s.color) : '<span style="font-size:11px;color:var(--text-dim)">N/A</span>'}
+        ${hasCurrent ? readingBadge(val as number, s.color) : '<span style="font-size:11px;color:var(--text-dim)">\u2014</span>'}
       </div>`;
     }).join('');
 

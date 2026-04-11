@@ -132,3 +132,50 @@ describe('Market breadth panel', () => {
     assert.match(panelSrc, /getMarketBreadthHistory/);
   });
 });
+
+describe('Market breadth null-vs-zero handling', () => {
+  const panelSrc = readFileSync(join(root, 'src', 'components', 'MarketBreadthPanel.ts'), 'utf-8');
+  const handlerSrc = readFileSync(join(root, 'server', 'worldmonitor', 'market', 'v1', 'get-market-breadth-history.ts'), 'utf-8');
+  const seedSrc = readFileSync(join(root, 'scripts', 'seed-market-breadth.mjs'), 'utf-8');
+
+  it('seed preserves null for failed Barchart fetches', () => {
+    // readings[field] = val where val can be null; must NOT coerce to 0
+    assert.match(seedSrc, /readings\[field\]\s*=\s*val/);
+    assert.doesNotMatch(seedSrc, /pctAbove20d:\s*readings\.pctAbove20d\s*\|\|\s*0/);
+  });
+
+  it('handler returns nullable currents (no ?? 0 coercion)', () => {
+    // Ensure the handler no longer coerces raw.current.pctAbove* ?? 0
+    assert.doesNotMatch(handlerSrc, /raw\.current\.pctAbove20d\s*\?\?\s*0/);
+    assert.doesNotMatch(handlerSrc, /raw\.current\.pctAbove50d\s*\?\?\s*0/);
+    assert.doesNotMatch(handlerSrc, /raw\.current\.pctAbove200d\s*\?\?\s*0/);
+    // The loose interface carries number | null
+    assert.match(handlerSrc, /currentPctAbove20d:\s*number\s*\|\s*null/);
+  });
+
+  it('panel type distinguishes null from number for current readings', () => {
+    assert.match(panelSrc, /currentPctAbove20d:\s*number\s*\|\s*null/);
+    assert.match(panelSrc, /currentPctAbove50d:\s*number\s*\|\s*null/);
+    assert.match(panelSrc, /currentPctAbove200d:\s*number\s*\|\s*null/);
+  });
+
+  it('panel legend treats null as missing, 0 as a valid reading', () => {
+    // hasCurrent check must accept 0 but reject null
+    assert.match(panelSrc, /Number\.isFinite\(val\)\s*&&\s*val\s*>=\s*0/);
+    // Uses "—" (em dash, \u2014) for missing readings, not "N/A"
+    assert.match(panelSrc, /\\u2014/);
+  });
+
+  it('history chart splits polylines at null points', () => {
+    assert.match(panelSrc, /splitSeriesByNulls/);
+    // run-based helpers (one polyline per contiguous run, not one per series)
+    assert.match(panelSrc, /runToAreaPath/);
+    assert.match(panelSrc, /runToPolylinePoints/);
+  });
+
+  it('splitSeriesByNulls breaks on null/undefined/non-finite values', () => {
+    assert.match(panelSrc, /v\s*===\s*null/);
+    assert.match(panelSrc, /v\s*===\s*undefined/);
+    assert.match(panelSrc, /!Number\.isFinite\(v\)/);
+  });
+});
