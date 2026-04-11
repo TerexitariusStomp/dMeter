@@ -1,10 +1,24 @@
 import { Panel } from './Panel';
-import { escapeHtml } from '@/services/forecast';
+import { escapeHtml, fetchForecasts } from '@/services/forecast';
 import type { Forecast } from '@/services/forecast';
 import { t } from '@/services/i18n';
 
 const DOMAINS = ['all', 'conflict', 'market', 'supply_chain', 'political', 'military', 'cyber', 'infrastructure'] as const;
 const PANEL_MIN_PROBABILITY = 0.1;
+
+// Free-text region labels matching strings written to f.region in scripts/seed-forecasts.mjs.
+// The server does case-insensitive substring match on f.region — so 'Middle East' matches
+// 'Middle East', 'middle east', 'Middle East (Levant)', etc. No client-side re-filter.
+const FORECAST_REGIONS = [
+  { id: '', label: 'All Regions' },
+  { id: 'Middle East', label: 'MENA' },
+  { id: 'East Asia', label: 'East Asia' },
+  { id: 'Europe', label: 'Europe' },
+  { id: 'South Asia', label: 'South Asia' },
+  { id: 'Africa', label: 'Africa' },
+  { id: 'Latin America', label: 'LatAm' },
+  { id: 'North America', label: 'N. America' },
+] as const;
 
 const DOMAIN_LABELS: Record<string, string> = {
   all: 'All',
@@ -228,8 +242,12 @@ function injectStyles(): void {
 export class ForecastPanel extends Panel {
   private forecasts: Forecast[] = [];
   private activeDomain: string = 'all';
+  private selectedRegion: string = '';
   private theaters: SimulationTheater[] = [];
   private expandedTheaterId: string | null = null;
+  // Increments on every region click; stale fetch responses check against this
+  // to avoid rendering out-of-order results when the user clicks quickly.
+  private regionFetchSeq = 0;
 
   constructor() {
     super({ id: 'forecast', title: 'AI Forecasts', showCount: true, infoTooltip: t('components.forecast.infoTooltip') });
@@ -241,6 +259,15 @@ export class ForecastPanel extends Panel {
       if (filterBtn) {
         this.activeDomain = filterBtn.dataset.fcDomain || 'all';
         this.render();
+        return;
+      }
+
+      const regionBtn = target.closest('[data-fc-region]') as HTMLElement | null;
+      if (regionBtn) {
+        const nextRegion = regionBtn.dataset.fcRegion ?? '';
+        if (nextRegion === this.selectedRegion) return;
+        this.selectedRegion = nextRegion;
+        void this.refetchForRegion();
         return;
       }
 
@@ -288,24 +315,51 @@ export class ForecastPanel extends Panel {
     if (this.forecasts.length > 0) this.render();
   }
 
+  // Re-fetches forecasts from the server with the currently selected region.
+  // The server does case-insensitive substring matching on f.region; the UI
+  // passes the free-text label verbatim with NO client-side re-filtering.
+  // A sequence counter guards against out-of-order responses when the user
+  // clicks multiple region pills quickly.
+  private async refetchForRegion(): Promise<void> {
+    const seq = ++this.regionFetchSeq;
+    // Repaint immediately so the clicked pill's active state updates.
+    this.render();
+    try {
+      const forecasts = await fetchForecasts(undefined, this.selectedRegion || undefined);
+      if (seq !== this.regionFetchSeq) return;
+      this.updateForecasts(forecasts);
+    } catch {
+      // Silent failure: premium RPC, same pattern as the initial load in data-loader.
+    }
+  }
+
   private getVisibleForecasts(): Forecast[] {
     return this.forecasts.filter(f => (f.probability || 0) >= PANEL_MIN_PROBABILITY);
   }
 
   private render(): void {
     const visibleForecasts = this.getVisibleForecasts();
+    const filtersHtml = DOMAINS.map(d =>
+      `<button class="fc-filter${d === this.activeDomain ? ' fc-active' : ''}" data-fc-domain="${d}">${DOMAIN_LABELS[d]}</button>`
+    ).join('');
+    const regionsHtml = FORECAST_REGIONS.map(r =>
+      `<button class="fc-filter${r.id === this.selectedRegion ? ' fc-active' : ''}" data-fc-region="${escapeHtml(r.id)}">${escapeHtml(r.label)}</button>`
+    ).join('');
+
     if (visibleForecasts.length === 0) {
-      this.setContent('<div class="fc-empty">No forecasts available</div>');
+      this.setContent(`
+        <div class="fc-panel">
+          <div class="fc-filters">${filtersHtml}</div>
+          <div class="fc-filters">${regionsHtml}</div>
+          <div class="fc-empty">No forecasts available</div>
+        </div>
+      `);
       return;
     }
 
     const filtered = this.activeDomain === 'all'
       ? visibleForecasts
       : visibleForecasts.filter(f => f.domain === this.activeDomain);
-
-    const filtersHtml = DOMAINS.map(d =>
-      `<button class="fc-filter${d === this.activeDomain ? ' fc-active' : ''}" data-fc-domain="${d}">${DOMAIN_LABELS[d]}</button>`
-    ).join('');
 
     const nexusHtml = this.theaters.length > 0
       ? `<div class="fc-nexus">${this.renderNexus()}</div><div class="fc-section-label">Probability Bets</div>`
@@ -315,6 +369,7 @@ export class ForecastPanel extends Panel {
     this.setContent(`
       <div class="fc-panel">
         <div class="fc-filters">${filtersHtml}</div>
+        <div class="fc-filters">${regionsHtml}</div>
         ${nexusHtml}
         ${tableHtml}
       </div>
