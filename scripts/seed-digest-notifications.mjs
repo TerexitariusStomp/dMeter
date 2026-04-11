@@ -327,6 +327,27 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+function markdownToEmailHtml(md) {
+  // Escape HTML first, then convert markdown formatting
+  let html = escapeHtml(md);
+  // Bold: **text** or __text__
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#fff;">$1</strong>');
+  html = html.replace(/__(.+?)__/g, '<strong style="color:#fff;">$1</strong>');
+  // Italic: *text* (single asterisk, but not bullet points at line start)
+  html = html.replace(/(?<!\n|\*)\*([^*\n]+?)\*/g, '<em>$1</em>');
+  // Bullet points: lines starting with * or -
+  html = html.replace(/^[\*\-]\s+(.+)$/gm, '<li style="margin-bottom:6px;">$1</li>');
+  // Wrap consecutive <li> in <ul>
+  html = html.replace(/((?:<li[^>]*>.*?<\/li>\s*)+)/g, '<ul style="margin:12px 0;padding-left:20px;list-style:disc;">$1</ul>');
+  // Section headers: lines ending with colon (Assessment:, Signals to watch:)
+  html = html.replace(/^([A-Z][A-Za-z\s]+):\s*/gm, '<strong style="color:#4ade80;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">$1:</strong> ');
+  // Paragraphs: double newlines
+  html = html.replace(/\n\n+/g, '</p><p style="margin:12px 0;">');
+  // Single newlines (not inside lists)
+  html = html.replace(/(?<!<\/li>)\n(?!<)/g, '<br/>');
+  return `<p style="margin:0 0 12px;">${html}</p>`;
+}
+
 function formatDigestHtml(stories, nowMs) {
   if (!stories || stories.length === 0) return null;
   const dateStr = new Intl.DateTimeFormat('en-US', {
@@ -829,9 +850,10 @@ async function main() {
     if (aiSummary) {
       text = `EXECUTIVE SUMMARY\n\n${aiSummary}\n\n${'─'.repeat(40)}\n\n${text}`;
       if (html) {
+        const formattedSummary = markdownToEmailHtml(aiSummary);
         const summaryHtml = `<div style="background:#161616;border:1px solid #222;border-left:3px solid #4ade80;padding:18px 22px;margin:0 0 24px 0;">
 <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#4ade80;margin-bottom:10px;">Executive Summary</div>
-<div style="font-size:13px;line-height:1.7;color:#ccc;white-space:pre-wrap;">${escapeHtml(aiSummary)}</div>
+<div style="font-size:13px;line-height:1.7;color:#ccc;">${formattedSummary}</div>
 </div>`;
         html = html.replace('<div data-ai-summary-slot></div>', summaryHtml);
       }
