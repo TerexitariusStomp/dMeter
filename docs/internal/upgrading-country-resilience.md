@@ -52,4 +52,65 @@ Do that, and this becomes a reference-grade country resilience product. Skip it,
 [6]: https://raw.githubusercontent.com/koala73/worldmonitor/main/scripts/seed-resilience-static.mjs "https://raw.githubusercontent.com/koala73/worldmonitor/main/scripts/seed-resilience-static.mjs"
 [7]: https://raw.githubusercontent.com/koala73/worldmonitor/main/src/components/ResilienceWidget.ts "https://raw.githubusercontent.com/koala73/worldmonitor/main/src/components/ResilienceWidget.ts"
 
+## Editor's Note: Changelog (2026-04-11)
+
+The original text of this review, above, is preserved as written. The
+notes below are appended amendments, not edits, so the record of the
+review as originally filed stays auditable.
+
+### T1.1 investigation outcome (not reproduced)
+
+The review states above that "Norway and the US both hit 100 under
+current fixtures, which broke the intended ordering and exposed a
+ceiling effect at the top end of the ranking." Phase 1 task T1.1 of
+the implementation plan committed to reproducing this claim with a
+failing regression test before any fix landed. The investigation was
+completed on 2026-04-11 and is published as a regression test on
+PR #2941 (`tests/resilience-release-gate.test.mts`, the
+`T1.1 regression: Norway and US do not both pin at 100` test case).
+
+The claim does NOT reproduce. Measured scores under the current
+release-gate fixtures and the post-PR-#2847 domain-weighted-average
+formula:
+
+- Norway (elite tier):  overallScore = 86.58, baseline 86.85, stress 84.36
+- US (strong tier):     overallScore = 72.80, baseline 73.15, stress 70.58
+- Delta:                NO minus US = 13.78 points
+- Ceiling:              neither country approaches 100; the
+  domain-weighted sum cannot reach 100 without every dimension
+  saturating, which does not happen for any fixture tier.
+
+The ordering elite > strong > stressed > fragile is preserved, and
+there is no hard 100 ceiling in `_dimension-scorers.ts`. The original
+symptom is therefore misattributed or stale: it likely predates
+PR #2847's revert of the multiplicative `baseline * (1 - stressFactor)`
+formula that had been over-penalizing every country, or references an
+older fixture set. The underlying scorecard section ("Methodological
+rigor: 6.0/10", "Validation and backtesting: 5.5/10") and the six
+prescribed improvements remain valid; only the specific Norway=US=100
+illustration is retracted.
+
+The regression test itself is kept in the release-gate suite so a
+real top-of-ranking ceiling bug, if one is ever introduced in the
+future, is caught immediately by CI instead of being rediscovered by
+another reviewer.
+
+### Side finding: release-gate fixture same-tier collisions
+
+During the T1.1 investigation the release-gate fixtures were found
+to use a single `qualityFor(profile)` value per tier, so every
+country inside an `elite`, `strong`, `stressed`, or `fragile` tier
+produces byte-identical scores. This is not a scorer bug; it is a
+fixture-design limitation that makes the release-gate suite unable
+to detect within-tier ordering regressions. Diversifying the
+fixtures along a real-world axis (e.g. sampling each tier from the
+live indicator registry) is a follow-up for Phase 2 validation work
+and is not in scope for Phase 1.
+
+### Plan tracking
+
+The full Phase 1 through Phase 3 build is tracked in the reference-
+grade upgrade plan at `docs/internal/country-resilience-upgrade-plan.md`,
+landed alongside this review in the same PR.
+
 
