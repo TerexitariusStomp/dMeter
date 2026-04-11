@@ -45,8 +45,8 @@ describe('markdownToEmailHtml', () => {
     const html = markdownToEmailHtml(REALISTIC_SUMMARY);
     // Tempered quantifiers: capture exactly what's between a block and its
     // own closing tag without crossing into adjacent blocks.
-    const pBlockRe = /<p[^>]*>((?:(?!<\/p>)[^])*)<\/p>/g;
-    const ulBlockRe = /<ul[^>]*>((?:(?!<\/ul>)[^])*)<\/ul>/g;
+    const pBlockRe = /<p[^>]*>((?:(?!<\/p>)[\s\S])*)<\/p>/g;
+    const ulBlockRe = /<ul[^>]*>((?:(?!<\/ul>)[\s\S])*)<\/ul>/g;
     for (const [, inside] of html.matchAll(pBlockRe)) {
       assert.doesNotMatch(inside, /<p[\s>]/, '<p> must not contain another <p>');
       assert.doesNotMatch(inside, /<ul[\s>]/, '<p> must not contain a <ul>');
@@ -64,7 +64,7 @@ describe('markdownToEmailHtml', () => {
     assert.equal(ulOpens, 2, 'realistic sample should produce exactly 2 lists');
     // Every top-level block should be <p>...</p> or <ul>...</ul>; the
     // concatenation of matched block lengths should equal the whole string.
-    const topLevel = /<(p|ul)[^>]*>(?:(?!<\/\1>)[^])*<\/\1>/g;
+    const topLevel = /<(p|ul)[^>]*>(?:(?!<\/\1>)[\s\S])*<\/\1>/g;
     const consumed = [...html.matchAll(topLevel)].reduce((n, m) => n + m[0].length, 0);
     assert.equal(consumed, html.length, 'HTML must be a flat sequence of <p>/<ul> blocks');
   });

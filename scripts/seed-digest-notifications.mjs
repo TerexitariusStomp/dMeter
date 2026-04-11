@@ -738,6 +738,47 @@ async function isUserPro(userId) {
   }
 }
 
+// ── Per-channel body composition ─────────────────────────────────────────────
+
+const DIVIDER = '─'.repeat(40);
+
+/**
+ * Compose the per-channel message bodies for a single digest rule.
+ * Keeps the per-channel formatting logic out of main() so its cognitive
+ * complexity stays within the lint budget.
+ */
+function buildChannelBodies(storyListPlain, aiSummary) {
+  if (!aiSummary) {
+    return {
+      text: storyListPlain,
+      telegramText: escapeTelegramHtml(storyListPlain),
+      slackText: escapeSlackMrkdwn(storyListPlain),
+      discordText: storyListPlain,
+    };
+  }
+  return {
+    text: `EXECUTIVE SUMMARY\n\n${aiSummary}\n\n${DIVIDER}\n\n${storyListPlain}`,
+    telegramText: `<b>EXECUTIVE SUMMARY</b>\n\n${markdownToTelegramHtml(aiSummary)}\n\n${DIVIDER}\n\n${escapeTelegramHtml(storyListPlain)}`,
+    slackText: `*EXECUTIVE SUMMARY*\n\n${markdownToSlackMrkdwn(aiSummary)}\n\n${DIVIDER}\n\n${escapeSlackMrkdwn(storyListPlain)}`,
+    discordText: `**EXECUTIVE SUMMARY**\n\n${markdownToDiscord(aiSummary)}\n\n${DIVIDER}\n\n${storyListPlain}`,
+  };
+}
+
+/**
+ * Inject the formatted AI summary into the HTML email template's slot,
+ * or strip the slot placeholder when there is no summary.
+ */
+function injectEmailSummary(html, aiSummary) {
+  if (!html) return html;
+  if (!aiSummary) return html.replace('<div data-ai-summary-slot></div>', '');
+  const formattedSummary = markdownToEmailHtml(aiSummary);
+  const summaryHtml = `<div style="background:#161616;border:1px solid #222;border-left:3px solid #4ade80;padding:18px 22px;margin:0 0 24px 0;">
+<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#4ade80;margin-bottom:10px;">Executive Summary</div>
+<div style="font-size:13px;line-height:1.7;color:#ccc;">${formattedSummary}</div>
+</div>`;
+  return html.replace('<div data-ai-summary-slot></div>', summaryHtml);
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -830,40 +871,10 @@ async function main() {
 
     const storyListPlain = formatDigest(stories, nowMs);
     if (!storyListPlain) continue;
-    let html = formatDigestHtml(stories, nowMs);
+    const htmlRaw = formatDigestHtml(stories, nowMs);
 
-    const divider = '─'.repeat(40);
-
-    // Plain text (email .txt fallback, webhook passthrough)
-    let text = aiSummary
-      ? `EXECUTIVE SUMMARY\n\n${aiSummary}\n\n${divider}\n\n${storyListPlain}`
-      : storyListPlain;
-
-    // Telegram HTML (parse_mode: 'HTML')
-    const telegramText = aiSummary
-      ? `<b>EXECUTIVE SUMMARY</b>\n\n${markdownToTelegramHtml(aiSummary)}\n\n${divider}\n\n${escapeTelegramHtml(storyListPlain)}`
-      : escapeTelegramHtml(storyListPlain);
-
-    // Slack mrkdwn
-    const slackText = aiSummary
-      ? `*EXECUTIVE SUMMARY*\n\n${markdownToSlackMrkdwn(aiSummary)}\n\n${divider}\n\n${escapeSlackMrkdwn(storyListPlain)}`
-      : escapeSlackMrkdwn(storyListPlain);
-
-    // Discord CommonMark (normalizes bullets + headers only)
-    const discordText = aiSummary
-      ? `**EXECUTIVE SUMMARY**\n\n${markdownToDiscord(aiSummary)}\n\n${divider}\n\n${storyListPlain}`
-      : storyListPlain;
-
-    if (aiSummary && html) {
-      const formattedSummary = markdownToEmailHtml(aiSummary);
-      const summaryHtml = `<div style="background:#161616;border:1px solid #222;border-left:3px solid #4ade80;padding:18px 22px;margin:0 0 24px 0;">
-<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#4ade80;margin-bottom:10px;">Executive Summary</div>
-<div style="font-size:13px;line-height:1.7;color:#ccc;">${formattedSummary}</div>
-</div>`;
-      html = html.replace('<div data-ai-summary-slot></div>', summaryHtml);
-    } else if (html) {
-      html = html.replace('<div data-ai-summary-slot></div>', '');
-    }
+    const { text, telegramText, slackText, discordText } = buildChannelBodies(storyListPlain, aiSummary);
+    const html = injectEmailSummary(htmlRaw, aiSummary);
 
     const shortDate = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(nowMs));
     const subject = aiSummary ? `WorldMonitor Intelligence Brief — ${shortDate}` : `WorldMonitor Digest — ${shortDate}`;
