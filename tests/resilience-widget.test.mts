@@ -100,6 +100,23 @@ test('formatResilienceDataVersion returns empty for missing or malformed dataVer
   assert.equal(formatResilienceDataVersion('not-a-date'), '');
 });
 
+test('formatResilienceDataVersion rejects regex-valid but calendar-invalid dates (PR #2943 review)', () => {
+  // Regex `/^\d{4}-\d{2}-\d{2}$/` accepts these strings but they are not
+  // real calendar dates. A stale or corrupted Redis key could emit one,
+  // and without the round-trip check the widget would render it unchecked.
+  assert.equal(formatResilienceDataVersion('9999-99-99'), '');
+  assert.equal(formatResilienceDataVersion('2024-13-45'), '');
+  assert.equal(formatResilienceDataVersion('2024-00-15'), '');
+  // February 30th parses as a real Date in JS but not the same string
+  // when round-tripped through toISOString; the round-trip check catches
+  // this slip, so `2024-02-30` silently rolling to `2024-03-01` is rejected.
+  assert.equal(formatResilienceDataVersion('2024-02-30'), '');
+  assert.equal(formatResilienceDataVersion('2024-02-31'), '');
+  // Legitimate calendar dates still pass.
+  assert.equal(formatResilienceDataVersion('2024-02-29'), 'Data 2024-02-29'); // leap year
+  assert.equal(formatResilienceDataVersion('2023-02-28'), 'Data 2023-02-28');
+});
+
 test('baseResponse includes dataVersion (regression for T1.4 wiring)', () => {
   // Guards against a future change that accidentally drops the dataVersion
   // field from the service response shape. The scorer writes it from the
