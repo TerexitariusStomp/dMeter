@@ -1,23 +1,25 @@
 import { Panel } from './Panel';
-import { escapeHtml, fetchForecasts } from '@/services/forecast';
+import { escapeHtml } from '@/services/forecast';
 import type { Forecast } from '@/services/forecast';
 import { t } from '@/services/i18n';
+import { getForecastMacroRegion } from '../../shared/forecast-macro-regions.js';
 
 const DOMAINS = ['all', 'conflict', 'market', 'supply_chain', 'political', 'military', 'cyber', 'infrastructure'] as const;
 const PANEL_MIN_PROBABILITY = 0.1;
 
-// Free-text region labels matching strings written to f.region in scripts/seed-forecasts.mjs.
-// The server does case-insensitive substring match on f.region — so 'Middle East' matches
-// 'Middle East', 'middle east', 'Middle East (Levant)', etc. No client-side re-filter.
+// Macro region pill values. Each id matches the output of getForecastMacroRegion(),
+// which mirrors MACRO_REGION_MAP in scripts/seed-forecasts.mjs. Filtering is
+// entirely client-side: this.forecasts stays the full unfiltered set, and the
+// render pipeline applies the active macro region on every render so the
+// filter survives refresh-time updateForecasts() calls.
 const FORECAST_REGIONS = [
   { id: '', label: 'All Regions' },
-  { id: 'Middle East', label: 'MENA' },
-  { id: 'East Asia', label: 'East Asia' },
-  { id: 'Europe', label: 'Europe' },
-  { id: 'South Asia', label: 'South Asia' },
-  { id: 'Africa', label: 'Africa' },
-  { id: 'Latin America', label: 'LatAm' },
-  { id: 'North America', label: 'N. America' },
+  { id: 'MENA', label: 'MENA' },
+  { id: 'EAST_ASIA', label: 'East Asia' },
+  { id: 'EUROPE', label: 'Europe' },
+  { id: 'SOUTH_ASIA', label: 'South Asia' },
+  { id: 'AFRICA', label: 'Africa' },
+  { id: 'AMERICAS', label: 'Americas' },
 ] as const;
 
 const DOMAIN_LABELS: Record<string, string> = {
@@ -240,14 +242,14 @@ function injectStyles(): void {
 }
 
 export class ForecastPanel extends Panel {
+  // Full unfiltered set from the server. The region + domain filters are
+  // applied on every render() — never mutate this by filtering, or refresh
+  // updates from data-loader will wipe the filter state.
   private forecasts: Forecast[] = [];
   private activeDomain: string = 'all';
   private selectedRegion: string = '';
   private theaters: SimulationTheater[] = [];
   private expandedTheaterId: string | null = null;
-  // Increments on every region click; stale fetch responses check against this
-  // to avoid rendering out-of-order results when the user clicks quickly.
-  private regionFetchSeq = 0;
 
   constructor() {
     super({ id: 'forecast', title: 'AI Forecasts', showCount: true, infoTooltip: t('components.forecast.infoTooltip') });
@@ -267,7 +269,11 @@ export class ForecastPanel extends Panel {
         const nextRegion = regionBtn.dataset.fcRegion ?? '';
         if (nextRegion === this.selectedRegion) return;
         this.selectedRegion = nextRegion;
-        void this.refetchForRegion();
+        // Client-side filter only — no RPC fires. The next render() pulls
+        // from the full this.forecasts set and applies the macro region
+        // filter in getVisibleForecasts().
+        this.setCount(this.getVisibleForecasts().length);
+        this.render();
         return;
       }
 
@@ -315,26 +321,19 @@ export class ForecastPanel extends Panel {
     if (this.forecasts.length > 0) this.render();
   }
 
-  // Re-fetches forecasts from the server with the currently selected region.
-  // The server does case-insensitive substring matching on f.region; the UI
-  // passes the free-text label verbatim with NO client-side re-filtering.
-  // A sequence counter guards against out-of-order responses when the user
-  // clicks multiple region pills quickly.
-  private async refetchForRegion(): Promise<void> {
-    const seq = ++this.regionFetchSeq;
-    // Repaint immediately so the clicked pill's active state updates.
-    this.render();
-    try {
-      const forecasts = await fetchForecasts(undefined, this.selectedRegion || undefined);
-      if (seq !== this.regionFetchSeq) return;
-      this.updateForecasts(forecasts);
-    } catch {
-      // Silent failure: premium RPC, same pattern as the initial load in data-loader.
-    }
-  }
-
+  // Returns forecasts that pass the probability AND region filters. Domain
+  // filter is applied later in render() so the count reflects the prob+region
+  // view (matching what the user sees with 'All' domains selected). Keep this
+  // pure and idempotent — it reads from this.forecasts + this.selectedRegion
+  // and must survive arbitrary refresh-time updateForecasts() calls.
   private getVisibleForecasts(): Forecast[] {
-    return this.forecasts.filter(f => (f.probability || 0) >= PANEL_MIN_PROBABILITY);
+    const probFiltered = this.forecasts.filter(
+      f => (f.probability || 0) >= PANEL_MIN_PROBABILITY,
+    );
+    if (!this.selectedRegion) return probFiltered;
+    return probFiltered.filter(
+      f => getForecastMacroRegion(f.region) === this.selectedRegion,
+    );
   }
 
   private render(): void {
