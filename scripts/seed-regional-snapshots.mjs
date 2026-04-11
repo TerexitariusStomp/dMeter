@@ -214,12 +214,20 @@ async function main() {
     }
   }
 
-  // Health: only write seed-meta when ALL regions succeeded. If any region
-  // failed, skip the meta write so /api/health flips to STALE after 12h of
-  // persistent degradation instead of silently reporting OK. The bundle
-  // runner's freshness gate will retry this seed on the next cycle.
+  // Health policy:
+  //   1. persisted > 0 && failed === 0: write the fresh summary + seed-meta.
+  //   2. persisted === 0 && failed === 0: all regions dedup-skipped (e.g., a
+  //      retry within the 15min idempotency bucket). Preserve the prior good
+  //      summary by skipping the write entirely. api/health.js classifies an
+  //      empty `regions: []` + `recordCount: 0` as EMPTY_DATA which flips the
+  //      overall health to red, so overwriting on a no-op retry is actively
+  //      harmful. The 12h maxStaleMin budget lets the next full run refresh
+  //      the payload naturally.
+  //   3. failed > 0: skip the meta write so /api/health flips to STALE after
+  //      the maxStaleMin budget on persistent degradation instead of silently
+  //      reporting OK. The bundle runner's freshness gate retries next cycle.
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-  if (failed === 0) {
+  if (failed === 0 && persisted > 0) {
     const ttlSec = 12 * 60 * 60; // 12h, 2x the 6h cron cadence
     await writeExtraKeyWithMeta(
       `intelligence:regional-snapshots:summary:v1`,
@@ -230,6 +238,12 @@ async function main() {
       ttlSec,
     );
     console.log(`[regional-snapshots] Done in ${elapsed}s: persisted=${persisted} skipped=${skipped} failed=0`);
+    return;
+  }
+
+  if (failed === 0) {
+    // All regions dedup-skipped. Preserve the prior summary and return cleanly.
+    console.log(`[regional-snapshots] Done in ${elapsed}s: persisted=0 skipped=${skipped} failed=0 (all dedup-skipped, prior summary preserved)`);
     return;
   }
 
