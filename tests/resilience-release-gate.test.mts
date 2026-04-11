@@ -187,11 +187,16 @@ describe('resilience release gate', () => {
       `Norway (elite fixture, ${no.overallScore}) should score higher than the US (strong fixture, ${us.overallScore})`,
     );
     // Guard against a near-tie that would still break meaningful ranking.
-    // Actual measured delta at commit time is 13.78; the threshold of 3
-    // leaves room for future fixture tuning without over-fitting this test.
+    // Actual measured delta at commit time is 13.78 points; the threshold
+    // of 8 (about 60% of the measured delta) leaves room for fixture
+    // tuning while catching a tier-separation collapse before the ordering
+    // degrades into a near-tie. An earlier version of this test used a
+    // threshold of 3, which would have silently accepted a ~71% erosion
+    // of the elite-strong separation signal. Bumped in response to PR
+    // review feedback on #2941.
     assert.ok(
-      no.overallScore - us.overallScore >= 3,
-      `Norway should lead the US by at least 3 points (NO=${no.overallScore}, US=${us.overallScore}, delta=${no.overallScore - us.overallScore})`,
+      no.overallScore - us.overallScore >= 8,
+      `Norway should lead the US by at least 8 points (NO=${no.overallScore}, US=${us.overallScore}, delta=${no.overallScore - us.overallScore})`,
     );
   });
 
