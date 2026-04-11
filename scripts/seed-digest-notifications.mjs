@@ -340,12 +340,71 @@ function markdownToEmailHtml(md) {
   // Wrap consecutive <li> in <ul>
   html = html.replace(/((?:<li[^>]*>.*?<\/li>\s*)+)/g, '<ul style="margin:12px 0;padding-left:20px;list-style:disc;">$1</ul>');
   // Section headers: lines ending with colon (Assessment:, Signals to watch:)
-  html = html.replace(/^([A-Z][A-Za-z\s]+):\s*/gm, '<strong style="color:#4ade80;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">$1:</strong> ');
+  // Use [A-Za-z ] (not \s) and ` *` to avoid swallowing newlines.
+  html = html.replace(/^([A-Z][A-Za-z ]+): */gm, '<strong style="color:#4ade80;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">$1:</strong> ');
   // Paragraphs: double newlines
   html = html.replace(/\n\n+/g, '</p><p style="margin:12px 0;">');
   // Single newlines (not inside lists)
   html = html.replace(/(?<!<\/li>)\n(?!<)/g, '<br/>');
   return `<p style="margin:0 0 12px;">${html}</p>`;
+}
+
+// Telegram HTML parse_mode escape: only &, <, > (no " or ')
+// See https://core.telegram.org/bots/api#html-style
+function escapeTelegramHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function markdownToTelegramHtml(md) {
+  let html = escapeTelegramHtml(md);
+  // Bullets first (Telegram HTML has no list elements, render as • char)
+  html = html.replace(/^[\*\-]\s+/gm, '• ');
+  // Bold: **text** or __text__
+  html = html.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  html = html.replace(/__(.+?)__/g, '<b>$1</b>');
+  // Italic: *text* (single asterisk, not part of bold)
+  html = html.replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, '<i>$1</i>');
+  // Section headers: Assessment: / Signals to watch:
+  html = html.replace(/^([A-Z][A-Za-z ]+): */gm, '<b>$1:</b> ');
+  return html;
+}
+
+// Slack mrkdwn: escape &, <, > (Slack auto-parses these in regular text)
+function escapeSlackMrkdwn(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function markdownToSlackMrkdwn(md) {
+  let txt = escapeSlackMrkdwn(md);
+  // Bullets first (avoid collision with italic single-asterisk regex)
+  txt = txt.replace(/^[\*\-]\s+/gm, '• ');
+  // Bold: **text** or __text__ → *text* (Slack uses single asterisk).
+  // Use \u0001 placeholder so italic pass below doesn't re-match.
+  txt = txt.replace(/\*\*(.+?)\*\*/g, '\u0001$1\u0001');
+  txt = txt.replace(/__(.+?)__/g, '\u0001$1\u0001');
+  // Italic: *text* → _text_
+  txt = txt.replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, '_$1_');
+  // Restore bold markers
+  txt = txt.replace(/\u0001/g, '*');
+  // Section headers → *bold*
+  txt = txt.replace(/^([A-Z][A-Za-z ]+): */gm, '*$1:* ');
+  return txt;
+}
+
+// Discord supports CommonMark **bold** and *italic* natively. Only normalize
+// what Discord doesn't handle: * bullets (Discord lists require -) and
+// trailing-colon section headers.
+function markdownToDiscord(md) {
+  let txt = String(md);
+  txt = txt.replace(/^\*\s+/gm, '- ');
+  txt = txt.replace(/^([A-Z][A-Za-z ]+): */gm, '**$1:** ');
+  return txt;
 }
 
 function formatDigestHtml(stories, nowMs) {
@@ -572,7 +631,12 @@ async function sendTelegram(userId, chatId, text) {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'User-Agent': 'worldmonitor-digest/1.0' },
-        body: JSON.stringify({ chat_id: chatId, text }),
+        body: JSON.stringify({
+          chat_id: chatId,
+          text,
+          parse_mode: 'HTML',
+          disable_web_page_preview: true,
+        }),
         signal: AbortSignal.timeout(10000),
       },
     );
@@ -843,20 +907,39 @@ async function main() {
       aiSummary = await generateAISummary(stories, rule);
     }
 
-    let text = formatDigest(stories, nowMs);
-    if (!text) continue;
+    const storyListPlain = formatDigest(stories, nowMs);
+    if (!storyListPlain) continue;
     let html = formatDigestHtml(stories, nowMs);
 
-    if (aiSummary) {
-      text = `EXECUTIVE SUMMARY\n\n${aiSummary}\n\n${'─'.repeat(40)}\n\n${text}`;
-      if (html) {
-        const formattedSummary = markdownToEmailHtml(aiSummary);
-        const summaryHtml = `<div style="background:#161616;border:1px solid #222;border-left:3px solid #4ade80;padding:18px 22px;margin:0 0 24px 0;">
+    const divider = '─'.repeat(40);
+
+    // Plain text (email .txt fallback, webhook passthrough)
+    let text = aiSummary
+      ? `EXECUTIVE SUMMARY\n\n${aiSummary}\n\n${divider}\n\n${storyListPlain}`
+      : storyListPlain;
+
+    // Telegram HTML (parse_mode: 'HTML')
+    const telegramText = aiSummary
+      ? `<b>EXECUTIVE SUMMARY</b>\n\n${markdownToTelegramHtml(aiSummary)}\n\n${divider}\n\n${escapeTelegramHtml(storyListPlain)}`
+      : escapeTelegramHtml(storyListPlain);
+
+    // Slack mrkdwn
+    const slackText = aiSummary
+      ? `*EXECUTIVE SUMMARY*\n\n${markdownToSlackMrkdwn(aiSummary)}\n\n${divider}\n\n${escapeSlackMrkdwn(storyListPlain)}`
+      : escapeSlackMrkdwn(storyListPlain);
+
+    // Discord CommonMark (normalizes bullets + headers only)
+    const discordText = aiSummary
+      ? `**EXECUTIVE SUMMARY**\n\n${markdownToDiscord(aiSummary)}\n\n${divider}\n\n${storyListPlain}`
+      : storyListPlain;
+
+    if (aiSummary && html) {
+      const formattedSummary = markdownToEmailHtml(aiSummary);
+      const summaryHtml = `<div style="background:#161616;border:1px solid #222;border-left:3px solid #4ade80;padding:18px 22px;margin:0 0 24px 0;">
 <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#4ade80;margin-bottom:10px;">Executive Summary</div>
 <div style="font-size:13px;line-height:1.7;color:#ccc;">${formattedSummary}</div>
 </div>`;
-        html = html.replace('<div data-ai-summary-slot></div>', summaryHtml);
-      }
+      html = html.replace('<div data-ai-summary-slot></div>', summaryHtml);
     } else if (html) {
       html = html.replace('<div data-ai-summary-slot></div>', '');
     }
@@ -869,11 +952,11 @@ async function main() {
     for (const ch of deliverableChannels) {
       let ok = false;
       if (ch.channelType === 'telegram' && ch.chatId) {
-        ok = await sendTelegram(rule.userId, ch.chatId, text);
+        ok = await sendTelegram(rule.userId, ch.chatId, telegramText);
       } else if (ch.channelType === 'slack' && ch.webhookEnvelope) {
-        ok = await sendSlack(rule.userId, ch.webhookEnvelope, text);
+        ok = await sendSlack(rule.userId, ch.webhookEnvelope, slackText);
       } else if (ch.channelType === 'discord' && ch.webhookEnvelope) {
-        ok = await sendDiscord(rule.userId, ch.webhookEnvelope, text);
+        ok = await sendDiscord(rule.userId, ch.webhookEnvelope, discordText);
       } else if (ch.channelType === 'email' && ch.email) {
         ok = await sendEmail(ch.email, subject, text, html);
       } else if (ch.channelType === 'webhook' && ch.webhookEnvelope) {
