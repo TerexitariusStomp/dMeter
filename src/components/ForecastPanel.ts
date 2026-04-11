@@ -7,19 +7,23 @@ import { getForecastMacroRegion } from '../../shared/forecast-macro-regions.js';
 const DOMAINS = ['all', 'conflict', 'market', 'supply_chain', 'political', 'military', 'cyber', 'infrastructure'] as const;
 const PANEL_MIN_PROBABILITY = 0.1;
 
-// Macro region pill values. Each id matches the output of getForecastMacroRegion(),
-// which mirrors MACRO_REGION_MAP in scripts/seed-forecasts.mjs. Filtering is
-// entirely client-side: this.forecasts stays the full unfiltered set, and the
-// render pipeline applies the active macro region on every render so the
-// filter survives refresh-time updateForecasts() calls.
+// Macro region pill values. Each non-empty id matches an entry in the
+// ForecastMacroRegionId union emitted by getForecastMacroRegion() (see
+// shared/forecast-macro-regions.js). Filtering is entirely client-side:
+// this.forecasts stays the full unfiltered set, and the render pipeline
+// applies the active macro region on every render so the filter survives
+// refresh-time updateForecasts() calls. The '' (empty) id means
+// "All Regions" — no filter applied. Forecasts whose region does not
+// classify (unknown or 'global') only appear under "All Regions".
 const FORECAST_REGIONS = [
   { id: '', label: 'All Regions' },
-  { id: 'MENA', label: 'MENA' },
-  { id: 'EAST_ASIA', label: 'East Asia' },
-  { id: 'EUROPE', label: 'Europe' },
-  { id: 'SOUTH_ASIA', label: 'South Asia' },
-  { id: 'AFRICA', label: 'Africa' },
-  { id: 'AMERICAS', label: 'Americas' },
+  { id: 'mena', label: 'MENA' },
+  { id: 'east-asia', label: 'East Asia' },
+  { id: 'europe', label: 'Europe' },
+  { id: 'south-asia', label: 'South Asia' },
+  { id: 'sub-saharan-africa', label: 'Africa' },
+  { id: 'latam', label: 'LatAm' },
+  { id: 'north-america', label: 'N. America' },
 ] as const;
 
 const DOMAIN_LABELS: Record<string, string> = {
@@ -309,7 +313,12 @@ export class ForecastPanel extends Panel {
     this.forecasts = forecasts;
     const visible = this.getVisibleForecasts();
     this.setCount(visible.length);
-    this.setDataBadge(visible.length > 0 ? 'live' : 'unavailable');
+    // Badge reflects fetch success (this.forecasts.length), not the filtered
+    // result. A user who picks a region with zero matches should still see
+    // the feed as "live" — the empty-state copy inside the panel communicates
+    // the filter miss. Tying the badge to the filter caused the panel to
+    // flip to "unavailable" on any empty region pill.
+    this.setDataBadge(this.forecasts.length > 0 ? 'live' : 'unavailable');
     this.render();
   }
 
@@ -346,11 +355,21 @@ export class ForecastPanel extends Panel {
     ).join('');
 
     if (visibleForecasts.length === 0) {
+      // Differentiate fetch-miss (this.forecasts.length === 0) from
+      // filter-miss (this.forecasts has rows but none match the current
+      // region/probability filter). The badge already reflects fetch success
+      // independently; this copy just helps the user understand why the
+      // list is empty so they can adjust the pill without thinking the feed
+      // is broken.
+      const hasAnyForecasts = this.forecasts.length > 0;
+      const emptyCopy = hasAnyForecasts
+        ? 'No forecasts match the current filter'
+        : 'No forecasts available';
       this.setContent(`
         <div class="fc-panel">
           <div class="fc-filters">${filtersHtml}</div>
           <div class="fc-filters">${regionsHtml}</div>
-          <div class="fc-empty">No forecasts available</div>
+          <div class="fc-empty">${escapeHtml(emptyCopy)}</div>
         </div>
       `);
       return;
