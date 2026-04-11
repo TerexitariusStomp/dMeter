@@ -788,8 +788,13 @@ tools.
 13 dimension scorers in parallel → each scorer reads memoized global Redis
 keys (UCDP, displacement, sanctions, WGI, RSF, etc.) → aggregates into
 domains → aggregates into pillars (new) → overall. History sorted set
-updated if current day not yet written. Interval cache read if present,
-otherwise computed lazily (T3.1).
+updated if current day not yet written. **Interval cache read only**: if
+`resilience:intervals:v2:<cc>` is present and fresh, it is attached; if
+the payload is >48h old the response sets `staleIntervals: true`; if the
+key is missing (warmup path), intervals are **omitted** from the response.
+The read path never computes intervals inline. All bootstrap and Monte
+Carlo work lives in the Railway cron batch (T3.1), and the next tick
+rewrites the key.
 
 **Downstream consumers that will see the new schema:**
 - `src/components/ResilienceWidget.ts` (primary)
@@ -867,17 +872,51 @@ otherwise computed lazily (T3.1).
 - [ ] Published methodology page at CII parity, linked from navbar.
 - [ ] Three-pillar schema live (`schemaVersion: "2.0"`), v1.0 shape supported
       during the deprecation window.
-- [ ] Recovery capacity pillar has ≥170 countries scored.
-- [ ] Cross-index benchmark committed + published; Spearman ≥0.70 vs INFORM
-      and ND-GAIN.
-- [ ] Outcome backtest AUC ≥0.75 on held-out 2024–2025 shock events.
+- [ ] Penalized weighted mean aggregation (with documented α from the
+      published α-sensitivity curve) shipping as the v2.0 overall formula.
+- [ ] Recovery capacity pillar has Core-tier data coverage for ≥180
+      countries (matches Phase 2 acceptance; Core defined by the signal
+      tiering registry).
+- [ ] **Cross-index benchmark** published with per-pillar hypotheses. Each
+      of the five hypothesis rows is its own gate and must be within its
+      expected Spearman band OR carry signed outlier commentary in
+      `benchmark-outliers.md`:
+      - [ ] Live Shock Exposure vs INFORM Risk: positive, 0.55–0.75.
+      - [ ] Live Shock Exposure vs WorldRiskIndex: positive, 0.50–0.70.
+      - [ ] Structural Readiness + Recovery Capacity vs ND-GAIN Readiness:
+            positive, 0.60–0.80.
+      - [ ] Overall Resilience vs FSI: negative, −0.55 to −0.75.
+      - [ ] Overall Resilience vs INFORM Risk: negative, −0.40 to −0.60.
+- [ ] **Per-event-family backtest gates** met for all 7 families (FX stress,
+      sovereign stress, prolonged power outages, food-crisis escalation,
+      refugee surges, sanctions shocks, conflict spillover). Each family
+      ships when AUC ≥ its per-family naive baseline + 0.05 using its own
+      lead window, OR when the shortfall is < 0.03 AUC and explicitly
+      documented in the methodology changelog.
+- [ ] Sensitivity suite: no single-axis perturbation moves any top-50
+      country by more than 5 rank positions. α-sensitivity curve published.
 - [ ] Decomposed uncertainty in widget: per-dimension coverage, imputation
-      class, freshness badge, bootstrapped pillar intervals.
-- [ ] Rank stability bands shown in widget and ranking API.
+      class, freshness badge, bootstrapped pillar intervals (batch-computed,
+      never lazy).
+- [ ] Rank stability bands shown in widget and ranking API, sourced from
+      the offline MC batch, never computed on the read path.
 - [ ] Waterfall chart + peer comparison + change attribution in widget.
 - [ ] Pillar toggle (structural / live-shock / recovery / overall) in widget.
-- [ ] External expert review completed and recorded in methodology changelog.
-- [ ] Border-security ceiling bug has a regression test and is fixed.
+- [ ] **Internal methodology gate (T3.8a) met** (shipping gate): every
+      dimension has a mdx subsection, reproducibility notebook passes,
+      sensitivity ≤5 top-50 swing, benchmark hypothesis gates above,
+      per-family backtest gates above.
+- [ ] **External expert review workstream (T3.8b)** in flight; the public
+      "reference-grade" promotion is gated on sign-off but shipping v2.0 is
+      not.
+- [ ] Licensing & Legal Review workstream deliverables 1–4 complete before
+      any Phase 2 T2.4 public artifact lands.
+- [ ] 2026 Reference Edition published as signed JSON + CSV + PDF + snapshot
+      manifest + reproducibility notebook.
+- [ ] T1.1 ceiling-bug investigation completed: regression test written,
+      root cause identified, and EITHER the fix landed if a real bug is
+      reproduced OR the origin document's changelog updated if the symptom
+      is misattributed.
 
 ### Non-functional requirements
 
@@ -887,7 +926,9 @@ otherwise computed lazily (T3.1).
       **CRITICAL, REPEATED VIOLATION RULE**.
 - [ ] All three new RPCs use `cachedFetchJson` with request params in cache key.
 - [ ] All new seeders follow Railway seeder gold standard.
-- [ ] Scorecard re-rating: every axis ≥9.0, overall ≥9.0.
+- [ ] Scorecard re-rating (internal self-assessment, pre-external-review):
+      every axis ≥9.0, overall ≥9.0. External reviewer sign-off under
+      T3.8b promotes the product to "v2.0 reference-grade" as a follow-up.
 
 ### Quality gates
 
