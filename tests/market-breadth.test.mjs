@@ -98,6 +98,15 @@ describe('Market breadth proto', () => {
     assert.match(protoSrc, /message BreadthSnapshot/);
   });
 
+  it('marks pct_above_* fields optional so null != 0 at the wire level', () => {
+    assert.match(protoSrc, /optional double pct_above_20d/);
+    assert.match(protoSrc, /optional double pct_above_50d/);
+    assert.match(protoSrc, /optional double pct_above_200d/);
+    assert.match(protoSrc, /optional double current_pct_above_20d/);
+    assert.match(protoSrc, /optional double current_pct_above_50d/);
+    assert.match(protoSrc, /optional double current_pct_above_200d/);
+  });
+
   it('is imported in service.proto', () => {
     assert.match(serviceSrc, /get_market_breadth_history\.proto/);
   });
@@ -149,8 +158,11 @@ describe('Market breadth null-vs-zero handling', () => {
     assert.doesNotMatch(handlerSrc, /raw\.current\.pctAbove20d\s*\?\?\s*0/);
     assert.doesNotMatch(handlerSrc, /raw\.current\.pctAbove50d\s*\?\?\s*0/);
     assert.doesNotMatch(handlerSrc, /raw\.current\.pctAbove200d\s*\?\?\s*0/);
-    // The loose interface carries number | null
-    assert.match(handlerSrc, /currentPctAbove20d:\s*number\s*\|\s*null/);
+    // Missing readings flow through nullToUndefined so proto `optional`
+    // serializes as JSON undefined (field omitted), not 0.
+    assert.match(handlerSrc, /nullToUndefined\(raw\.current\.pctAbove20d\)/);
+    assert.match(handlerSrc, /nullToUndefined\(raw\.current\.pctAbove50d\)/);
+    assert.match(handlerSrc, /nullToUndefined\(raw\.current\.pctAbove200d\)/);
   });
 
   it('panel type distinguishes null from number for current readings', () => {

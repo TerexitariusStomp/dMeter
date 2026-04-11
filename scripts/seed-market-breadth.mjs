@@ -75,7 +75,11 @@ async function fetchAll() {
 
   const existing = await readExistingHistory();
   const history = existing?.history ?? [];
-  const today = new Date().toISOString().slice(0, 10);
+  // ET trading day: Railway cron fires at 9 PM ET which is 01:00-02:00 UTC on
+  // the NEXT calendar day, so UTC date would stamp today's session with
+  // tomorrow's date. en-CA locale returns ISO YYYY-MM-DD; America/New_York
+  // handles DST automatically.
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date());
 
   const lastEntry = history.at(-1);
   if (lastEntry?.date === today) {
