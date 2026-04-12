@@ -7,15 +7,13 @@ import type {
 
 import { cachedFetchJson, getCachedJson } from '../../../_shared/redis';
 import { isCallerPremium } from '../../../_shared/premium-check';
-import { CHOKEPOINT_EXPOSURE_KEY } from '../../../_shared/cache-keys';
+import { CHOKEPOINT_EXPOSURE_KEY, CHOKEPOINT_FLOWS_KEY } from '../../../_shared/cache-keys';
 import { CHOKEPOINT_REGISTRY } from '../../../../src/config/chokepoint-registry';
-import { getGulfCrudeShare } from '../../intelligence/v1/compute-energy-shock';
+import { getGulfCrudeShare, PROXIED_GULF_SHARE } from '../../intelligence/v1/compute-energy-shock';
 import { CHOKEPOINT_EXPOSURE } from '../../intelligence/v1/_shock-compute';
 import COUNTRY_PORT_CLUSTERS from '../../../../scripts/shared/country-port-clusters.json';
 
 const CACHE_TTL = 600; // 10 min — aligned closer to cost shock's 300s
-
-const PROXIED_GULF_SHARE = 0.40;
 
 interface PortClusterEntry {
   nearestRouteIds: string[];
@@ -28,16 +26,13 @@ interface ChokepointFlowEntry {
 
 function computeStaticExposures(
   nearestRouteIds: string[],
-  hs2: string,
 ): ChokepointExposureEntry[] {
-  const isEnergy = hs2 === '27';
   const routeSet = new Set(nearestRouteIds);
 
   return CHOKEPOINT_REGISTRY.map(cp => {
     const overlap = cp.routeIds.filter(r => routeSet.has(r)).length;
     const maxRoutes = Math.max(cp.routeIds.length, 1);
-    let score = (overlap / maxRoutes) * 100;
-    if (isEnergy && cp.shockModelSupported) score = Math.min(score * 1.5, 100);
+    const score = (overlap / maxRoutes) * 100;
     return {
       chokepointId: cp.id,
       chokepointName: cp.displayName,
@@ -57,12 +52,12 @@ async function computeFlowBasedExposures(
   const routeSet = new Set(nearestRouteIds);
 
   if (!isEnergy) {
-    return computeStaticExposures(nearestRouteIds, hs2);
+    return computeStaticExposures(nearestRouteIds);
   }
 
   const [gulfResult, portWatchRaw] = await Promise.all([
     getGulfCrudeShare(iso2).catch(() => ({ share: 0, hasData: false })),
-    getCachedJson('energy:chokepoint-flows:v1', true)
+    getCachedJson(CHOKEPOINT_FLOWS_KEY, true)
       .then(v => v as Record<string, ChokepointFlowEntry> | null)
       .catch(() => null),
   ]);

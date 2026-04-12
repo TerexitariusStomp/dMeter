@@ -37,7 +37,7 @@ const CP_TO_PORTWATCH: Record<string, string> = {
   malacca_strait: 'malacca_strait',
 };
 
-const PROXIED_GULF_SHARE = 0.40;
+export const PROXIED_GULF_SHARE = 0.40;
 
 interface JodiProduct {
   demandKbd?: number | null;

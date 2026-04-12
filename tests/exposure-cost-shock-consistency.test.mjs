@@ -246,12 +246,12 @@ describe('get-country-chokepoint-index source code guards', () => {
     assert.match(src, /CHOKEPOINT_EXPOSURE/);
   });
 
-  it('reads PortWatch flow data', () => {
-    assert.match(src, /energy:chokepoint-flows:v1/);
+  it('reads PortWatch flow data via CHOKEPOINT_FLOWS_KEY constant', () => {
+    assert.match(src, /CHOKEPOINT_FLOWS_KEY/);
   });
 
-  it('uses PROXIED_GULF_SHARE as fallback when no Comtrade data', () => {
-    assert.match(src, /PROXIED_GULF_SHARE/);
+  it('imports PROXIED_GULF_SHARE from compute-energy-shock (single source of truth)', () => {
+    assert.match(src, /import.*PROXIED_GULF_SHARE.*from.*compute-energy-shock/);
   });
 
   it('still imports COUNTRY_PORT_CLUSTERS for static fallback', () => {
