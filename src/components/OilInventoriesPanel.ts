@@ -213,15 +213,17 @@ export class OilInventoriesPanel extends Panel {
         [...(d.spr?.weeks ?? [])].reverse(),
       );
       const chart = buildStackedCrudeSprChart(merged);
+      // Total from latest week where BOTH series have data (same-date snapshot)
+      const latestComplete = [...merged].reverse().find(w => w.crudeMb != null && w.sprMb != null);
       const latestCrude = d.crudeWeeks?.[0];
       const latestSpr = d.spr;
-      const total = (latestCrude?.stocksMb ?? 0) + (latestSpr?.latestStocksMb ?? 0);
-      const meta = [
-        `Total: ${escapeHtml(fmtNum(total))} Mb`,
-        latestCrude ? `Commercial: ${escapeHtml(fmtNum(latestCrude.stocksMb))} ${changeBadge(latestCrude.weeklyChangeMb, 'WoW')}` : '',
-        latestSpr ? `SPR: ${escapeHtml(fmtNum(latestSpr.latestStocksMb))} ${changeBadge(latestSpr.changeWow, 'WoW')}` : '',
-      ].filter(Boolean).join(' | ');
-      parts.push(section('US Total Oil Stocks', chart, meta));
+      const meta: string[] = [];
+      if (latestComplete) {
+        meta.push(`Total: ${escapeHtml(fmtNum(latestComplete.crudeMb! + latestComplete.sprMb!))} Mb (${escapeHtml(latestComplete.period)})`);
+      }
+      if (latestCrude) meta.push(`Commercial: ${escapeHtml(fmtNum(latestCrude.stocksMb))} ${changeBadge(latestCrude.weeklyChangeMb, 'WoW')}`);
+      if (latestSpr) meta.push(`SPR: ${escapeHtml(fmtNum(latestSpr.latestStocksMb))} ${changeBadge(latestSpr.changeWow, 'WoW')}`);
+      parts.push(section('US Total Oil Stocks', chart, meta.join(' | ')));
     }
 
     // Section 2: Nat Gas
