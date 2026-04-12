@@ -13,7 +13,8 @@ export const CRISIS_POLICIES_TTL_SECONDS = 34_560_000; // ~400 days
 const VALID_CATEGORIES = new Set(['conservation', 'consumer_support']);
 const VALID_STATUSES = new Set(['active', 'planned', 'ended']);
 const VALID_SECTORS = new Set([
-  'transport', 'buildings', 'industry', 'electricity', 'agriculture', 'general',
+  'Transport', 'Cooling', 'Campaign', 'Work from home', 'Government travel',
+  'Schools and universities', 'Taxation', 'Price caps', 'Fuel subsidies', 'Other',
 ]);
 
 export function buildPayload() {
