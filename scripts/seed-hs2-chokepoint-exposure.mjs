@@ -134,7 +134,7 @@ export async function main() {
   if (lock.skipped) {
     const allKeys = Object.keys(COUNTRY_PORT_CLUSTERS)
       .filter(k => k !== '_comment' && k.length === 2)
-      .flatMap(iso2 => HS2_CODES.map(hs2 => `${KEY_PREFIX}${iso2}:${hs2}:v1`));
+      .flatMap(iso2 => HS2_CODES.map(hs2 => `${KEY_PREFIX}${iso2}:${hs2}:v2`));
     await extendExistingTtl([...allKeys, META_KEY], TTL_SECONDS)
       .catch(e => console.warn('[chokepoint-exposure] TTL extension (skipped) failed:', e.message));
     return;
@@ -169,7 +169,7 @@ export async function main() {
           ...result,
           fetchedAt: new Date().toISOString(),
         });
-        commands.push(['SET', `${KEY_PREFIX}${iso2}:${hs2}:v1`, payload, 'EX', TTL_SECONDS]);
+        commands.push(['SET', `${KEY_PREFIX}${iso2}:${hs2}:v2`, payload, 'EX', TTL_SECONDS]);
         writtenCount++;
       }
     }
@@ -198,7 +198,7 @@ export async function main() {
     // Extend TTL on failure — stale is better than missing
     const existingKeys = Object.keys(COUNTRY_PORT_CLUSTERS)
       .filter(k => k !== '_comment' && k.length === 2)
-      .flatMap(iso2 => HS2_CODES.map(hs2 => `${KEY_PREFIX}${iso2}:${hs2}:v1`));
+      .flatMap(iso2 => HS2_CODES.map(hs2 => `${KEY_PREFIX}${iso2}:${hs2}:v2`));
     await extendExistingTtl([...existingKeys, META_KEY], TTL_SECONDS)
       .catch(e => console.warn('[chokepoint-exposure] TTL extension failed:', e.message));
     await writeMeta(0, 'error');
