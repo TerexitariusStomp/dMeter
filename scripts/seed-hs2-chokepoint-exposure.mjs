@@ -26,10 +26,10 @@ const LOCK_DOMAIN = 'supply_chain:chokepoint-exposure';
 const LOCK_TTL_MS = 5 * 60 * 1000;
 
 // Top 10 HS2 chapters by global trade volume and strategic importance.
-// Note: this seeder writes to :seed-v1 (separate namespace from the live
-// country-brief handler's :seed-v1 flow-based cache — issue #2969). The scenario
-// worker reads from :seed-v1. Keeping the namespaces separate prevents this
-// static-overlap payload from clobbering the handler's flow-based cache.
+// Note: this seeder writes to :v1 (static scoring). The country-brief live
+// handler owns a separate :v2 namespace for flow-based scoring (issue
+// #2969). The scenario worker reads :v1. Keeping namespaces separate
+// prevents this static payload from clobbering the handler's cache.
 const HS2_CODES = [
   '27', // Mineral Fuels (energy)
   '84', // Machinery & Mechanical Appliances
@@ -138,7 +138,7 @@ export async function main() {
   if (lock.skipped) {
     const allKeys = Object.keys(COUNTRY_PORT_CLUSTERS)
       .filter(k => k !== '_comment' && k.length === 2)
-      .flatMap(iso2 => HS2_CODES.map(hs2 => `${KEY_PREFIX}${iso2}:${hs2}:seed-v1`));
+      .flatMap(iso2 => HS2_CODES.map(hs2 => `${KEY_PREFIX}${iso2}:${hs2}:v1`));
     await extendExistingTtl([...allKeys, META_KEY], TTL_SECONDS)
       .catch(e => console.warn('[chokepoint-exposure] TTL extension (skipped) failed:', e.message));
     return;
@@ -173,7 +173,7 @@ export async function main() {
           ...result,
           fetchedAt: new Date().toISOString(),
         });
-        commands.push(['SET', `${KEY_PREFIX}${iso2}:${hs2}:seed-v1`, payload, 'EX', TTL_SECONDS]);
+        commands.push(['SET', `${KEY_PREFIX}${iso2}:${hs2}:v1`, payload, 'EX', TTL_SECONDS]);
         writtenCount++;
       }
     }
@@ -202,7 +202,7 @@ export async function main() {
     // Extend TTL on failure — stale is better than missing
     const existingKeys = Object.keys(COUNTRY_PORT_CLUSTERS)
       .filter(k => k !== '_comment' && k.length === 2)
-      .flatMap(iso2 => HS2_CODES.map(hs2 => `${KEY_PREFIX}${iso2}:${hs2}:seed-v1`));
+      .flatMap(iso2 => HS2_CODES.map(hs2 => `${KEY_PREFIX}${iso2}:${hs2}:v1`));
     await extendExistingTtl([...existingKeys, META_KEY], TTL_SECONDS)
       .catch(e => console.warn('[chokepoint-exposure] TTL extension failed:', e.message));
     await writeMeta(0, 'error');
