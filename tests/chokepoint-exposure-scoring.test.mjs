@@ -237,4 +237,22 @@ describe('cargo-type route selection', () => {
       assert.ok(cape, 'Cape of Good Hope should appear for China Cereals from Brazil (bulk route)');
     }
   });
+
+  it('CA→US does not pick transatlantic (no waypoints) over routes with chokepoints', () => {
+    const usCluster = getCluster('US');
+    // CA exports electronics to US — shared routes: transatlantic (no wp), china-us-west (taiwan_strait)
+    const caData = [{
+      hs4: '8542',
+      description: 'Semiconductors',
+      totalValue: 5_000_000,
+      topExporters: [
+        { partnerCode: 124, partnerIso2: 'CA', value: 5_000_000, share: 1.0 },
+      ],
+      year: 2023,
+    }];
+    const result = computeFlowWeightedExposure('US', '85', caData, usCluster);
+    // Must not produce all-zero exposure from picking transatlantic
+    const hasNonZero = result.exposures.some(e => e.exposureScore > 0);
+    assert.ok(hasNonZero, 'CA→US must pick a route with waypoints, not transatlantic (all-zero bug)');
+  });
 });

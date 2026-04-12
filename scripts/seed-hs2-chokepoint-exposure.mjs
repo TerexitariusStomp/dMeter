@@ -164,21 +164,34 @@ function pickPrimaryRoute(exporterRoutes, importerRoutes, cargoType) {
   if (exporterRoutes.length === 0) return null;
   const preferredCategory = CARGO_TO_ROUTE_CATEGORY[cargoType] ?? 'container';
 
+  /**
+   * Sort routes by: (1) has waypoints (mandatory for exposure contribution),
+   * (2) matches preferred cargo category. Routes without waypoints (e.g. transatlantic)
+   * produce zero exposure and must be deprioritized.
+   * @param {string[]} routes
+   * @returns {string[]}
+   */
+  const rankRoutes = (routes) => [...routes].sort((a, b) => {
+    const wpA = (ROUTE_WAYPOINTS.get(a) ?? []).length > 0 ? 0 : 1;
+    const wpB = (ROUTE_WAYPOINTS.get(b) ?? []).length > 0 ? 0 : 1;
+    if (wpA !== wpB) return wpA - wpB;
+    const catA = (ROUTE_CATEGORY.get(a) ?? '') === preferredCategory ? 0 : 1;
+    const catB = (ROUTE_CATEGORY.get(b) ?? '') === preferredCategory ? 0 : 1;
+    return catA - catB;
+  });
+
   // First: try shared routes (most precise)
   const shared = findOverlappingRoutes(exporterRoutes, importerRoutes);
   if (shared.length > 0) {
-    const sorted = [...shared].sort((a, b) => {
-      const matchA = (ROUTE_CATEGORY.get(a) ?? '') === preferredCategory ? 0 : 1;
-      const matchB = (ROUTE_CATEGORY.get(b) ?? '') === preferredCategory ? 0 : 1;
-      return matchA - matchB;
-    });
-    return sorted[0];
+    const ranked = rankRoutes(shared);
+    if ((ROUTE_WAYPOINTS.get(ranked[0]) ?? []).length > 0) return ranked[0];
   }
 
-  // Fallback: use exporter's routes filtered by cargo type.
-  // Exporter corridors determine which chokepoints trade flows through.
-  const cargoFiltered = exporterRoutes.filter(r => ROUTE_CATEGORY.get(r) === preferredCategory);
-  if (cargoFiltered.length > 0) return cargoFiltered[0];
+  // Fallback: use exporter's routes filtered by cargo type + waypoints.
+  const cargoWithWp = exporterRoutes.filter(
+    r => ROUTE_CATEGORY.get(r) === preferredCategory && (ROUTE_WAYPOINTS.get(r) ?? []).length > 0,
+  );
+  if (cargoWithWp.length > 0) return cargoWithWp[0];
 
   // Last resort: any exporter route with waypoints
   const withWaypoints = exporterRoutes.filter(r => (ROUTE_WAYPOINTS.get(r) ?? []).length > 0);
