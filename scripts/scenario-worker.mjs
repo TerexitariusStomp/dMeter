@@ -237,7 +237,10 @@ async function computeScenario(scenarioId, iso2) {
   const allKeys = [];
   for (const reporter of reportersToCheck) {
     for (const hs2 of hs2Chapters) {
-      allKeys.push(`supply-chain:exposure:${reporter}:${hs2}:v2`);
+      // Reads the seeder's :seed-v1 static-scoring namespace. The live
+      // country-brief handler writes to :v2 (flow-based) which is kept
+      // separate to avoid collision (issue #2969).
+      allKeys.push(`supply-chain:exposure:${reporter}:${hs2}:seed-v1`);
     }
   }
 
