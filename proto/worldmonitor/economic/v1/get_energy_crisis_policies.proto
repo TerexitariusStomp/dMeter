@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package worldmonitor.economic.v1;
 
+import "sebuf/http/annotations.proto";
+
 // EnergyCrisisPolicy represents a single government policy response to the 2026 energy crisis.
 message EnergyCrisisPolicy {
   // Country name.
@@ -23,9 +25,9 @@ message EnergyCrisisPolicy {
 // GetEnergyCrisisPoliciesRequest allows optional filtering by country or category.
 message GetEnergyCrisisPoliciesRequest {
   // Optional ISO-2 country code filter.
-  string country_code = 1;
+  string country_code = 1 [(sebuf.http.query) = { name: "country_code" }];
   // Optional category filter: "conservation" or "consumer_support".
-  string category = 2;
+  string category = 2 [(sebuf.http.query) = { name: "category" }];
 }
 
 // GetEnergyCrisisPoliciesResponse contains energy crisis policy data from the IEA tracker.
