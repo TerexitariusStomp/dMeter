@@ -237,7 +237,7 @@ async function computeScenario(scenarioId, iso2) {
   const allKeys = [];
   for (const reporter of reportersToCheck) {
     for (const hs2 of hs2Chapters) {
-      allKeys.push(`supply-chain:exposure:${reporter}:${hs2}:v1`);
+      allKeys.push(`supply-chain:exposure:${reporter}:${hs2}:v2`);
     }
   }
 
