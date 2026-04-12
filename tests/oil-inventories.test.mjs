@@ -173,4 +173,27 @@ describe('Oil Inventories', () => {
     assert.deepEqual(result[2], { period: 'C', crudeMb: 444, sprMb: 396 });
     assert.deepEqual(result[3], { period: 'D', crudeMb: null, sprMb: 397 });
   });
+
+  // Test 6: Stacked chart skips weeks where one series is null (no fake zero-collapse)
+  it('stacked chart filters to complete weeks only, falls back to crude-only when SPR absent', () => {
+    const merged = mergeByPeriod(
+      [{ period: 'A', stocksMb: 440 }, { period: 'B', stocksMb: 442 }, { period: 'C', stocksMb: 444 }],
+      [{ period: 'B', stocksMb: 395 }, { period: 'C', stocksMb: 396 }],
+    );
+    // Week A has crude but no SPR => should NOT appear in complete set
+    const complete = merged.filter(w => w.crudeMb != null && w.sprMb != null);
+    assert.equal(complete.length, 2, 'only B and C have both series');
+    assert.equal(complete[0].period, 'B');
+    assert.equal(complete[1].period, 'C');
+
+    // When SPR is entirely absent, fall back to crude-only
+    const noSpr = mergeByPeriod(
+      [{ period: 'X', stocksMb: 100 }, { period: 'Y', stocksMb: 200 }],
+      [],
+    );
+    const completeNoSpr = noSpr.filter(w => w.crudeMb != null && w.sprMb != null);
+    assert.equal(completeNoSpr.length, 0, 'no complete weeks when SPR absent');
+    const crudeOnly = noSpr.filter(w => w.crudeMb != null);
+    assert.equal(crudeOnly.length, 2, 'crude-only fallback should have 2 weeks');
+  });
 });

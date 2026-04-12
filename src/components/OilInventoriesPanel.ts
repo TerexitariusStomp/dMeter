@@ -73,33 +73,42 @@ function areaPath(pts: Array<{ x: number; y: number }>): string {
 }
 
 function buildStackedCrudeSprChart(merged: MergedWeek[]): string {
-  if (merged.length < 2) return '<div style="text-align:center;color:var(--text-dim);padding:16px;font-size:11px">Insufficient data for chart</div>';
+  // Only chart weeks where BOTH series have data (stacking null as 0 produces
+  // fake collapses). Weeks with partial data are skipped, preserving gap semantics.
+  const complete = merged.filter(w => w.crudeMb != null && w.sprMb != null);
+  if (complete.length < 2) {
+    // Fall back to crude-only if SPR is entirely absent
+    const crudeOnly = merged.filter(w => w.crudeMb != null);
+    if (crudeOnly.length < 2) return '<div style="text-align:center;color:var(--text-dim);padding:16px;font-size:11px">Insufficient data for chart</div>';
+    return buildCrudeOnlyChart(crudeOnly);
+  }
 
-  const vals = merged.map(w => (w.crudeMb ?? 0) + (w.sprMb ?? 0));
-  const crudeVals = merged.map(w => w.crudeMb ?? 0);
-  const sprVals = merged.map(w => w.sprMb ?? 0);
+  const vals = complete.map(w => w.crudeMb! + w.sprMb!);
   const maxV = Math.max(...vals) * 1.05;
-  const minV = Math.min(...crudeVals.filter(v => v > 0), ...sprVals.filter(v => v > 0)) * 0.95;
+  const minV = Math.min(...complete.map(w => w.sprMb!)) * 0.95;
   const range = maxV - minV || 1;
   const toY = (v: number) => MT + CH - ((v - minV) / range) * CH;
-  const toX = (i: number) => ML + (i / Math.max(1, merged.length - 1)) * CW;
+  const toX = (i: number) => ML + (i / Math.max(1, complete.length - 1)) * CW;
 
-  // SPR area (bottom layer, from 0-line to sprMb)
-  const sprPts = merged.map((w, i) => ({ x: toX(i), y: toY(w.sprMb ?? 0) }));
+  // SPR area (bottom layer)
+  const sprPts = complete.map((w, i) => ({ x: toX(i), y: toY(w.sprMb!) }));
   const sprArea = `<path d="${areaPath(sprPts)}" fill="#f59e0b" opacity="0.25"/>`;
   const sprLine = `<polyline points="${sprPts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')}" fill="none" stroke="#f59e0b" stroke-width="1.5" opacity="0.8"/>`;
 
   // Crude area (top layer, from sprMb to sprMb+crudeMb)
-  const totalPts = merged.map((w, i) => ({ x: toX(i), y: toY((w.crudeMb ?? 0) + (w.sprMb ?? 0)) }));
-  const crudeArea = sprPts.length >= 2
-    ? `<path d="M${totalPts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' L')} L${sprPts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).reverse().join(' L')} Z" fill="#3b82f6" opacity="0.2"/>`
-    : '';
+  const totalPts = complete.map((w, i) => ({ x: toX(i), y: toY(w.crudeMb! + w.sprMb!) }));
+  const crudeArea = `<path d="M${totalPts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' L')} L${sprPts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).reverse().join(' L')} Z" fill="#3b82f6" opacity="0.2"/>`;
   const totalLine = `<polyline points="${totalPts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')}" fill="none" stroke="#3b82f6" stroke-width="1.5" opacity="0.9"/>`;
 
   const yAxis = buildYAxis(minV, maxV, '');
-  const xAxis = buildXAxis(merged.map(w => fmtDate(w.period)), merged.length);
+  const xAxis = buildXAxis(complete.map(w => fmtDate(w.period)), complete.length);
 
   return `<svg viewBox="0 0 ${SVG_W} ${CHART_H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block">${yAxis}${xAxis}${sprArea}${sprLine}${crudeArea}${totalLine}</svg>`;
+}
+
+function buildCrudeOnlyChart(weeks: MergedWeek[]): string {
+  const data = weeks.map(w => ({ x: w.period, y: w.crudeMb! }));
+  return buildLineChart(data, '#3b82f6', '');
 }
 
 function buildLineChart(data: Array<{ x: string; y: number }>, color: string, unit: string, h = CHART_H): string {
