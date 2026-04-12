@@ -104,7 +104,7 @@ function n(v: number | null | undefined): number {
   return typeof v === 'number' && Number.isFinite(v) ? v : 0;
 }
 
-async function getGulfCrudeShare(countryCode: string): Promise<{ share: number; hasData: boolean }> {
+export async function getGulfCrudeShare(countryCode: string): Promise<{ share: number; hasData: boolean }> {
   const numericCode = ISO2_TO_COMTRADE[countryCode];
   if (!numericCode) return { share: 0, hasData: false };
 

@@ -5,31 +5,38 @@ import type {
   ChokepointExposureEntry,
 } from '../../../../src/generated/server/worldmonitor/supply_chain/v1/service_server';
 
-import { cachedFetchJson } from '../../../_shared/redis';
+import { cachedFetchJson, getCachedJson } from '../../../_shared/redis';
 import { isCallerPremium } from '../../../_shared/premium-check';
 import { CHOKEPOINT_EXPOSURE_KEY } from '../../../_shared/cache-keys';
 import { CHOKEPOINT_REGISTRY } from '../../../../src/config/chokepoint-registry';
+import { getGulfCrudeShare } from '../../intelligence/v1/compute-energy-shock';
+import { CHOKEPOINT_EXPOSURE } from '../../intelligence/v1/_shock-compute';
 import COUNTRY_PORT_CLUSTERS from '../../../../scripts/shared/country-port-clusters.json';
 
-const CACHE_TTL = 86400; // 24 hours
+const CACHE_TTL = 600; // 10 min — aligned closer to cost shock's 300s
+
+const PROXIED_GULF_SHARE = 0.40;
 
 interface PortClusterEntry {
   nearestRouteIds: string[];
   coastSide: string;
 }
 
-function computeExposures(
+interface ChokepointFlowEntry {
+  flowRatio: number;
+}
+
+function computeStaticExposures(
   nearestRouteIds: string[],
   hs2: string,
 ): ChokepointExposureEntry[] {
   const isEnergy = hs2 === '27';
   const routeSet = new Set(nearestRouteIds);
 
-  const entries: ChokepointExposureEntry[] = CHOKEPOINT_REGISTRY.map(cp => {
+  return CHOKEPOINT_REGISTRY.map(cp => {
     const overlap = cp.routeIds.filter(r => routeSet.has(r)).length;
     const maxRoutes = Math.max(cp.routeIds.length, 1);
     let score = (overlap / maxRoutes) * 100;
-    // Energy sector: boost shock-model chokepoints by 50% (oil + LNG dependency)
     if (isEnergy && cp.shockModelSupported) score = Math.min(score * 1.5, 100);
     return {
       chokepointId: cp.id,
@@ -39,8 +46,57 @@ function computeExposures(
       shockSupported: cp.shockModelSupported,
     };
   });
+}
 
-  return entries.sort((a, b) => b.exposureScore - a.exposureScore);
+async function computeFlowBasedExposures(
+  iso2: string,
+  hs2: string,
+  nearestRouteIds: string[],
+): Promise<ChokepointExposureEntry[]> {
+  const isEnergy = hs2 === '27';
+  const routeSet = new Set(nearestRouteIds);
+
+  if (!isEnergy) {
+    return computeStaticExposures(nearestRouteIds, hs2);
+  }
+
+  const [gulfResult, portWatchRaw] = await Promise.all([
+    getGulfCrudeShare(iso2).catch(() => ({ share: 0, hasData: false })),
+    getCachedJson('energy:chokepoint-flows:v1', true)
+      .then(v => v as Record<string, ChokepointFlowEntry> | null)
+      .catch(() => null),
+  ]);
+
+  const gulfShare = gulfResult.hasData ? gulfResult.share : PROXIED_GULF_SHARE;
+
+  return CHOKEPOINT_REGISTRY.map(cp => {
+    if (cp.shockModelSupported) {
+      const cpEntry = portWatchRaw?.[cp.id] ?? null;
+      const baseExposure = CHOKEPOINT_EXPOSURE[cp.id] ?? 1.0;
+      const flowRatio = (cpEntry != null && Number.isFinite(cpEntry.flowRatio))
+        ? Math.max(0, Math.min(cpEntry.flowRatio, 1.5))
+        : 1.0;
+      const score = Math.min(gulfShare * baseExposure * flowRatio * 100, 100);
+      return {
+        chokepointId: cp.id,
+        chokepointName: cp.displayName,
+        exposureScore: Math.round(score * 10) / 10,
+        coastSide: '',
+        shockSupported: true,
+      };
+    }
+
+    const overlap = cp.routeIds.filter(r => routeSet.has(r)).length;
+    const maxRoutes = Math.max(cp.routeIds.length, 1);
+    const score = (overlap / maxRoutes) * 100;
+    return {
+      chokepointId: cp.id,
+      chokepointName: cp.displayName,
+      exposureScore: Math.round(score * 10) / 10,
+      coastSide: '',
+      shockSupported: false,
+    };
+  });
 }
 
 function vulnerabilityIndex(sorted: ChokepointExposureEntry[]): number {
@@ -84,8 +140,9 @@ export async function getCountryChokepointIndex(
         const nearestRouteIds = cluster?.nearestRouteIds ?? [];
         const coastSide = cluster?.coastSide ?? 'unknown';
 
-        const exposures = computeExposures(nearestRouteIds, hs2);
-        // Attach coastSide only to the top entry
+        const exposures = await computeFlowBasedExposures(iso2, hs2, nearestRouteIds);
+        exposures.sort((a, b) => b.exposureScore - a.exposureScore);
+
         if (exposures[0]) exposures[0] = { ...exposures[0], coastSide };
 
         const primaryId = exposures[0]?.chokepointId ?? '';

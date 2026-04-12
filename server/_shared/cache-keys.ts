@@ -66,10 +66,11 @@ export const REFINERY_INPUTS_KEY = 'economic:refinery-inputs:v1';
 
 /**
  * Per-country chokepoint exposure index. Request-varying — excluded from bootstrap.
- * Key: supply-chain:exposure:{iso2}:{hs2}:v1
+ * Key: supply-chain:exposure:{iso2}:{hs2}:v2
+ * v2: flow-based scoring for shock-model chokepoints (issue #2969).
  */
 export const CHOKEPOINT_EXPOSURE_KEY = (iso2: string, hs2: string) =>
-  `supply-chain:exposure:${iso2}:${hs2}:v1`;
+  `supply-chain:exposure:${iso2}:${hs2}:v2`;
 export const CHOKEPOINT_EXPOSURE_SEED_META_KEY = 'seed-meta:supply_chain:chokepoint-exposure';
 
 /**
