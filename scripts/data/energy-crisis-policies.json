@@ -1,0 +1,547 @@
+{
+  "source": "IEA 2026 Energy Crisis Policy Response Tracker",
+  "sourceUrl": "https://www.iea.org/data-and-statistics/data-tools/2026-energy-crisis-policy-response-tracker",
+  "context": "Policy responses to energy market impacts of Middle East conflict and Strait of Hormuz closure, March 2026",
+  "policies": [
+    {
+      "country": "South Korea",
+      "countryCode": "KR",
+      "category": "conservation",
+      "sector": "transport",
+      "measure": "Odd-even no-driving mandate for public sector workers by license plate number; private companies voluntarily participating",
+      "dateAnnounced": "2026-03-12",
+      "status": "active"
+    },
+    {
+      "country": "Bangladesh",
+      "countryCode": "BD",
+      "category": "conservation",
+      "sector": "buildings",
+      "measure": "Capped air-conditioning temperatures in public buildings at 25\u00b0C, temporarily closed universities, reduced lighting use",
+      "dateAnnounced": "2026-03-14",
+      "status": "active"
+    },
+    {
+      "country": "Bangladesh",
+      "countryCode": "BD",
+      "category": "conservation",
+      "sector": "transport",
+      "measure": "Expanded public transport access to reduce private vehicle use",
+      "dateAnnounced": "2026-03-14",
+      "status": "active"
+    },
+    {
+      "country": "Sweden",
+      "countryCode": "SE",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Temporarily reduced fuel taxes to lower pump prices for consumers",
+      "dateAnnounced": "2026-03-11",
+      "status": "active"
+    },
+    {
+      "country": "Poland",
+      "countryCode": "PL",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Imposed price caps on gasoline and diesel at retail level",
+      "dateAnnounced": "2026-03-13",
+      "status": "active"
+    },
+    {
+      "country": "Croatia",
+      "countryCode": "HR",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Imposed price caps on gasoline and diesel at retail level",
+      "dateAnnounced": "2026-03-14",
+      "status": "active"
+    },
+    {
+      "country": "Slovenia",
+      "countryCode": "SI",
+      "category": "conservation",
+      "sector": "transport",
+      "measure": "Restricted fuel purchases to 50 litres per day for private vehicles and 200 litres per day for companies and priority users",
+      "dateAnnounced": "2026-03-18",
+      "status": "active"
+    },
+    {
+      "country": "Serbia",
+      "countryCode": "RS",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Introduced price caps and tax cuts on fuel at retail level",
+      "dateAnnounced": "2026-03-15",
+      "status": "active"
+    },
+    {
+      "country": "Australia",
+      "countryCode": "AU",
+      "category": "conservation",
+      "sector": "transport",
+      "measure": "Victoria and Tasmania made public transport free for fixed time periods to reduce private vehicle use",
+      "dateAnnounced": "2026-03-15",
+      "status": "active"
+    },
+    {
+      "country": "Pakistan",
+      "countryCode": "PK",
+      "category": "conservation",
+      "sector": "transport",
+      "measure": "Reduced highway speed limits nationally; free public transport in cities including Islamabad for one month",
+      "dateAnnounced": "2026-03-13",
+      "status": "active"
+    },
+    {
+      "country": "Thailand",
+      "countryCode": "TH",
+      "category": "conservation",
+      "sector": "buildings",
+      "measure": "Government workers told to use stairs instead of elevators, wear short-sleeved shirts, work from home when possible; AC set to 26-27\u00b0C in government offices",
+      "dateAnnounced": "2026-03-12",
+      "status": "active"
+    },
+    {
+      "country": "Philippines",
+      "countryCode": "PH",
+      "category": "conservation",
+      "sector": "buildings",
+      "measure": "Four-day work week for some government offices; non-essential office lights off during breaks and after hours; AC limited to 24\u00b0C or higher",
+      "dateAnnounced": "2026-03-14",
+      "status": "active"
+    },
+    {
+      "country": "Spain",
+      "countryCode": "ES",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Reduced VAT on fuel from 21% to 10%; eliminated 5% tax on electricity",
+      "dateAnnounced": "2026-03-16",
+      "status": "active"
+    },
+    {
+      "country": "Italy",
+      "countryCode": "IT",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Cut excise duties on fuel to reduce retail prices",
+      "dateAnnounced": "2026-03-13",
+      "status": "active"
+    },
+    {
+      "country": "Germany",
+      "countryCode": "DE",
+      "category": "consumer_support",
+      "sector": "industry",
+      "measure": "Finance ministry examining windfall tax on oil companies to shield consumers from rising fuel prices",
+      "dateAnnounced": "2026-03-17",
+      "status": "planned"
+    },
+    {
+      "country": "United Kingdom",
+      "countryCode": "GB",
+      "category": "conservation",
+      "sector": "transport",
+      "measure": "Energy contingency plan activated including temporary reduction in national speed limits to conserve fuel",
+      "dateAnnounced": "2026-03-18",
+      "status": "active"
+    },
+    {
+      "country": "Japan",
+      "countryCode": "JP",
+      "category": "conservation",
+      "sector": "buildings",
+      "measure": "Requested businesses and households to reduce energy consumption; extended Cool Biz dress code to year-round",
+      "dateAnnounced": "2026-03-11",
+      "status": "active"
+    },
+    {
+      "country": "Japan",
+      "countryCode": "JP",
+      "category": "consumer_support",
+      "sector": "electricity",
+      "measure": "Extended fuel subsidies for gasoline and electricity to cushion price impact on consumers",
+      "dateAnnounced": "2026-03-12",
+      "status": "active"
+    },
+    {
+      "country": "India",
+      "countryCode": "IN",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Cut excise duty on petrol and diesel; directed state oil companies to absorb partial price increases",
+      "dateAnnounced": "2026-03-14",
+      "status": "active"
+    },
+    {
+      "country": "India",
+      "countryCode": "IN",
+      "category": "conservation",
+      "sector": "transport",
+      "measure": "Encouraged work-from-home for government and IT sectors; promoted public transport use in major cities",
+      "dateAnnounced": "2026-03-16",
+      "status": "active"
+    },
+    {
+      "country": "France",
+      "countryCode": "FR",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Introduced fuel price vouchers for low-income households; temporary fuel tax rebate",
+      "dateAnnounced": "2026-03-15",
+      "status": "active"
+    },
+    {
+      "country": "France",
+      "countryCode": "FR",
+      "category": "conservation",
+      "sector": "buildings",
+      "measure": "Lowered heating temperature mandate in public buildings to 19\u00b0C; reduced public lighting hours",
+      "dateAnnounced": "2026-03-17",
+      "status": "active"
+    },
+    {
+      "country": "United States",
+      "countryCode": "US",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Released strategic petroleum reserve barrels; suspended federal fuel tax temporarily",
+      "dateAnnounced": "2026-03-10",
+      "status": "active"
+    },
+    {
+      "country": "United States",
+      "countryCode": "US",
+      "category": "conservation",
+      "sector": "buildings",
+      "measure": "Federal agencies directed to reduce energy consumption by 15%; expanded telework for federal employees",
+      "dateAnnounced": "2026-03-14",
+      "status": "active"
+    },
+    {
+      "country": "China",
+      "countryCode": "CN",
+      "category": "conservation",
+      "sector": "industry",
+      "measure": "Ordered energy-intensive industries to curtail production during peak hours; accelerated coal-to-gas switching",
+      "dateAnnounced": "2026-03-12",
+      "status": "active"
+    },
+    {
+      "country": "China",
+      "countryCode": "CN",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Capped retail fuel prices using existing pricing mechanism; released state oil reserves",
+      "dateAnnounced": "2026-03-11",
+      "status": "active"
+    },
+    {
+      "country": "Turkey",
+      "countryCode": "TR",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Reduced special consumption tax on fuel; subsidized public transport fares",
+      "dateAnnounced": "2026-03-16",
+      "status": "active"
+    },
+    {
+      "country": "Turkey",
+      "countryCode": "TR",
+      "category": "conservation",
+      "sector": "buildings",
+      "measure": "Reduced public building operating hours; mandated energy audits for large commercial buildings",
+      "dateAnnounced": "2026-03-18",
+      "status": "active"
+    },
+    {
+      "country": "Greece",
+      "countryCode": "GR",
+      "category": "consumer_support",
+      "sector": "electricity",
+      "measure": "Expanded household energy subsidies; introduced price cap on natural gas for residential use",
+      "dateAnnounced": "2026-03-17",
+      "status": "active"
+    },
+    {
+      "country": "Netherlands",
+      "countryCode": "NL",
+      "category": "conservation",
+      "sector": "transport",
+      "measure": "Temporarily reduced highway speed limit from 130 to 100 km/h nationwide",
+      "dateAnnounced": "2026-03-15",
+      "status": "active"
+    },
+    {
+      "country": "Belgium",
+      "countryCode": "BE",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Reduced VAT on fuel from 21% to 6%; extended energy cheques for vulnerable households",
+      "dateAnnounced": "2026-03-16",
+      "status": "active"
+    },
+    {
+      "country": "Portugal",
+      "countryCode": "PT",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Introduced fuel price cap mechanism; tax rebate on fuel for professional transport operators",
+      "dateAnnounced": "2026-03-17",
+      "status": "active"
+    },
+    {
+      "country": "Indonesia",
+      "countryCode": "ID",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Increased fuel subsidies to prevent retail price increases; allocated emergency budget for energy",
+      "dateAnnounced": "2026-03-14",
+      "status": "active"
+    },
+    {
+      "country": "Indonesia",
+      "countryCode": "ID",
+      "category": "conservation",
+      "sector": "buildings",
+      "measure": "Government offices shifted to four-day work week; restricted AC usage in public buildings",
+      "dateAnnounced": "2026-03-16",
+      "status": "active"
+    },
+    {
+      "country": "Malaysia",
+      "countryCode": "MY",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Maintained existing fuel subsidies despite rising crude costs; targeted subsidy to B40 income group",
+      "dateAnnounced": "2026-03-13",
+      "status": "active"
+    },
+    {
+      "country": "Vietnam",
+      "countryCode": "VN",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Reduced environmental tax on fuel; used price stabilization fund to cap petrol prices",
+      "dateAnnounced": "2026-03-15",
+      "status": "active"
+    },
+    {
+      "country": "Singapore",
+      "countryCode": "SG",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Provided U-Save energy rebates; temporary road tax reduction for commercial vehicles",
+      "dateAnnounced": "2026-03-14",
+      "status": "active"
+    },
+    {
+      "country": "New Zealand",
+      "countryCode": "NZ",
+      "category": "conservation",
+      "sector": "transport",
+      "measure": "Temporary speed limit reductions on state highways; promoted carpooling campaigns",
+      "dateAnnounced": "2026-03-16",
+      "status": "active"
+    },
+    {
+      "country": "Brazil",
+      "countryCode": "BR",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Temporarily zeroed federal fuel taxes (PIS/COFINS); expanded Auxilio Gas program for low-income families",
+      "dateAnnounced": "2026-03-12",
+      "status": "active"
+    },
+    {
+      "country": "Mexico",
+      "countryCode": "MX",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Increased fuel stimulus (estímulo fiscal) to cap gasoline prices; expanded Pemex domestic supply",
+      "dateAnnounced": "2026-03-13",
+      "status": "active"
+    },
+    {
+      "country": "Canada",
+      "countryCode": "CA",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Temporarily suspended federal carbon levy on gasoline; targeted rebates for rural and remote communities",
+      "dateAnnounced": "2026-03-14",
+      "status": "active"
+    },
+    {
+      "country": "Canada",
+      "countryCode": "CA",
+      "category": "conservation",
+      "sector": "transport",
+      "measure": "Encouraged telework across federal public service; promoted EV charging incentives",
+      "dateAnnounced": "2026-03-16",
+      "status": "active"
+    },
+    {
+      "country": "South Africa",
+      "countryCode": "ZA",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Reduced general fuel levy and Road Accident Fund levy; emergency price monitoring at retail stations",
+      "dateAnnounced": "2026-03-15",
+      "status": "active"
+    },
+    {
+      "country": "Nigeria",
+      "countryCode": "NG",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Reintroduced partial fuel subsidies on petrol; allocated emergency funds for CNG bus fleet expansion",
+      "dateAnnounced": "2026-03-16",
+      "status": "active"
+    },
+    {
+      "country": "Kenya",
+      "countryCode": "KE",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Used petroleum development levy stabilization fund to cap pump prices; waived import duty on LPG",
+      "dateAnnounced": "2026-03-17",
+      "status": "active"
+    },
+    {
+      "country": "Egypt",
+      "countryCode": "EG",
+      "category": "conservation",
+      "sector": "buildings",
+      "measure": "Reduced public building lighting and operating hours; mandatory AC temperature floors in government buildings",
+      "dateAnnounced": "2026-03-16",
+      "status": "active"
+    },
+    {
+      "country": "Chile",
+      "countryCode": "CL",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Activated MEPCO fuel price stabilization mechanism at maximum subsidy; extended winter energy bonus",
+      "dateAnnounced": "2026-03-14",
+      "status": "active"
+    },
+    {
+      "country": "Colombia",
+      "countryCode": "CO",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Froze domestic fuel price adjustments through price stabilization fund (FEPC)",
+      "dateAnnounced": "2026-03-15",
+      "status": "active"
+    },
+    {
+      "country": "Romania",
+      "countryCode": "RO",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Extended fuel price cap scheme for gasoline and diesel; increased social energy voucher value",
+      "dateAnnounced": "2026-03-17",
+      "status": "active"
+    },
+    {
+      "country": "Czech Republic",
+      "countryCode": "CZ",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Temporarily reduced excise duty on diesel and petrol; expanded household energy allowance",
+      "dateAnnounced": "2026-03-16",
+      "status": "active"
+    },
+    {
+      "country": "Hungary",
+      "countryCode": "HU",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Reintroduced regulated fuel price caps; restricted fuel exports to ensure domestic supply",
+      "dateAnnounced": "2026-03-14",
+      "status": "active"
+    },
+    {
+      "country": "Austria",
+      "countryCode": "AT",
+      "category": "conservation",
+      "sector": "transport",
+      "measure": "Reduced motorway speed limit to 100 km/h; expanded climate ticket (Klimaticket) access and subsidies",
+      "dateAnnounced": "2026-03-16",
+      "status": "active"
+    },
+    {
+      "country": "Switzerland",
+      "countryCode": "CH",
+      "category": "conservation",
+      "sector": "buildings",
+      "measure": "Issued voluntary energy savings appeal to households and businesses; reduced heating in federal buildings",
+      "dateAnnounced": "2026-03-17",
+      "status": "active"
+    },
+    {
+      "country": "Denmark",
+      "countryCode": "DK",
+      "category": "conservation",
+      "sector": "transport",
+      "measure": "Temporarily lowered highway speed limits; promoted cycling infrastructure and public transit incentives",
+      "dateAnnounced": "2026-03-15",
+      "status": "active"
+    },
+    {
+      "country": "Norway",
+      "countryCode": "NO",
+      "category": "consumer_support",
+      "sector": "electricity",
+      "measure": "Extended electricity price support scheme for households; increased oil production to assist global supply",
+      "dateAnnounced": "2026-03-12",
+      "status": "active"
+    },
+    {
+      "country": "Finland",
+      "countryCode": "FI",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Temporarily reduced fuel distribution obligation fee; targeted energy aid for low-income households",
+      "dateAnnounced": "2026-03-16",
+      "status": "active"
+    },
+    {
+      "country": "Ireland",
+      "countryCode": "IE",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Reduced excise duty on petrol and diesel; extended electricity credit scheme",
+      "dateAnnounced": "2026-03-15",
+      "status": "active"
+    },
+    {
+      "country": "Israel",
+      "countryCode": "IL",
+      "category": "conservation",
+      "sector": "buildings",
+      "measure": "Mandated 20% energy reduction in government buildings; accelerated domestic gas field production",
+      "dateAnnounced": "2026-03-10",
+      "status": "active"
+    },
+    {
+      "country": "Saudi Arabia",
+      "countryCode": "SA",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Maintained domestic fuel price caps; increased OPEC+ production to help stabilize global supply",
+      "dateAnnounced": "2026-03-11",
+      "status": "active"
+    },
+    {
+      "country": "United Arab Emirates",
+      "countryCode": "AE",
+      "category": "consumer_support",
+      "sector": "transport",
+      "measure": "Capped domestic fuel prices despite global increases; expanded energy subsidy for nationals",
+      "dateAnnounced": "2026-03-12",
+      "status": "active"
+    }
+  ]
+}
