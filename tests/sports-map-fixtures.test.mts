@@ -120,7 +120,8 @@ describe('fetchSportsFixtureMapMarkers', () => {
 
   it('uses the local calendar day when requesting daily fixtures', async () => {
     const requested: Array<{ provider: string; path: string }> = [];
-    const fixedNow = new originalDate('2026-04-11T00:30:00+03:00').valueOf();
+    // Use local constructor args so the mocked "calendar day" stays stable across CI timezones.
+    const fixedNow = new originalDate(2026, 3, 11, 0, 30, 0, 0).valueOf();
 
     class MockDate extends originalDate {
       constructor(...args: any[]) {
@@ -243,7 +244,8 @@ describe('fetchSportsFixtureMapMarkers', () => {
   });
 
   it('supplements motorsport fixtures from Jolpica when the event lands on the local day', async () => {
-    const fixedNow = new originalDate('2026-04-11T12:00:00+03:00').valueOf();
+    // Keep this anchored to local noon regardless of runner timezone.
+    const fixedNow = new originalDate(2026, 3, 11, 12, 0, 0, 0).valueOf();
 
     class MockDate extends originalDate {
       constructor(...args: any[]) {
