@@ -1,6 +1,8 @@
 import type { MarketServiceClient } from '@/generated/client/worldmonitor/market/v1/service_client';
 import { Panel } from './Panel';
+import { t } from '@/services/i18n';
 import { escapeHtml } from '@/utils/sanitize';
+import { formatChange, getChangeClass } from '@/utils';
 
 let _client: MarketServiceClient | null = null;
 
@@ -16,21 +18,33 @@ async function getMarketClient(): Promise<MarketServiceClient> {
 const TOP_STOCKS = ['AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL', 'META', 'TSLA'];
 const COT_PRIORITY = ['CL', 'GC', 'SI', 'ES', 'NQ'];
 
+// Display aliases for CFTC instrument codes that aren't self-explanatory.
+const INSTRUMENT_LABELS: Record<string, string> = {
+  ES: 'S&P 500 futures',
+  NQ: 'Nasdaq futures',
+};
+
 function toNum(v: string | number): number {
   if (typeof v === 'number') return v;
   const n = parseInt(String(v), 10);
   return Number.isFinite(n) ? n : 0;
 }
 
-function renderShiftPill(value: number): string {
-  const sign = value > 0 ? '+' : '';
-  const cls = value > 0 ? 'positive' : value < 0 ? 'negative' : '';
-  return `<span class="commodity-change ${cls}">${sign}${value.toFixed(2)}%</span>`;
+function renderShiftPill(value: number | null): string {
+  if (value === null) return '<span class="commodity-change">—</span>';
+  return `<span class="commodity-change ${getChangeClass(value)}">${formatChange(value)}</span>`;
 }
 
-function pct(longPos: number, shortPos: number): number {
-  const gross = Math.max(longPos + shortPos, 1);
+function pct(longPos: number, shortPos: number): number | null {
+  const gross = longPos + shortPos;
+  if (gross <= 0) return null;
   return ((longPos - shortPos) / gross) * 100;
+}
+
+function formatLevShift(value: number | null): string {
+  if (value === null) return '—';
+  const sign = value >= 0 ? '+' : '';
+  return `${sign}${value.toFixed(1)}%`;
 }
 
 export class LiquidityShiftsPanel extends Panel {
@@ -39,9 +53,9 @@ export class LiquidityShiftsPanel extends Panel {
   constructor() {
     super({
       id: 'liquidity-shifts',
-      title: 'Liquidity Shifts',
+      title: t('components.liquidityShifts.title'),
       showCount: false,
-      infoTooltip: 'High-liquidity positioning/shift monitor for oil, gold, silver, equity indices, and top stocks.',
+      infoTooltip: t('components.liquidityShifts.infoTooltip'),
     });
   }
 
@@ -59,7 +73,7 @@ export class LiquidityShiftsPanel extends Panel {
         .sort((a, b) => COT_PRIORITY.indexOf(a.code ?? '') - COT_PRIORITY.indexOf(b.code ?? ''));
 
       if (cotRows.length === 0 && (stocksResp.quotes?.length ?? 0) === 0) {
-        if (!this._hasData) this.showError('Liquidity data unavailable', () => void this.fetchData());
+        if (!this._hasData) this.showError(t('components.liquidityShifts.unavailable'), () => void this.fetchData());
         return false;
       }
 
@@ -71,18 +85,17 @@ export class LiquidityShiftsPanel extends Panel {
         const levLong = toNum(row.leveragedFundsLong ?? 0);
         const levShort = toNum(row.leveragedFundsShort ?? 0);
         const levNet = pct(levLong, levShort);
-        const label = row.code === 'ES' ? 'S&P 500 futures' : row.code === 'NQ' ? 'Nasdaq futures' : row.name;
+        const code = row.code ?? '';
+        const label = INSTRUMENT_LABELS[code] ?? row.name ?? code;
 
-        return `<div class="market-item" style="display:block;padding:8px 0">
-          <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
-            <div>
-              <div class="market-name">${escapeHtml(label ?? row.code ?? '')}</div>
-              <div class="market-symbol">${escapeHtml(row.code ?? '')} • Long ${escapeHtml(String(longPos))} / Short ${escapeHtml(String(shortPos))}</div>
-            </div>
-            <div style="text-align:right">
-              <div>${renderShiftPill(net)}</div>
-              <div class="market-symbol">Lev ${levNet >= 0 ? '+' : ''}${levNet.toFixed(1)}%</div>
-            </div>
+        return `<div class="liquidity-row">
+          <div class="liquidity-row__info">
+            <div class="market-name">${escapeHtml(label)}</div>
+            <div class="market-symbol">${escapeHtml(code)} • ${t('components.liquidityShifts.longShort', { long: String(longPos), short: String(shortPos) })}</div>
+          </div>
+          <div class="liquidity-row__values">
+            <div>${renderShiftPill(net)}</div>
+            <div class="market-symbol">${t('components.liquidityShifts.lev')} ${escapeHtml(formatLevShift(levNet))}</div>
           </div>
         </div>`;
       }).join('');
@@ -91,25 +104,34 @@ export class LiquidityShiftsPanel extends Panel {
       const stockRows = stocks
         .map((q) => {
           const ch = Number(q.change ?? 0);
-          return `<div class="market-item" style="display:flex;justify-content:space-between">
-            <div class="market-info"><span class="market-name">${escapeHtml(q.name || q.symbol || '')}</span><span class="market-symbol">${escapeHtml(q.symbol || '')}</span></div>
+          return `<div class="market-item liquidity-stock-row">
+            <div class="market-info">
+              <span class="market-name">${escapeHtml(q.name || q.symbol || '')}</span>
+              <span class="market-symbol">${escapeHtml(q.symbol || '')}</span>
+            </div>
             <div>${renderShiftPill(ch)}</div>
           </div>`;
         })
         .join('');
 
+      const emptyCot = `<div class="market-symbol">${t('components.liquidityShifts.noCot')}</div>`;
+      const emptyStocks = `<div class="market-symbol">${t('components.liquidityShifts.noStocks')}</div>`;
+      const reportDateLine = cotResp.reportDate
+        ? `<div class="market-symbol liquidity-report-date">${t('components.liquidityShifts.reportDate', { date: cotResp.reportDate })}</div>`
+        : '';
+
       this.setContent(`
-        <div style="padding:10px 14px">
-          <div style="font-size:11px;font-weight:700;margin-bottom:6px">Oil / Gold / Silver + Index Positioning (COT)</div>
-          ${cotHtml || '<div class="market-symbol">No COT rows available.</div>'}
-          <div style="font-size:11px;font-weight:700;margin:10px 0 6px">Top Stocks — Daily Shift</div>
-          ${stockRows || '<div class="market-symbol">No top stock quotes available.</div>'}
-          ${cotResp.reportDate ? `<div class="market-symbol" style="margin-top:8px;text-align:right">COT report date: ${escapeHtml(cotResp.reportDate)}</div>` : ''}
+        <div class="liquidity-shifts-panel">
+          <div class="liquidity-shifts-panel__section-title">${t('components.liquidityShifts.cotSection')}</div>
+          ${cotHtml || emptyCot}
+          <div class="liquidity-shifts-panel__section-title liquidity-shifts-panel__section-title--gap">${t('components.liquidityShifts.stocksSection')}</div>
+          ${stockRows || emptyStocks}
+          ${reportDateLine}
         </div>
       `);
       return true;
     } catch (e) {
-      if (!this._hasData) this.showError(e instanceof Error ? e.message : 'Failed to load', () => void this.fetchData());
+      if (!this._hasData) this.showError(e instanceof Error ? e.message : t('components.liquidityShifts.failed'), () => void this.fetchData());
       return false;
     }
   }
