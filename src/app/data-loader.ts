@@ -121,6 +121,7 @@ import { fetchTelegramFeed } from '@/services/telegram-intel';
 import { fetchOrefAlerts, startOrefPolling, stopOrefPolling, onOrefAlertsUpdate } from '@/services/oref-alerts';
 import { getResilienceRanking } from '@/services/resilience';
 import { buildResilienceChoroplethMap } from '@/components/resilience-choropleth-utils';
+import { fetchSportsFixtureMapMarkers } from '@/services/sports';
 import { enrichEventsWithExposure } from '@/services/population-exposure';
 import { debounce, getCircuitBreakerCooldownInfo } from '@/utils';
 import { isFeatureAvailable, isFeatureEnabled } from '@/services/runtime-config';
@@ -198,6 +199,7 @@ import { fetchSocialVelocity } from '@/services/social-velocity';
 import { fetchShippingStress } from '@/services/supply-chain';
 import { getTopActiveGeoHubs } from '@/services/geo-activity';
 import { getTopActiveHubs } from '@/services/tech-activity';
+import { filterSportsHeadlineNoise } from '@/services/sports-headline-filter';
 import type { GeoHubsPanel } from '@/components/GeoHubsPanel';
 import type { TechHubsPanel } from '@/components/TechHubsPanel';
 
@@ -484,6 +486,10 @@ export class DataLoaderManager implements AppModule {
       }
     }
 
+    if (isSportsVariant && this.ctx.mapLayers.sportsFixtures) {
+      tasks.push({ name: 'sportsFixturesLayer', task: runGuarded('sportsFixturesLayer', () => this.loadSportsFixturesLayer()) });
+    }
+
     // Progress charts data (happy variant only)
     if (SITE_VARIANT === 'happy') {
       if (shouldLoad('progress')) {
@@ -681,6 +687,9 @@ export class DataLoaderManager implements AppModule {
           await this.loadTechEvents();
           console.log('[loadDataForLayer] techEvents loaded');
           break;
+        case 'sportsFixtures':
+          await this.loadSportsFixturesLayer();
+          break;
         case 'positiveEvents':
           await this.loadPositiveEvents();
           break;
@@ -861,12 +870,20 @@ export class DataLoaderManager implements AppModule {
     return labels[range];
   }
 
+  private applyCategoryQualityFilters(category: string, items: NewsItem[]): NewsItem[] {
+    if (SITE_VARIANT === 'sports' && category === 'sports') {
+      return filterSportsHeadlineNoise(items);
+    }
+    return items;
+  }
+
   renderNewsForCategory(category: string, items: NewsItem[]): void {
-    this.ctx.newsByCategory[category] = items;
+    const qualityFilteredItems = this.applyCategoryQualityFilters(category, items);
+    this.ctx.newsByCategory[category] = qualityFilteredItems;
     const panel = this.ctx.newsPanels[category];
     if (!panel) return;
-    const filteredItems = this.filterItemsByTimeRange(items);
-    if (filteredItems.length === 0 && items.length > 0) {
+    const filteredItems = this.filterItemsByTimeRange(qualityFilteredItems);
+    if (filteredItems.length === 0 && qualityFilteredItems.length > 0) {
       panel.renderFilteredEmpty(`No items in ${this.getTimeRangeLabel()}`);
       return;
     }
@@ -1908,6 +1925,22 @@ export class DataLoaderManager implements AppModule {
       this.ctx.map?.setTechEvents([]);
       this.ctx.map?.setLayerReady('techEvents', false);
       this.ctx.statusPanel?.updateFeed('Tech Events', { status: 'error', errorMessage: String(error) });
+    }
+  }
+
+  async loadSportsFixturesLayer(): Promise<void> {
+    if (SITE_VARIANT !== 'sports' && !this.ctx.mapLayers.sportsFixtures) return;
+
+    try {
+      const markers = await fetchSportsFixtureMapMarkers();
+      this.ctx.map?.setSportsFixtures(markers);
+      this.ctx.map?.setLayerReady('sportsFixtures', markers.length > 0);
+      this.ctx.statusPanel?.updateFeed('Sports Fixtures', { status: 'ok', itemCount: markers.length });
+    } catch (error) {
+      console.error('[App] Failed to load sports fixtures layer:', error);
+      this.ctx.map?.setSportsFixtures([]);
+      this.ctx.map?.setLayerReady('sportsFixtures', false);
+      this.ctx.statusPanel?.updateFeed('Sports Fixtures', { status: 'error', errorMessage: String(error) });
     }
   }
 

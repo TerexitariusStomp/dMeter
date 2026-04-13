@@ -5,10 +5,10 @@ import { rssProxyUrl } from '@/utils';
 import { escapeHtml, sanitizeUrl } from '@/utils/sanitize';
 
 const TRANSFER_FEEDS: Feed[] = [
-  { name: 'Football Transfers', url: rssProxyUrl('https://news.google.com/rss/search?q=(football+OR+soccer)+transfer+OR+loan+OR+signing+when:7d&hl=en-US&gl=US&ceid=US:en') },
+  { name: 'Football Transfers', url: rssProxyUrl('https://news.google.com/rss/search?q=((football+OR+soccer)+transfer+OR+loan+OR+signing)+-%22transfer+portal%22+-college+-NCAA+when:7d&hl=en-US&gl=US&ceid=US:en') },
   { name: 'BBC Football', url: rssProxyUrl('https://feeds.bbci.co.uk/sport/football/rss.xml?edition=uk') },
   { name: 'ESPN Soccer', url: rssProxyUrl('https://www.espn.com/espn/rss/soccer/news') },
-  { name: 'Guardian Football', url: rssProxyUrl('https://news.google.com/rss/search?q=site:theguardian.com+football+transfer+when:7d&hl=en-US&gl=US&ceid=US:en') },
+  { name: 'Guardian Football', url: rssProxyUrl('https://www.theguardian.com/football/rss') },
 ];
 
 const TRANSFER_KEYWORDS = [

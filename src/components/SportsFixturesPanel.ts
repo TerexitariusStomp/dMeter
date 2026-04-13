@@ -3,6 +3,14 @@ import { escapeHtml } from '@/utils/sanitize';
 import { fetchFeaturedSportsFixtures, parseEventTimestamp, type SportsEvent, type SportsFixtureGroup } from '@/services/sports';
 import { renderSportsTeamIdentity } from './sportsPanelShared';
 
+function formatFixtureDayLabel(date = new Date()): string {
+  return date.toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
 function formatEventClock(event: SportsEvent): string {
   const timestamp = parseEventTimestamp(event);
   if (timestamp !== Number.MAX_SAFE_INTEGER) {
@@ -23,32 +31,40 @@ export class SportsFixturesPanel extends Panel {
   constructor() {
     super({
       id: 'sports-fixtures',
-      title: 'Upcoming Fixtures',
-      showCount: false,
-      infoTooltip: 'Upcoming fixtures across featured soccer and basketball competitions powered by ESPN scoreboards.',
+      title: 'Daily Fixtures',
+      showCount: true,
+      infoTooltip: 'Today\'s fixtures across top football leagues, the NBA, and motorsport calendars from open sports schedule feeds.',
     });
   }
 
   public async fetchData(): Promise<boolean> {
-    this.showLoading('Loading fixtures...');
+    this.showLoading('Loading daily fixtures...');
     try {
       this.groups = await fetchFeaturedSportsFixtures();
       if (this.groups.length === 0) {
-        this.showError('No fixture data available right now.', () => void this.fetchData());
+        this.setCount(0);
+        this.showError('No daily fixture data available right now.', () => void this.fetchData());
         return false;
       }
+      this.setCount(this.groups.reduce((sum, group) => sum + group.events.length, 0));
       this.renderPanel();
       return true;
     } catch (error) {
       if (this.isAbortError(error)) return false;
+      this.setCount(0);
       this.showError('Failed to load fixtures.', () => void this.fetchData());
       return false;
     }
   }
 
   private renderPanel(): void {
+    const dayLabel = formatFixtureDayLabel();
     const html = `
       <div style="display:grid;gap:10px;padding:2px 2px 8px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 2px;">
+          <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.58);">Daily Schedule</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.48);">${escapeHtml(dayLabel)}</div>
+        </div>
         ${this.groups.map((group) => `
           <section style="border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:10px 12px;background:rgba(255,255,255,0.02);">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">

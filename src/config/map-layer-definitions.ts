@@ -66,6 +66,7 @@ export const LAYER_REGISTRY: Record<keyof MapLayers, LayerDefinition> = {
   accelerators:             def('accelerators',             '&#9889;',   'accelerators',             'Accelerators'),
   cloudRegions:             def('cloudRegions',             '&#9729;',   'cloudRegions',             'Cloud Regions'),
   techEvents:               def('techEvents',               '&#128197;', 'techEvents',               'Tech Events'),
+  sportsFixtures:           def('sportsFixtures',           '&#9917;',   'sportsFixtures',           'Sports Fixtures'),
   stockExchanges:           def('stockExchanges',           '&#127963;', 'stockExchanges',           'Stock Exchanges'),
   financialCenters:         def('financialCenters',         '&#128176;', 'financialCenters',         'Financial Centers'),
   centralBanks:             def('centralBanks',             '&#127974;', 'centralBanks',             'Central Banks'),
@@ -118,6 +119,7 @@ const VARIANT_LAYER_ORDER: Record<MapVariant, Array<keyof MapLayers>> = {
     'resilienceScore', 'natural', 'weather', 'outages', 'sanctions', 'dayNight',
   ],
   sports: [
+    'sportsFixtures',
     'dayNight',
   ],
 };
@@ -198,6 +200,7 @@ export const LAYER_SYNONYMS: Record<string, Array<keyof MapLayers>> = {
   ai: ['datacenters'],
   startup: ['startupHubs', 'accelerators'],
   tech: ['techHQs', 'techEvents', 'startupHubs', 'cloudRegions', 'datacenters'],
+  sports: ['sportsFixtures', 'dayNight'],
   gps: ['gpsJamming'],
   jamming: ['gpsJamming'],
   mineral: ['minerals', 'miningSites'],

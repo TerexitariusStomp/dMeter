@@ -129,7 +129,7 @@ export const VARIANT_META: { full: VariantMeta; [k: string]: VariantMeta } = {
   },
   sports: {
     title: 'Sports Monitor - Live Sports News, Fixtures, Tables & Stats',
-    description: 'Multi-sport dashboard for sports headlines, upcoming fixtures, league tables, and recent match stats across major competitions.',
+    description: 'Multi-sport dashboard for sports headlines, daily fixtures, league tables, and recent match stats across major competitions.',
     keywords: 'sports dashboard, sports news, fixtures, league tables, match stats, football news, nba news, mlb news, nhl news, formula 1, tennis news, sports monitor',
     url: 'https://sports.worldmonitor.app/',
     siteName: 'Sports Monitor',
@@ -140,7 +140,7 @@ export const VARIANT_META: { full: VariantMeta; [k: string]: VariantMeta } = {
     features: [
       'Live multi-sport headlines',
       'Football, basketball, baseball, tennis, and motorsport feeds',
-      'Upcoming fixtures across featured leagues',
+      'Daily fixtures across featured leagues',
       'Featured league tables',
       'Recent match stat snapshots',
       'Cross-sport competition monitoring',

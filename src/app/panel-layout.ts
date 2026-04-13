@@ -73,9 +73,9 @@ import {
   GoldIntelligencePanel,
   DiseaseOutbreaksPanel,
   SocialVelocityPanel,
-  SportsFixturesPanel,
   SportsTablesPanel,
   SportsStatsPanel,
+  SportsLiveTrackerPanel,
   SportsMajorTournamentsPanel,
   SportsNbaPanel,
   SportsMotorsportPanel,
@@ -84,6 +84,9 @@ import {
   WsbTickerScannerPanel,
   AAIISentimentPanel,
   EnergyCrisisPanel,
+  SportsNbaAnalysisPanel,
+  SportsEuropeanFootballAnalysisPanel,
+  SportsMotorsportAnalysisPanel,
 } from '@/components';
 import { SatelliteFiresPanel } from '@/components/SatelliteFiresPanel';
 import { focusInvestmentOnMap } from '@/services/investments-focus';
@@ -1129,12 +1132,15 @@ export class PanelLayoutManager implements AppModule {
     this.createPanel('earnings-calendar', () => new EarningsCalendarPanel());
     this.createPanel('economic-calendar', () => new EconomicCalendarPanel());
     this.createPanel('cot-positioning', () => new CotPositioningPanel());
-    this.createPanel('sports-fixtures', () => new SportsFixturesPanel());
     this.createPanel('sports-tables', () => new SportsTablesPanel());
     this.createPanel('sports-stats', () => new SportsStatsPanel());
+    this.createPanel('sports-live-tracker', () => new SportsLiveTrackerPanel());
     this.createPanel('sports-tournaments', () => new SportsMajorTournamentsPanel());
     this.createPanel('sports-nba', () => new SportsNbaPanel());
     this.createPanel('sports-motorsport-standings', () => new SportsMotorsportPanel());
+    this.createPanel('sports-nba-analysis', () => new SportsNbaAnalysisPanel());
+    this.createPanel('sports-football-analysis', () => new SportsEuropeanFootballAnalysisPanel());
+    this.createPanel('sports-motorsport-analysis', () => new SportsMotorsportAnalysisPanel());
     this.createPanel('sports-transfers', () => new SportsTransferNewsPanel());
     this.createPanel('sports-player-search', () => new SportsPlayerSearchPanel());
     this.createPanel('gold-intelligence', () => new GoldIntelligencePanel());

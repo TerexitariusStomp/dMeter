@@ -886,25 +886,25 @@ const SPORTS_FEEDS: Record<string, Feed[]> = {
   sports: [
     { name: 'BBC Sport', url: rss('https://feeds.bbci.co.uk/sport/rss.xml?edition=uk') },
     { name: 'ESPN', url: rss('https://www.espn.com/espn/rss/news') },
-    { name: 'Reuters Sports', url: rss('https://news.google.com/rss/search?q=site:reuters.com+sports+when:2d&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'AP Sports', url: rss('https://news.google.com/rss/search?q=site:apnews.com+sports+when:2d&hl=en-US&gl=US&ceid=US:en') },
+    { name: 'Reuters Sports', url: rss('https://news.google.com/rss/search?q=site:reuters.com+sports+-politics+-election+-government+when:2d&hl=en-US&gl=US&ceid=US:en') },
+    { name: 'AP Sports', url: rss('https://news.google.com/rss/search?q=site:apnews.com+sports+-politics+-election+-government+when:2d&hl=en-US&gl=US&ceid=US:en') },
     { name: 'Sky Sports', url: rss('https://www.skysports.com/rss/12040') },
   ],
   soccer: [
     { name: 'BBC Sport', url: rss('https://feeds.bbci.co.uk/sport/football/rss.xml?edition=uk') },
     { name: 'Sky Sports', url: rss('https://www.skysports.com/rss/12040') },
     { name: 'ESPN', url: rss('https://www.espn.com/espn/rss/soccer/news') },
-    { name: 'Guardian Football', url: rss('https://news.google.com/rss/search?q=site:theguardian.com+football+when:2d&hl=en-US&gl=US&ceid=US:en') },
+    { name: 'Guardian Football', url: rss('https://www.theguardian.com/football/rss') },
   ],
   basketball: [
     { name: 'NBA.com', url: rss('https://news.google.com/rss/search?q=site:nba.com+nba+when:2d&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'ESPN', url: rss('https://news.google.com/rss/search?q=site:espn.com+NBA+when:2d&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'The Athletic NBA', url: rss('https://news.google.com/rss/search?q=(NBA+OR+basketball)+analysis+when:2d&hl=en-US&gl=US&ceid=US:en') },
+    { name: 'ESPN', url: rss('https://news.google.com/rss/search?q=site:espn.com+NBA+-college+-fantasy+-%22transfer+portal%22+when:2d&hl=en-US&gl=US&ceid=US:en') },
+    { name: 'The Athletic NBA', url: rss('https://news.google.com/rss/search?q=site:theathletic.com+NBA+-fantasy+-college+when:2d&hl=en-US&gl=US&ceid=US:en') },
   ],
   baseball: [
     { name: 'MLB.com', url: rss('https://news.google.com/rss/search?q=site:mlb.com+MLB+when:2d&hl=en-US&gl=US&ceid=US:en') },
     { name: 'ESPN', url: rss('https://news.google.com/rss/search?q=site:espn.com+MLB+when:2d&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'Baseball News', url: rss('https://news.google.com/rss/search?q=(MLB+OR+baseball)+trade+OR+playoffs+when:2d&hl=en-US&gl=US&ceid=US:en') },
+    { name: 'Baseball News', url: rss('https://news.google.com/rss/search?q=MLB+(standings+OR+scores+OR+recap)+-college+-fantasy+when:2d&hl=en-US&gl=US&ceid=US:en') },
   ],
   motorsport: [
     { name: 'Formula1.com', url: rss('https://news.google.com/rss/search?q=site:formula1.com+Formula+1+when:3d&hl=en-US&gl=US&ceid=US:en') },
@@ -918,7 +918,7 @@ const SPORTS_FEEDS: Record<string, Feed[]> = {
   ],
   combat: [
     { name: 'UFC', url: rss('https://news.google.com/rss/search?q=site:ufc.com+UFC+when:3d&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'ESPN', url: rss('https://news.google.com/rss/search?q=site:espn.com+MMA+OR+boxing+when:3d&hl=en-US&gl=US&ceid=US:en') },
+    { name: 'ESPN', url: rss('https://news.google.com/rss/search?q=site:espn.com+(MMA+OR+boxing)+-basketball+-football+-%22transfer+portal%22+when:3d&hl=en-US&gl=US&ceid=US:en') },
     { name: 'MMA Fighting', url: rss('https://news.google.com/rss/search?q=site:mmafighting.com+MMA+when:3d&hl=en-US&gl=US&ceid=US:en') },
   ],
 };
