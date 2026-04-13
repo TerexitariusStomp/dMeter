@@ -48,12 +48,15 @@ export const REFRESH_INTERVALS = {
   groceryBasket: 6 * 60 * 60 * 1000,
   fuelPrices: 6 * 60 * 60 * 1000,
   faoFoodPriceIndex: 24 * 60 * 60 * 1000, // monthly data; refresh daily is sufficient
+  oilInventories: 5 * 60 * 1000, // EIA weekly + EU gas daily; 5min refresh
   climateNews: 30 * 60 * 1000, // seeded every 30min; match cadence
   intelligence: 15 * 60 * 1000,
   correlationEngine: 5 * 60 * 1000,
   defensePatents: 24 * 60 * 60 * 1000, // 24h — data is weekly, daily poll is sufficient
+  wsbTickers: 10 * 60 * 1000,
   crossSourceSignals: 15 * 60 * 1000,
   hormuzTracker: 60 * 60 * 1000, // 1h — data updates daily
+  energyCrisis: 6 * 60 * 60 * 1000, // 6h — policy data updates infrequently
   macroTiles: 30 * 60 * 1000,
   fsi: 30 * 60 * 1000,
   yieldCurve: 30 * 60 * 1000,
@@ -61,6 +64,9 @@ export const REFRESH_INTERVALS = {
   economicCalendar: 60 * 60 * 1000,
   cotPositioning: 60 * 60 * 1000,
   sports: 15 * 60 * 1000,
+  goldIntelligence: 5 * 60 * 1000,
+  aaiiSentiment: 60 * 60 * 1000, // weekly data; hourly refresh is sufficient
+  marketBreadth: 60 * 60 * 1000, // seeded daily; hourly refresh is sufficient
 };
 
 // Monitor colors - shared

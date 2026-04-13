@@ -245,6 +245,7 @@ Sentry.init({
     /ClerkJS: Network error/, // Clerk SDK transient network failures on user devices
     /doesn't provide an export named/, // stale cached chunk after deploy references removed export
     /Possible side-effect in debug-evaluate/, // Chrome DevTools internal EvalError
+    /ConvexError: CONFLICT/, // Expected OCC rejection on concurrent preference saves
   ],
   beforeSend(event) {
     const msg = event.exception?.values?.[0]?.value ?? '';
@@ -268,17 +269,21 @@ Sentry.init({
     if ((excType === 'TypeError' || /^TypeError:/.test(msg)) && frames.length > 0) {
       if (nonInfraFrames.length > 0 && nonInfraFrames.every(f => /\/(map|maplibre|deck-stack)-[A-Za-z0-9_-]+\.js/.test(f.filename ?? ''))) return null;
     }
-    // Suppress Three.js/globe.gl TypeError crashes in main bundle (reading 'type'/'pathType'/'count'/'__globeObjType' on undefined during WebGL traversal/raycast)
-    if (/reading '(?:type|pathType|count|__globeObjType)'|can't access property "(?:type|pathType|count|__globeObjType)",? \w+ is (?:undefined|null)|undefined is not an object \(evaluating '\w+\.(?:pathType|count|__globeObjType)'\)|null is not an object \(evaluating '\w+\.__globeObjType'\)/.test(msg)) {
+    // Suppress Three.js/globe.gl TypeError crashes in main bundle (reading 'type'/'pathType'/'count'/'__globeObjType' on undefined during WebGL traversal/raycast).
+    // __globeObjType is exclusively set by three-globe on its own objects and we have no user onClick/onHover handler, so it is always globe.gl internal even when the stack shows the bundled main chunk (WORLDMONITOR-ME).
+    if (/reading '__globeObjType'|__globeObjType/.test(msg)) return null;
+    if (/reading '(?:type|pathType|count)'|can't access property "(?:type|pathType|count|__globeObjType)",? \w+ is (?:undefined|null)|undefined is not an object \(evaluating '\w+\.(?:pathType|count)'\)/.test(msg)) {
       if (!hasFirstParty) return null;
     }
     // Suppress minified Three.js/globe.gl crashes (e.g. "l is undefined" in raycast, "b is undefined" in update/initGlobe)
     if (/^\w{1,2} is (?:undefined|not an object)$/.test(msg) && frames.length > 0) {
       if (frames.some(f => /\/(main|index)-[A-Za-z0-9_-]+\.js/.test(f.filename ?? '') && /(raycast|update|initGlobe|traverse|render)/.test(f.function ?? ''))) return null;
     }
-    // Suppress Three.js OrbitControls touch crashes (finger lifted during pinch-zoom)
+    // Suppress Three.js OrbitControls touch crashes (finger lifted during pinch-zoom).
+    // OrbitControls is bundled into the main chunk, so hasFirstParty is true.
+    // Match by function name pattern (_handleTouch*Dolly*) or suppress when no first-party frames.
     if (/undefined is not an object \(evaluating 't\.x'\)|Cannot read properties of undefined \(reading 'x'\)/.test(msg)) {
-      if (!hasFirstParty) return null;
+      if (!hasFirstParty || frames.some(f => /\b_handleTouch\w*Dolly|OrbitControls/.test(f.function ?? ''))) return null;
     }
     // Suppress deck.gl/maplibre null-access crashes with no usable stack trace (requestAnimationFrame wrapping)
     if (/null is not an object \(evaluating '\w{1,3}\.(id|type|style)'\)/.test(msg) && frames.length === 0) return null;
@@ -318,7 +323,7 @@ Sentry.init({
       /\.(?:toLowerCase|trim|indexOf|findIndex) is not a function/.test(msg)
       || /Maximum call stack size exceeded/.test(msg)
       || /out of memory/i.test(msg)
-      || /^\w{1,2} is not a function/.test(msg)
+      || /^\w{1,2} is not a (?:function|constructor)/.test(msg)
       || /Cannot add property \w+, object is not extensible/.test(msg)
       || /^TypeError: Internal error$/.test(msg)
       || /NotSupportedError/.test(msg)
@@ -333,6 +338,9 @@ Sentry.init({
       || /Invalid or unexpected token/.test(msg)
       || /^Operation timed out/.test(msg)
       || /signal timed out/.test(msg)
+      || /Cannot inject key into script value/.test(msg)
+      || /Connection lost while action was in flight/.test(msg)
+      || /WEBGLRenderPipeline.*Link error/.test(msg)
     )) return null;
     return event;
   },

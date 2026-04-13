@@ -17,21 +17,26 @@ export const RESILIENCE_FIXTURES: FixtureMap = {
         'EG.ELC.ACCS.ZS': { value: 100, year: 2025 },
         'IS.ROD.PAVE.ZS': { value: 90, year: 2025 },
         'EG.USE.ELEC.KH.PC': { value: 23000, year: 2025 },
+        'IT.NET.BBND.P2': { value: 42, year: 2025 },
       },
     },
     gpi: { score: 1.5, rank: 12, year: 2025 },
-    rsf: { score: 92, rank: 4, year: 2025 },
+    rsf: { score: 7, rank: 4, year: 2025 },
     who: {
       indicators: {
         hospitalBeds: { value: 3.5, year: 2024 },
         uhcIndex: { value: 88, year: 2024 },
         measlesCoverage: { value: 97, year: 2024 },
+        physiciansPer1k: { value: 5.0, year: 2024 },
+        healthExpPerCapitaUsd: { value: 8000, year: 2024 },
       },
     },
     fao: { peopleInCrisis: 10, phase: 'IPC Phase 1', year: 2025 },
     aquastat: { indicator: 'Renewable water availability', value: 4000, year: 2024 },
     iea: { energyImportDependency: { value: 15, year: 2024, source: 'IEA' } },
     tradeToGdp: { source: 'worldbank', tradeToGdpPct: 70, year: 2023 },
+    fxReservesMonths: { source: 'worldbank', months: 10.5, year: 2023 },
+    appliedTariffRate: { source: 'worldbank', value: 1.5, year: 2023 },
   },
   'resilience:static:US': {
     wgi: {
@@ -49,21 +54,26 @@ export const RESILIENCE_FIXTURES: FixtureMap = {
         'EG.ELC.ACCS.ZS': { value: 100, year: 2025 },
         'IS.ROD.PAVE.ZS': { value: 74, year: 2025 },
         'EG.USE.ELEC.KH.PC': { value: 12000, year: 2025 },
+        'IT.NET.BBND.P2': { value: 35, year: 2025 },
       },
     },
     gpi: { score: 2.4, rank: 132, year: 2025 },
-    rsf: { score: 70, rank: 45, year: 2025 },
+    rsf: { score: 30, rank: 45, year: 2025 },
     who: {
       indicators: {
         hospitalBeds: { value: 2.8, year: 2024 },
         uhcIndex: { value: 82, year: 2024 },
         measlesCoverage: { value: 91, year: 2024 },
+        physiciansPer1k: { value: 2.6, year: 2024 },
+        healthExpPerCapitaUsd: { value: 12000, year: 2024 },
       },
     },
     fao: { peopleInCrisis: 5000, phase: 'IPC Phase 2', year: 2025 },
     aquastat: { indicator: 'Renewable water availability', value: 1500, year: 2024 },
     iea: { energyImportDependency: { value: 25, year: 2024, source: 'IEA' } },
     tradeToGdp: { source: 'worldbank', tradeToGdpPct: 25, year: 2023 },
+    fxReservesMonths: { source: 'worldbank', months: 2.5, year: 2023 },
+    appliedTariffRate: { source: 'worldbank', value: 3.5, year: 2023 },
   },
   'resilience:static:YE': {
     wgi: {
@@ -81,21 +91,26 @@ export const RESILIENCE_FIXTURES: FixtureMap = {
         'EG.ELC.ACCS.ZS': { value: 60, year: 2025 },
         'IS.ROD.PAVE.ZS': { value: 20, year: 2025 },
         'EG.USE.ELEC.KH.PC': { value: 300, year: 2025 },
+        'IT.NET.BBND.P2': { value: 1, year: 2025 },
       },
     },
     gpi: { score: 3.8, rank: 160, year: 2025 },
-    rsf: { score: 25, rank: 150, year: 2025 },
+    rsf: { score: 75, rank: 150, year: 2025 },
     who: {
       indicators: {
         hospitalBeds: { value: 0.7, year: 2024 },
         uhcIndex: { value: 45, year: 2024 },
         measlesCoverage: { value: 58, year: 2024 },
+        physiciansPer1k: { value: 0.5, year: 2024 },
+        healthExpPerCapitaUsd: { value: 100, year: 2024 },
       },
     },
     fao: { peopleInCrisis: 2_000_000, phase: 'IPC Phase 4', year: 2025 },
     aquastat: { indicator: 'Water stress', value: 85, year: 2024 },
     iea: { energyImportDependency: { value: 95, year: 2024, source: 'IEA' } },
     tradeToGdp: { source: 'worldbank', tradeToGdpPct: 30, year: 2023 },
+    fxReservesMonths: { source: 'worldbank', months: 1.2, year: 2022 },
+    appliedTariffRate: { source: 'worldbank', value: 8.0, year: 2023 },
   },
   'energy:mix:v1:NO': {
     iso2: 'NO',
@@ -322,6 +337,7 @@ export const RESILIENCE_FIXTURES: FixtureMap = {
         'EG.ELC.ACCS.ZS': { value: 99, year: 2025 },
         'IS.ROD.PAVE.ZS': { value: 85, year: 2025 },
         'EG.USE.ELEC.KH.PC': { value: 1200, year: 2024 },
+        'IT.NET.BBND.P2': { value: 8, year: 2024 },
       },
     },
     gpi: { score: 2.9, rank: 108, year: 2025 },
@@ -337,6 +353,7 @@ export const RESILIENCE_FIXTURES: FixtureMap = {
     aquastat: { indicator: 'Water stress', value: 72, year: 2024 },
     iea: null, // Eurostat is EU-only — Lebanon absent → energy import dependency unknown
     tradeToGdp: { source: 'worldbank', tradeToGdpPct: 95, year: 2023 },
+    fxReservesMonths: { source: 'worldbank', months: 1.5, year: 2022 },
   },
   'energy:mix:v1:LB': {
     iso2: 'LB',
@@ -358,7 +375,53 @@ export const RESILIENCE_FIXTURES: FixtureMap = {
     failedDatasets: [],
     seedYear: 2025,
     seededAt: '2026-04-03T00:00:00.000Z',
-    sourceVersion: 'resilience-static-v2',
+    sourceVersion: 'resilience-static-v7',
+  },
+  'seed-meta:resilience:static': {
+    fetchedAt: 1712102400000,
+    recordCount: 196,
+  },
+  'resilience:recovery:fiscal-space:v1': {
+    countries: {
+      NO: { govRevenuePct: 42, fiscalBalancePct: 10, debtToGdpPct: 40, year: 2025 },
+      US: { govRevenuePct: 30, fiscalBalancePct: -6, debtToGdpPct: 122, year: 2025 },
+      YE: { govRevenuePct: 8, fiscalBalancePct: -10, debtToGdpPct: 80, year: 2024 },
+    },
+    seededAt: '2026-04-04T00:00:00.000Z',
+  },
+  'resilience:recovery:reserve-adequacy:v1': {
+    countries: {
+      NO: { reserveMonths: 14, year: 2024 },
+      US: { reserveMonths: 3, year: 2024 },
+      YE: { reserveMonths: 0.5, year: 2023 },
+    },
+    seededAt: '2026-04-04T00:00:00.000Z',
+  },
+  'resilience:recovery:external-debt:v1': {
+    countries: {
+      NO: { debtToReservesRatio: 0.2, year: 2024 },
+      US: { debtToReservesRatio: 1.5, year: 2024 },
+      YE: { debtToReservesRatio: 4.0, year: 2023 },
+    },
+    seededAt: '2026-04-04T00:00:00.000Z',
+  },
+  // HHI on 0..1 scale (seeder output). Scorer multiplies by 10000 for normalization.
+  // NO: 0.03 = very diversified, US: 0.06 = diversified, YE: 0.35 = concentrated
+  'resilience:recovery:import-hhi:v1': {
+    countries: {
+      NO: { hhi: 0.03, concentrated: false, partnerCount: 120 },
+      US: { hhi: 0.06, concentrated: false, partnerCount: 180 },
+      YE: { hhi: 0.35, concentrated: true, partnerCount: 15 },
+    },
+    seededAt: '2026-04-04T00:00:00.000Z',
+  },
+  // Fuel-stocks: fuelStockDays (not stockDays), matching seeder output shape
+  'resilience:recovery:fuel-stocks:v1': {
+    countries: {
+      NO: { fuelStockDays: 90, meetsObligation: true, belowObligation: false },
+      US: { fuelStockDays: 60, meetsObligation: false, belowObligation: true },
+    },
+    seededAt: '2026-04-04T00:00:00.000Z',
   },
 };
 

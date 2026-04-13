@@ -29,20 +29,22 @@ export const RESILIENCE_STATIC_INDEX_KEY = 'resilience:static:index:v1';
 export const RESILIENCE_STATIC_META_KEY = 'seed-meta:resilience:static';
 export const RESILIENCE_STATIC_PREFIX = 'resilience:static:';
 export const RESILIENCE_STATIC_TTL_SECONDS = 400 * 24 * 60 * 60;
-export const RESILIENCE_STATIC_SOURCE_VERSION = 'resilience-static-v2';
+export const RESILIENCE_STATIC_SOURCE_VERSION = 'resilience-static-v7';
 export const RESILIENCE_STATIC_WINDOW_CRON = '0 */4 1-3 10 *';
 
 const LOCK_DOMAIN = 'resilience:static';
 const LOCK_TTL_MS = 2 * 60 * 60 * 1000;
-const TOTAL_DATASET_SLOTS = 9;
-const COUNTRY_DATASET_FIELDS = ['wgi', 'infrastructure', 'gpi', 'rsf', 'who', 'fao', 'aquastat', 'iea', 'tradeToGdp'];
+const TOTAL_DATASET_SLOTS = 11;
+const COUNTRY_DATASET_FIELDS = ['wgi', 'infrastructure', 'gpi', 'rsf', 'who', 'fao', 'aquastat', 'iea', 'tradeToGdp', 'fxReservesMonths', 'appliedTariffRate'];
 const WGI_INDICATORS = ['VA.EST', 'PV.EST', 'GE.EST', 'RQ.EST', 'RL.EST', 'CC.EST'];
-const INFRASTRUCTURE_INDICATORS = ['EG.ELC.ACCS.ZS', 'IS.ROD.PAVE.ZS', 'EG.USE.ELEC.KH.PC'];
+const INFRASTRUCTURE_INDICATORS = ['EG.ELC.ACCS.ZS', 'IS.ROD.PAVE.ZS', 'EG.USE.ELEC.KH.PC', 'IT.NET.BBND.P2'];
 const WHO_INDICATORS = {
   hospitalBeds: 'WHS6_102',
   uhcIndex: 'UHC_INDEX_REPORTED',
   // WHS4_100 from the issue body no longer resolves; WHO currently exposes MCV1 coverage on WHS8_110.
   measlesCoverage: process.env.RESILIENCE_WHO_MEASLES_INDICATOR || 'WHS8_110',
+  physiciansPer10k: 'HWF_0001',
+  healthExpPerCapitaUsd: 'GHED_CHE_pc_US_SHA2011',
 };
 const WORLD_BANK_BASE = 'https://api.worldbank.org/v2';
 const WHO_BASE = 'https://ghoapi.azureedge.net/api';
@@ -65,6 +67,7 @@ export function shouldSkipSeedYear(meta, seedYear = nowSeedYear()) {
     && meta.status === 'ok'
     && meta.sourceVersion === RESILIENCE_STATIC_SOURCE_VERSION
     && Number(meta.seedYear) === seedYear
+    && !(meta.failedDatasets?.length > 0)
     && Number.isFinite(Number(meta.recordCount))
     && Number(meta.recordCount) > 0,
   );
@@ -256,26 +259,40 @@ export async function fetchInfrastructureDataset() {
 }
 
 async function fetchWhoIndicatorRows(indicatorCode) {
-  const rows = [];
-  const params = new URLSearchParams({
-    '$select': 'SpatialDim,TimeDim,NumericValue,Value',
-    '$filter': "SpatialDimType eq 'COUNTRY'",
-    '$top': '1000',
-  });
-  let nextUrl = `${WHO_BASE}/${encodeURIComponent(indicatorCode)}?${params}`;
-  let pageCount = 0;
+  const allRows = [];
+  const PAGE_SIZE = 1000;
   const MAX_WHO_PAGES = 50;
+  let skip = 0;
+  let pageCount = 0;
 
-  while (nextUrl && pageCount < MAX_WHO_PAGES) {
+  while (pageCount < MAX_WHO_PAGES) {
     pageCount += 1;
-    const payload = await withRetry(() => fetchJson(nextUrl), 2, 750);
+    const params = new URLSearchParams({
+      '$select': 'SpatialDim,TimeDim,NumericValue,Value',
+      '$filter': "SpatialDimType eq 'COUNTRY'",
+      '$top': String(PAGE_SIZE),
+      '$skip': String(skip),
+    });
+    const url = `${WHO_BASE}/${encodeURIComponent(indicatorCode)}?${params}`;
+    const payload = await withRetry(() => fetchJson(url), 2, 750);
     if (!Array.isArray(payload?.value)) throw new Error(`Unexpected WHO response shape for ${indicatorCode}`);
-    rows.push(...payload.value);
-    nextUrl = payload['@odata.nextLink'] || payload['odata.nextLink'] || null;
-  }
-  if (nextUrl) throw new Error(`WHO ${indicatorCode}: pagination exceeded ${MAX_WHO_PAGES} pages`);
+    const rows = payload.value;
+    allRows.push(...rows);
 
-  return rows;
+    const odataNext = payload['@odata.nextLink'] || payload['odata.nextLink'] || null;
+    if (odataNext) {
+      skip = allRows.length;
+      continue;
+    }
+
+    if (rows.length < PAGE_SIZE) break;
+    skip += PAGE_SIZE;
+  }
+
+  if (pageCount >= MAX_WHO_PAGES) throw new Error(`WHO ${indicatorCode}: pagination exceeded ${MAX_WHO_PAGES} pages`);
+  console.log(`  [who] ${indicatorCode}: ${allRows.length} rows (${pageCount} pages)`);
+
+  return allRows;
 }
 
 function selectLatestWhoByCountry(rows) {
@@ -328,7 +345,23 @@ export async function fetchWhoDataset() {
     throw new Error('WHO: all indicator fetches failed');
   }
 
+  transformWhoPhysicianDensity(merged);
+
   return merged;
+}
+
+export function transformWhoPhysicianDensity(merged) {
+  for (const [, record] of merged) {
+    const per10k = record.indicators.physiciansPer10k;
+    if (per10k && per10k.value != null) {
+      record.indicators.physiciansPer1k = {
+        indicator: per10k.indicator,
+        value: roundMetric(per10k.value / 10),
+        year: per10k.year,
+      };
+    }
+    delete record.indicators.physiciansPer10k;
+  }
 }
 
 function parseDecimal(value) {
@@ -662,6 +695,48 @@ async function fetchTradeToGdpDataset() {
   return buildTradeToGdpMap(latest);
 }
 
+const WB_FX_RESERVES_MONTHS_INDICATOR = 'FI.RES.TOTL.MO';
+
+export function buildFxReservesMonthsMap(latestByCountry) {
+  const byCountry = new Map();
+  for (const [iso2, entry] of latestByCountry.entries()) {
+    byCountry.set(iso2, {
+      source: 'worldbank',
+      months: entry.value,
+      year: entry.year,
+    });
+  }
+  if (byCountry.size === 0) throw new Error('World Bank FX reserves months returned no usable rows');
+  return byCountry;
+}
+
+async function fetchFxReservesMonthsDataset() {
+  const rows = await fetchWorldBankIndicatorRows(WB_FX_RESERVES_MONTHS_INDICATOR, { mrv: '12' });
+  const latest = selectLatestWorldBankByCountry(rows);
+  return buildFxReservesMonthsMap(latest);
+}
+
+const WB_APPLIED_TARIFF_INDICATOR = 'TM.TAX.MRCH.WM.AR.ZS';
+
+export function buildAppliedTariffRateMap(latestByCountry) {
+  const byCountry = new Map();
+  for (const [iso2, entry] of latestByCountry.entries()) {
+    byCountry.set(iso2, {
+      source: 'worldbank',
+      value: entry.value,
+      year: entry.year,
+    });
+  }
+  if (byCountry.size === 0) throw new Error('World Bank applied tariff rate returned no usable rows');
+  return byCountry;
+}
+
+async function fetchAppliedTariffRateDataset() {
+  const rows = await fetchWorldBankIndicatorRows(WB_APPLIED_TARIFF_INDICATOR, { mrv: '12' });
+  const latest = selectLatestWorldBankByCountry(rows);
+  return buildAppliedTariffRateMap(latest);
+}
+
 export function finalizeCountryPayloads(datasetMaps, seedYear = nowSeedYear(), seededAt = new Date().toISOString()) {
   const merged = new Map();
 
@@ -793,6 +868,8 @@ async function fetchAllDatasetMaps() {
     { key: 'aquastat', fetcher: fetchAquastatDataset },
     { key: 'iea', fetcher: fetchEnergyDependencyDataset },
     { key: 'tradeToGdp', fetcher: fetchTradeToGdpDataset },
+    { key: 'fxReservesMonths', fetcher: fetchFxReservesMonthsDataset },
+    { key: 'appliedTariffRate', fetcher: fetchAppliedTariffRateDataset },
   ];
 
   const results = await Promise.allSettled(adapters.map((adapter) => adapter.fetcher()));

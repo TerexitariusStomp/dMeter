@@ -2,6 +2,7 @@ import { anyApi, httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { webhookHandler } from "./payments/webhookHandlers";
+import { resendWebhookHandler } from "./resendWebhookHandler";
 
 const TRUSTED = [
   "https://worldmonitor.app",
@@ -354,6 +355,7 @@ http.route({
       channelType?: string;
       chatId?: string;
       webhookEnvelope?: string;
+      webhookLabel?: string;
       email?: string;
       variant?: string;
       enabled?: boolean;
@@ -373,6 +375,7 @@ http.route({
       digestMode?: string;
       digestHour?: number;
       digestTimezone?: string;
+      aiDigestEnabled?: boolean;
     };
     try {
       body = await request.json() as typeof body;
@@ -417,10 +420,11 @@ http.route({
         }
         const setResult = await ctx.runMutation((internal as any).notificationChannels.setChannelForUser, {
           userId,
-          channelType: body.channelType as "telegram" | "slack" | "email",
+          channelType: body.channelType as "telegram" | "slack" | "email" | "webhook",
           chatId: body.chatId,
           webhookEnvelope: body.webhookEnvelope,
           email: body.email,
+          webhookLabel: body.webhookLabel,
         });
         return new Response(JSON.stringify({ ok: true, isNew: setResult.isNew }), { status: 200, headers: { "Content-Type": "application/json" } });
       }
@@ -481,6 +485,7 @@ http.route({
           eventTypes: body.eventTypes as string[],
           sensitivity: (body.sensitivity ?? "all") as "all" | "high" | "critical",
           channels: body.channels as Array<"telegram" | "slack" | "email">,
+          aiDigestEnabled: typeof body.aiDigestEnabled === "boolean" ? body.aiDigestEnabled : undefined,
         });
         return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
       }
@@ -546,6 +551,83 @@ http.route({
     }
     const rules = await ctx.runQuery((internal as any).alertRules.getDigestRules);
     return new Response(JSON.stringify(rules), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }),
+});
+
+http.route({
+  path: "/relay/user-preferences",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const secret = process.env.RELAY_SHARED_SECRET ?? "";
+    const provided = (request.headers.get("Authorization") ?? "").replace(/^Bearer\s+/, "");
+    if (!secret || !(await timingSafeEqualStrings(provided, secret))) {
+      return new Response(JSON.stringify({ error: "UNAUTHORIZED" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    let body: { userId?: string; variant?: string };
+    try {
+      body = await request.json() as typeof body;
+    } catch {
+      return new Response(JSON.stringify({ error: "INVALID_BODY" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (!body.userId || !body.variant) {
+      return new Response(JSON.stringify({ error: "userId and variant required" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    const prefs = await ctx.runQuery(
+      (internal as any).userPreferences.getPreferencesByUserId,
+      { userId: body.userId, variant: body.variant },
+    );
+    return new Response(JSON.stringify(prefs?.data ?? null), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }),
+});
+
+http.route({
+  path: "/relay/entitlement",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const secret = process.env.RELAY_SHARED_SECRET ?? "";
+    const provided = (request.headers.get("Authorization") ?? "").replace(/^Bearer\s+/, "");
+    if (!secret || !(await timingSafeEqualStrings(provided, secret))) {
+      return new Response(JSON.stringify({ error: "UNAUTHORIZED" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    let body: { userId?: string };
+    try {
+      body = await request.json() as typeof body;
+    } catch {
+      return new Response(JSON.stringify({ error: "INVALID_BODY" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (!body.userId) {
+      return new Response(JSON.stringify({ error: "userId required" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    const ent = await ctx.runQuery(
+      internal.entitlements.getEntitlementsByUserId,
+      { userId: body.userId },
+    );
+    const tier = ent?.features?.tier ?? 0;
+    return new Response(JSON.stringify({ tier }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
@@ -621,6 +703,74 @@ http.route({
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Checkout creation failed";
+      return new Response(JSON.stringify({ error: msg }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  }),
+});
+
+// Resend webhook: captures bounce/complaint events and suppresses emails.
+// Signature verification + internal mutation, same pattern as Dodo webhook.
+http.route({
+  path: "/resend-webhook",
+  method: "POST",
+  handler: resendWebhookHandler,
+});
+
+// Bulk email suppression: service-to-service, authenticated via RELAY_SHARED_SECRET.
+// Used by the one-time import script (scripts/import-bounced-emails.mjs).
+http.route({
+  path: "/relay/bulk-suppress-emails",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const secret = process.env.RELAY_SHARED_SECRET ?? "";
+    const provided = (request.headers.get("Authorization") ?? "").replace(
+      /^Bearer\s+/,
+      "",
+    );
+    if (!secret || !(await timingSafeEqualStrings(provided, secret))) {
+      return new Response(JSON.stringify({ error: "UNAUTHORIZED" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    let body: {
+      emails: Array<{
+        email: string;
+        reason: "bounce" | "complaint" | "manual";
+        source?: string;
+      }>;
+    };
+    try {
+      body = (await request.json()) as typeof body;
+    } catch {
+      return new Response(JSON.stringify({ error: "INVALID_JSON" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    if (!Array.isArray(body.emails) || body.emails.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "MISSING_FIELDS", required: ["emails"] }),
+        { status: 400, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
+    try {
+      const result = await ctx.runMutation(
+        internal.emailSuppressions.bulkSuppress,
+        { emails: body.emails },
+      );
+      return new Response(JSON.stringify(result), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Bulk suppress failed";
       return new Response(JSON.stringify({ error: msg }), {
         status: 500,
         headers: { "Content-Type": "application/json" },

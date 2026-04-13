@@ -1,36 +1,63 @@
 #!/usr/bin/env node
-/**
- * Pre-warms resilience country scores and the ranking cache so the choropleth
- * layer is always instant for users. Runs every 5 hours via Railway cron
- * (slightly inside the 6-hour score cache TTL to keep caches warm).
- *
- * Flow:
- *   1. Read country list from resilience:static:index:v1
- *   2. Read all resilience:score:{iso2} keys from Redis in a single pipeline
- *   3. Build and write resilience:ranking with a fresh TTL (only if all countries scored)
- *
- * Missing scores are handled on-demand by the Vercel ranking handler
- * (warmMissingResilienceScores with SYNC_WARM_LIMIT=200 covers the full index
- * in parallel — wall time is bounded by ~2-3 Redis RTTs regardless of country count).
- */
-
 import {
-  acquireLockSafely,
   getRedisCredentials,
   loadEnvFile,
   logSeedResult,
-  releaseLock,
+  writeFreshnessMetadata,
 } from './_seed-utils.mjs';
 
 loadEnvFile(import.meta.url);
 
-const LOCK_DOMAIN = 'resilience:scores';
-const LOCK_TTL_MS = 30 * 60 * 1000; // 30 min
+const API_BASE = process.env.API_BASE_URL || 'https://api.worldmonitor.app';
+// Reuse WORLDMONITOR_VALID_KEYS when a dedicated WORLDMONITOR_API_KEY isn't set —
+// any entry in that comma-separated list is accepted by the API (same
+// validation list that server/_shared/premium-check.ts and validateApiKey read).
+// Avoids duplicating the same secret under a second env-var name per service.
+const WM_KEY = process.env.WORLDMONITOR_API_KEY
+  || (process.env.WORLDMONITOR_VALID_KEYS ?? '').split(',').map((k) => k.trim()).filter(Boolean)[0]
+  || '';
+const SEED_UA = 'Mozilla/5.0 (compatible; WorldMonitor-Seed/1.0)';
 
-export const RESILIENCE_SCORE_CACHE_PREFIX = 'resilience:score:v2:';
-export const RESILIENCE_RANKING_CACHE_KEY = 'resilience:ranking:v2';
+export const RESILIENCE_SCORE_CACHE_PREFIX = 'resilience:score:v9:';
+export const RESILIENCE_RANKING_CACHE_KEY = 'resilience:ranking:v9';
 export const RESILIENCE_RANKING_CACHE_TTL_SECONDS = 6 * 60 * 60;
 export const RESILIENCE_STATIC_INDEX_KEY = 'resilience:static:index:v1';
+
+const INTERVAL_KEY_PREFIX = 'resilience:intervals:v1:';
+const INTERVAL_TTL_SECONDS = 7 * 24 * 60 * 60;
+const DRAWS = 100;
+
+const DOMAIN_WEIGHTS = {
+  economic: 0.22,
+  infrastructure: 0.20,
+  energy: 0.15,
+  'social-governance': 0.25,
+  'health-food': 0.18,
+};
+
+const DOMAIN_ORDER = [
+  'economic',
+  'infrastructure',
+  'energy',
+  'social-governance',
+  'health-food',
+];
+
+export function computeIntervals(domainScores, domainWeights, draws = DRAWS) {
+  const samples = [];
+  for (let i = 0; i < draws; i++) {
+    const jittered = domainWeights.map((w) => w * (0.9 + Math.random() * 0.2));
+    const sum = jittered.reduce((s, w) => s + w, 0);
+    const normalized = jittered.map((w) => w / sum);
+    const score = domainScores.reduce((s, d, idx) => s + d * normalized[idx], 0);
+    samples.push(score);
+  }
+  samples.sort((a, b) => a - b);
+  return {
+    p05: Math.round(samples[Math.max(0, Math.ceil(draws * 0.05) - 1)] * 10) / 10,
+    p95: Math.round(samples[Math.min(draws - 1, Math.ceil(draws * 0.95) - 1)] * 10) / 10,
+  };
+}
 
 async function redisGetJson(url, token, key) {
   const resp = await fetch(`${url}/get/${encodeURIComponent(key)}`, {
@@ -57,29 +84,56 @@ async function redisPipeline(url, token, commands) {
   return resp.json();
 }
 
-/** Mirrors server/worldmonitor/resilience/v1/_shared.ts buildRankingItem */
-export function buildRankingItem(countryCode, score) {
-  if (!score) return { countryCode, overallScore: -1, level: 'unknown', lowConfidence: true };
-  return { countryCode, overallScore: score.overallScore, level: score.level, lowConfidence: score.lowConfidence };
+function countCachedFromPipeline(results) {
+  let count = 0;
+  for (const entry of results) {
+    if (typeof entry?.result === 'string') {
+      try { JSON.parse(entry.result); count++; } catch { /* malformed */ }
+    }
+  }
+  return count;
 }
 
-/** Mirrors server/worldmonitor/resilience/v1/_shared.ts sortRankingItems */
-export function sortRankingItems(items) {
-  return [...items].sort((a, b) => {
-    if (a.overallScore !== b.overallScore) return b.overallScore - a.overallScore;
-    return a.countryCode.localeCompare(b.countryCode);
-  });
-}
+async function computeAndWriteIntervals(url, token, countryCodes, pipelineResults) {
+  const weights = DOMAIN_ORDER.map((id) => DOMAIN_WEIGHTS[id]);
+  const commands = [];
 
-/**
- * Pure: builds and sorts ranking items from a country list + cached score map.
- * Returns { items, scored } where scored = count of items with overallScore >= 0.
- * The caller skips the Redis write when scored < countryCodes.length.
- */
-export function buildRankingPayload(countryCodes, scoreMap) {
-  const items = sortRankingItems(countryCodes.map((c) => buildRankingItem(c, scoreMap.get(c))));
-  const scored = items.filter((item) => item.overallScore >= 0).length;
-  return { items, scored };
+  for (let i = 0; i < countryCodes.length; i++) {
+    const raw = pipelineResults[i]?.result ?? null;
+    if (!raw || raw === 'null') continue;
+    try {
+      const score = JSON.parse(raw);
+      if (!score.domains?.length) continue;
+
+      const domainScores = DOMAIN_ORDER.map((id) => {
+        const d = score.domains.find((dom) => dom.id === id);
+        return d?.score ?? 0;
+      });
+
+      const interval = computeIntervals(domainScores, weights, DRAWS);
+      const payload = {
+        p05: interval.p05,
+        p95: interval.p95,
+        draws: DRAWS,
+        computedAt: new Date().toISOString(),
+      };
+      commands.push(['SET', `${INTERVAL_KEY_PREFIX}${countryCodes[i]}`, JSON.stringify(payload), 'EX', INTERVAL_TTL_SECONDS]);
+    } catch { /* skip malformed */ }
+  }
+
+  if (commands.length === 0) {
+    console.log('[resilience-scores] No domain data available for intervals');
+    return 0;
+  }
+
+  const PIPE_BATCH = 50;
+  for (let i = 0; i < commands.length; i += PIPE_BATCH) {
+    await redisPipeline(url, token, commands.slice(i, i + PIPE_BATCH));
+  }
+  console.log(`[resilience-scores] Wrote ${commands.length} interval keys`);
+
+  await writeFreshnessMetadata('resilience', 'intervals', commands.length, '', INTERVAL_TTL_SECONDS);
+  return commands.length;
 }
 
 async function seedResilienceScores() {
@@ -98,55 +152,90 @@ async function seedResilienceScores() {
   console.log(`[resilience-scores] Reading cached scores for ${countryCodes.length} countries...`);
 
   const getCommands = countryCodes.map((c) => ['GET', `${RESILIENCE_SCORE_CACHE_PREFIX}${c}`]);
-  const results = await redisPipeline(url, token, getCommands);
+  const preResults = await redisPipeline(url, token, getCommands);
+  const preWarmed = countCachedFromPipeline(preResults);
 
-  const scoreMap = new Map();
-  for (let i = 0; i < countryCodes.length; i++) {
-    const raw = results[i]?.result;
-    if (typeof raw !== 'string') continue;
-    try { scoreMap.set(countryCodes[i], JSON.parse(raw)); } catch { /* skip malformed */ }
+  console.log(`[resilience-scores] ${preWarmed}/${countryCodes.length} scores pre-warmed`);
+
+  const missing = countryCodes.length - preWarmed;
+  if (missing > 0) {
+    console.log(`[resilience-scores] Warming ${missing} missing via ranking endpoint...`);
+    try {
+      const headers = { 'User-Agent': SEED_UA, 'Accept': 'application/json' };
+      if (WM_KEY) headers['X-WorldMonitor-Key'] = WM_KEY;
+      const resp = await fetch(`${API_BASE}/api/resilience/v1/get-resilience-ranking`, {
+        headers,
+        signal: AbortSignal.timeout(60_000),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const ranked = data.items?.length ?? 0;
+        const greyed = data.greyedOut?.length ?? 0;
+        console.log(`[resilience-scores] Ranking: ${ranked} ranked, ${greyed} greyed out`);
+      } else {
+        console.warn(`[resilience-scores] Ranking endpoint returned ${resp.status}`);
+      }
+    } catch (err) {
+      console.warn(`[resilience-scores] Ranking warmup failed (best-effort): ${err.message}`);
+    }
+
+    // Re-check which countries are still missing after bulk warmup
+    const postResults = await redisPipeline(url, token, getCommands);
+    const stillMissing = [];
+    for (let i = 0; i < countryCodes.length; i++) {
+      const raw = postResults[i]?.result ?? null;
+      if (!raw || raw === 'null') { stillMissing.push(countryCodes[i]); continue; }
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed.overallScore <= 0) stillMissing.push(countryCodes[i]);
+      } catch { stillMissing.push(countryCodes[i]); }
+    }
+
+    // Warm laggards individually (countries the bulk ranking timed out on)
+    if (stillMissing.length > 0 && !WM_KEY) {
+      console.warn(`[resilience-scores] ${stillMissing.length} laggards found but neither WORLDMONITOR_API_KEY nor WORLDMONITOR_VALID_KEYS is set — skipping individual warmup`);
+    }
+    if (stillMissing.length > 0 && WM_KEY) {
+      console.log(`[resilience-scores] Warming ${stillMissing.length} laggards individually...`);
+      const BATCH = 5;
+      let warmed = 0;
+      for (let i = 0; i < stillMissing.length; i += BATCH) {
+        const batch = stillMissing.slice(i, i + BATCH);
+        const results = await Promise.allSettled(batch.map(async (cc) => {
+          const scoreUrl = `${API_BASE}/api/resilience/v1/get-resilience-score?countryCode=${cc}`;
+          const resp = await fetch(scoreUrl, {
+            headers: { 'User-Agent': SEED_UA, 'Accept': 'application/json', 'X-WorldMonitor-Key': WM_KEY },
+            signal: AbortSignal.timeout(30_000),
+          });
+          if (!resp.ok) throw new Error(`${cc}: HTTP ${resp.status}`);
+          return cc;
+        }));
+        warmed += results.filter(r => r.status === 'fulfilled').length;
+      }
+      console.log(`[resilience-scores] Laggards warmed: ${warmed}/${stillMissing.length}`);
+    }
+
+    const finalResults = await redisPipeline(url, token, getCommands);
+    const finalWarmed = countCachedFromPipeline(finalResults);
+    console.log(`[resilience-scores] Final: ${finalWarmed}/${countryCodes.length} cached`);
+
+    const intervalsWritten = await computeAndWriteIntervals(url, token, countryCodes, finalResults);
+    return { skipped: false, recordCount: finalWarmed, total: countryCodes.length, intervalsWritten };
   }
 
-  const { items, scored } = buildRankingPayload(countryCodes, scoreMap);
-  console.log(`[resilience-scores] ${scored}/${countryCodes.length} countries have cached scores`);
-
-  // Only write the ranking cache when every country has a real score.
-  // A partial write would pin an incomplete choropleth for the full 6h TTL because
-  // getResilienceRanking() returns any cached ranking with items.length > 0 unchanged.
-  if (scored < countryCodes.length) {
-    const missing = countryCodes.length - scored;
-    console.warn(`[resilience-scores] ${missing} countries missing scores — skipping ranking cache write to avoid pinning incomplete data`);
-    return { skipped: false, recordCount: scored, total: countryCodes.length };
-  }
-
-  await redisPipeline(url, token, [
-    ['SET', RESILIENCE_RANKING_CACHE_KEY, JSON.stringify({ items }), 'EX', RESILIENCE_RANKING_CACHE_TTL_SECONDS],
-  ]);
-  console.log('[resilience-scores] Ranking cache written');
-
-  return { skipped: false, recordCount: scored, total: countryCodes.length };
+  const intervalsWritten = await computeAndWriteIntervals(url, token, countryCodes, preResults);
+  return { skipped: false, recordCount: preWarmed, total: countryCodes.length, intervalsWritten };
 }
 
 async function main() {
   const startedAt = Date.now();
-  const runId = `${LOCK_DOMAIN}:${startedAt}`;
-  const lock = await acquireLockSafely(LOCK_DOMAIN, runId, LOCK_TTL_MS, { label: LOCK_DOMAIN });
-  if (lock.skipped) return;
-  if (!lock.locked) {
-    console.log('[resilience-scores] Another seed run is already active');
-    return;
-  }
-
-  try {
-    const result = await seedResilienceScores();
-    logSeedResult('resilience:scores', result.recordCount ?? 0, Date.now() - startedAt, {
-      skipped: Boolean(result.skipped),
-      ...(result.total != null && { total: result.total }),
-      ...(result.reason != null && { reason: result.reason }),
-    });
-  } finally {
-    await releaseLock(LOCK_DOMAIN, runId);
-  }
+  const result = await seedResilienceScores();
+  logSeedResult('resilience:scores', result.recordCount ?? 0, Date.now() - startedAt, {
+    skipped: Boolean(result.skipped),
+    ...(result.total != null && { total: result.total }),
+    ...(result.reason != null && { reason: result.reason }),
+    ...(result.intervalsWritten != null && { intervalsWritten: result.intervalsWritten }),
+  });
 }
 
 if (process.argv[1]?.endsWith('seed-resilience-scores.mjs')) {

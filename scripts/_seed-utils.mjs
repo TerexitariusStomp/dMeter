@@ -256,10 +256,9 @@ export async function writeExtraKey(key, data, ttl) {
   console.log(`  Extra key ${key}: written`);
 }
 
-export async function writeExtraKeyWithMeta(key, data, ttl, recordCount, metaKeyOverride, metaTtlSeconds) {
-  await writeExtraKey(key, data, ttl);
+export async function writeSeedMeta(dataKey, recordCount, metaKeyOverride, metaTtlSeconds) {
   const { url, token } = getRedisCredentials();
-  const metaKey = metaKeyOverride || `seed-meta:${key.replace(/:v\d+$/, '')}`;
+  const metaKey = metaKeyOverride || `seed-meta:${dataKey.replace(/:v\d+$/, '')}`;
   const meta = { fetchedAt: Date.now(), recordCount: recordCount ?? 0 };
   const metaTtl = metaTtlSeconds ?? 86400 * 7;
   const resp = await fetch(url, {
@@ -269,6 +268,11 @@ export async function writeExtraKeyWithMeta(key, data, ttl, recordCount, metaKey
     signal: AbortSignal.timeout(5_000),
   });
   if (!resp.ok) console.warn(`  seed-meta ${metaKey}: write failed`);
+}
+
+export async function writeExtraKeyWithMeta(key, data, ttl, recordCount, metaKeyOverride, metaTtlSeconds) {
+  await writeExtraKey(key, data, ttl);
+  await writeSeedMeta(key, recordCount, metaKeyOverride, metaTtlSeconds);
 }
 
 export async function extendExistingTtl(keys, ttlSeconds = 600) {
@@ -317,11 +321,15 @@ export function resolveProxyForConnect() {
 }
 
 // curl-based fetch; throws on non-2xx. Returns response body as string.
-// NOTE: requires curl binary — only available in Dockerfile.relay (apk add curl).
-// Do NOT call from standalone seed scripts; use fredFetchJson or httpsProxyFetchJson instead.
+// NOTE: requires curl binary — available in Dockerfile.relay (apk add curl) and Railway.
+// Prefer httpsProxyFetchJson (pure Node.js) when possible; use curlFetch when curl-specific
+// features are needed (e.g. --compressed, -L redirect following with proxy).
 export function curlFetch(url, proxyAuth, headers = {}) {
   const args = ['-sS', '--compressed', '--max-time', '15', '-L'];
-  if (proxyAuth) args.push('-x', `http://${proxyAuth}`);
+  if (proxyAuth) {
+    const proxyUrl = /^https?:\/\//i.test(proxyAuth) ? proxyAuth : `http://${proxyAuth}`;
+    args.push('-x', proxyUrl);
+  }
   for (const [k, v] of Object.entries(headers)) args.push('-H', `${k}: ${v}`);
   args.push('-w', '\n%{http_code}');
   args.push(url);
@@ -353,20 +361,94 @@ export async function httpsProxyFetchRaw(url, proxyAuth, { accept = '*/*', timeo
 }
 
 // Fetch JSON from a FRED URL, routing through proxy when available.
+// Proxy-first: FRED consistently blocks/throttles Railway datacenter IPs,
+// so try proxy first to avoid 20s timeout on every direct attempt.
 export async function fredFetchJson(url, proxyAuth) {
-  try {
-    const r = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(20_000) });
-    if (r.ok) return r.json();
-    throw Object.assign(new Error(`HTTP ${r.status}`), { status: r.status });
-  } catch (directErr) {
-    if (!proxyAuth) throw directErr;
-    console.warn(`  [fredFetch] direct failed (${directErr.message}) — retrying via proxy`);
+  if (proxyAuth) {
     try {
       return await httpsProxyFetchJson(url, proxyAuth);
     } catch (proxyErr) {
-      throw Object.assign(new Error(`proxy: ${proxyErr.message}`), { cause: proxyErr });
+      console.warn(`  [fredFetch] proxy failed (${proxyErr.message}) — retrying direct`);
+      try {
+        const r = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(20_000) });
+        if (r.ok) return r.json();
+        throw Object.assign(new Error(`HTTP ${r.status}`), { status: r.status });
+      } catch (directErr) {
+        throw Object.assign(new Error(`direct: ${directErr.message}`), { cause: directErr });
+      }
     }
   }
+  const r = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(20_000) });
+  if (r.ok) return r.json();
+  throw Object.assign(new Error(`HTTP ${r.status}`), { status: r.status });
+}
+
+// Fetch JSON from an IMF DataMapper URL, direct-first with proxy fallback.
+// Direct timeout is short (10s) since IMF blocks Railway IPs with 403 quickly.
+export async function imfFetchJson(url, proxyAuth) {
+  try {
+    const r = await fetch(url, {
+      headers: { 'User-Agent': CHROME_UA, Accept: 'application/json' },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return await r.json();
+  } catch (directErr) {
+    if (!proxyAuth) throw directErr;
+    console.warn(`  [IMF] Direct fetch failed (${directErr.message}); retrying via proxy`);
+    return httpsProxyFetchJson(url, proxyAuth);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// IMF SDMX 3.0 API (api.imf.org) — replaces blocked DataMapper API
+// ---------------------------------------------------------------------------
+const IMF_SDMX_BASE = 'https://api.imf.org/external/sdmx/3.0';
+
+export async function imfSdmxFetchIndicator(indicator, { database = 'WEO', years } = {}) {
+  const agencyMap = { WEO: 'IMF.RES', FM: 'IMF.FAD' };
+  const agency = agencyMap[database] || 'IMF.RES';
+  const url = `${IMF_SDMX_BASE}/data/dataflow/${agency}/${database}/+/*.${indicator}.A?dimensionAtObservation=TIME_PERIOD&attributes=dsd&measures=all`;
+
+  const json = await withRetry(async () => {
+    const r = await fetch(url, {
+      headers: { 'User-Agent': CHROME_UA, Accept: 'application/json' },
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (!r.ok) throw new Error(`IMF SDMX ${indicator}: HTTP ${r.status}`);
+    return r.json();
+  }, 2, 2000);
+
+  const struct = json?.data?.structures?.[0];
+  const ds = json?.data?.dataSets?.[0];
+  if (!struct || !ds?.series) return {};
+
+  const countryDim = struct.dimensions.series.find(d => d.id === 'COUNTRY');
+  const countryDimPos = struct.dimensions.series.findIndex(d => d.id === 'COUNTRY');
+  const timeDim = struct.dimensions.observation.find(d => d.id === 'TIME_PERIOD');
+  if (!countryDim || countryDimPos === -1 || !timeDim) return {};
+
+  const countryValues = countryDim.values.map(v => v.id);
+  const timeValues = timeDim.values.map(v => v.value || v.id);
+  const yearSet = years ? new Set(years.map(String)) : null;
+
+  const result = {};
+  for (const [seriesKey, seriesData] of Object.entries(ds.series)) {
+    const keyParts = seriesKey.split(':');
+    const countryIdx = parseInt(keyParts[countryDimPos], 10);
+    const iso3 = countryValues[countryIdx];
+    if (!iso3) continue;
+
+    const byYear = {};
+    for (const [obsKey, obsVal] of Object.entries(seriesData.observations || {})) {
+      const year = timeValues[parseInt(obsKey, 10)];
+      if (!year || (yearSet && !yearSet.has(year))) continue;
+      const v = obsVal?.[0];
+      if (v != null) byYear[year] = parseFloat(v);
+    }
+    if (Object.keys(byYear).length > 0) result[iso3] = byYear;
+  }
+  return result;
 }
 
 // ---------------------------------------------------------------------------

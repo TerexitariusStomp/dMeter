@@ -14,7 +14,7 @@ const BOOTSTRAP_CACHE_KEYS = {
   trafficAnomalies: 'cf:radar:traffic-anomalies:v1',
   marketQuotes:     'market:stocks-bootstrap:v1',
   commodityQuotes:  'market:commodities-bootstrap:v1',
-  sectors:          'market:sectors:v1',
+  sectors:          'market:sectors:v2',
   etfFlows:         'market:etf-flows:v1',
   macroSignals:     'economic:macro-signals:v1',
   bisPolicy:        'economic:bis:policy:v1',
@@ -23,7 +23,6 @@ const BOOTSTRAP_CACHE_KEYS = {
   imfMacro:         'economic:imf:macro:v2',
   shippingRates:    'supply_chain:shipping:v2',
   chokepoints:      'supply_chain:chokepoints:v4',
-  chokepointTransits: 'supply_chain:chokepoint_transits:v1',
   minerals:         'supply_chain:minerals:v2',
   giving:           'giving:summary:v1',
   climateAnomalies: 'climate:anomalies:v2',
@@ -85,6 +84,7 @@ const BOOTSTRAP_CACHE_KEYS = {
   euFsi:             'economic:fsi-eu:v1',
   shippingStress:    'supply_chain:shipping_stress:v1',
   socialVelocity:    'intelligence:social:reddit:v1',
+  wsbTickers:        'intelligence:wsb-tickers:v1',
   pizzint:           'intelligence:pizzint:seed:v1',
   diseaseOutbreaks:  'health:disease-outbreaks:v1',
   economicStress:    'economic:stress-index:v1',
@@ -93,6 +93,12 @@ const BOOTSTRAP_CACHE_KEYS = {
   chokepointBaselines:  'energy:chokepoint-baselines:v1',
   portwatchChokepointsRef: 'portwatch:chokepoints:ref:v1',
   portwatchPortActivity: 'supply_chain:portwatch-ports:v1:_countries',
+  oilStocksAnalysis:    'energy:oil-stocks-analysis:v1',
+  lngVulnerability:     'energy:lng-vulnerability:v1',
+  sprPolicies:          'energy:spr-policies:v1',
+  energyCrisisPolicies: 'energy:crisis-policies:v1',
+  aaiiSentiment:        'market:aaii-sentiment:v1',
+  breadthHistory:       'market:breadth-history:v1',
 };
 
 const SLOW_KEYS = new Set([
@@ -129,12 +135,18 @@ const SLOW_KEYS = new Set([
   'chokepointBaselines',
   'portwatchChokepointsRef',
   'portwatchPortActivity',
+  'oilStocksAnalysis',
+  'lngVulnerability',
+  'sprPolicies',
+  'energyCrisisPolicies',
+  'aaiiSentiment',
+  'breadthHistory',
 ]);
 const FAST_KEYS = new Set([
-  'earthquakes', 'outages', 'serviceStatuses', 'ddosAttacks', 'trafficAnomalies', 'macroSignals', 'chokepoints', 'chokepointTransits',
+  'earthquakes', 'outages', 'serviceStatuses', 'ddosAttacks', 'trafficAnomalies', 'macroSignals', 'chokepoints',
   'marketQuotes', 'commodityQuotes', 'positiveGeoEvents', 'riskScores', 'flightDelays','insights', 'predictions',
   'iranEvents', 'temporalAnomalies', 'weatherAlerts', 'spending', 'theaterPosture', 'gdeltIntel',
-  'correlationCards', 'forecasts', 'shippingRates', 'shippingStress', 'socialVelocity',
+  'correlationCards', 'forecasts', 'shippingRates', 'shippingStress', 'socialVelocity', 'wsbTickers',
 ]);
 
 // No public/s-maxage: CF (in front of api.worldmonitor.app) ignores Vary: Origin and would

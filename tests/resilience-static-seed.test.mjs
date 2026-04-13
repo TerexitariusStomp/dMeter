@@ -24,6 +24,7 @@ import {
   recoverFailedDatasets,
   resolveIso2,
   shouldSkipSeedYear,
+  transformWhoPhysicianDensity,
 } from '../scripts/seed-resilience-static.mjs';
 
 // Helpers for inline CSV construction
@@ -213,6 +214,57 @@ describe('resilience static seed CSV parsers', () => {
     });
   });
 
+  describe('transformWhoPhysicianDensity', () => {
+    it('converts HWF_0001 from per-10k to per-1k and renames the field', () => {
+      const merged = new Map([
+        ['NO', {
+          source: 'who-gho',
+          indicators: {
+            physiciansPer10k: { indicator: 'HWF_0001', value: 25.0, year: 2022 },
+            uhcIndex: { indicator: 'UHC_INDEX_REPORTED', value: 81, year: 2021 },
+          },
+        }],
+        ['YE', {
+          source: 'who-gho',
+          indicators: {
+            physiciansPer10k: { indicator: 'HWF_0001', value: 1.0, year: 2020 },
+          },
+        }],
+      ]);
+
+      transformWhoPhysicianDensity(merged);
+
+      const no = merged.get('NO');
+      assert.ok(no.indicators.physiciansPer1k != null, 'physiciansPer1k should be created');
+      assert.equal(no.indicators.physiciansPer1k.value, 2.5, '25.0 / 10 = 2.5');
+      assert.equal(no.indicators.physiciansPer1k.indicator, 'HWF_0001');
+      assert.equal(no.indicators.physiciansPer1k.year, 2022);
+      assert.equal(no.indicators.physiciansPer10k, undefined, 'physiciansPer10k should be deleted');
+      assert.equal(no.indicators.uhcIndex.value, 81, 'other indicators should be untouched');
+
+      const ye = merged.get('YE');
+      assert.equal(ye.indicators.physiciansPer1k.value, 0.1, '1.0 / 10 = 0.1');
+    });
+
+    it('handles records without physiciansPer10k gracefully', () => {
+      const merged = new Map([
+        ['US', {
+          source: 'who-gho',
+          indicators: {
+            healthExpPerCapitaUsd: { indicator: 'GHED_CHE_pc_US_SHA2011', value: 12555, year: 2021 },
+          },
+        }],
+      ]);
+
+      transformWhoPhysicianDensity(merged);
+
+      const us = merged.get('US');
+      assert.equal(us.indicators.physiciansPer1k, undefined, 'no physiciansPer1k when source data is absent');
+      assert.equal(us.indicators.healthExpPerCapitaUsd.value, 12555, 'healthExpPerCapitaUsd should be untouched');
+      assert.equal(us.indicators.healthExpPerCapitaUsd.indicator, 'GHED_CHE_pc_US_SHA2011');
+    });
+  });
+
   describe('buildTradeToGdpMap', () => {
     it('produces { source, tradeToGdpPct, year } shape for known countries', () => {
       const input = new Map([
@@ -317,6 +369,7 @@ describe('resilience static seed payload assembly', () => {
       tradeToGdp: new Map([
         ['NO', { source: 'worldbank', tradeToGdpPct: 70.5, year: 2023 }],
       ]),
+      appliedTariffRate: new Map(),
     }, 2026, '2026-04-03T12:00:00.000Z');
 
     assert.deepEqual([...payloads.keys()].sort(), ['NO', 'US', 'YE']);
@@ -331,7 +384,9 @@ describe('resilience static seed payload assembly', () => {
       aquastat: null,
       iea: { source: 'eurostat-nrg_ind_id', energyImportDependency: { value: -13.3, year: 2024, source: 'eurostat' } },
       tradeToGdp: { source: 'worldbank', tradeToGdpPct: 70.5, year: 2023 },
-      coverage: { availableDatasets: 4, totalDatasets: 9, ratio: 0.444 },
+      fxReservesMonths: null,
+      appliedTariffRate: null,
+      coverage: { availableDatasets: 4, totalDatasets: 11, ratio: 0.364 },
       seedYear: 2026,
       seededAt: '2026-04-03T12:00:00.000Z',
     });
@@ -369,10 +424,17 @@ describe('resilience static seed payload assembly', () => {
   it('skips reruns only after a successful snapshot for the same seed year and source version', () => {
     const v = RESILIENCE_STATIC_SOURCE_VERSION;
     assert.equal(shouldSkipSeedYear({ status: 'ok', seedYear: 2026, recordCount: 150, sourceVersion: v }, 2026), true);
+    assert.equal(shouldSkipSeedYear({ status: 'ok', seedYear: 2026, recordCount: 150, sourceVersion: v, failedDatasets: [] }, 2026), true);
     assert.equal(shouldSkipSeedYear({ status: 'error', seedYear: 2026, recordCount: 150, sourceVersion: v }, 2026), false);
     assert.equal(shouldSkipSeedYear({ status: 'ok', seedYear: 2025, recordCount: 150, sourceVersion: v }, 2026), false);
     assert.equal(shouldSkipSeedYear({ status: 'ok', seedYear: 2026, recordCount: 150, sourceVersion: 'resilience-static-v1' }, 2026), false);
     assert.equal(shouldSkipSeedYear({ status: 'ok', seedYear: 2026, recordCount: 150 }, 2026), false);
+  });
+
+  it('shouldSkipSeedYear returns false when failedDatasets is non-empty (partial success must retry)', () => {
+    const v = RESILIENCE_STATIC_SOURCE_VERSION;
+    assert.equal(shouldSkipSeedYear({ status: 'ok', seedYear: 2026, recordCount: 150, sourceVersion: v, failedDatasets: ['fxReservesMonths'] }, 2026), false);
+    assert.equal(shouldSkipSeedYear({ status: 'ok', seedYear: 2026, recordCount: 150, sourceVersion: v, failedDatasets: ['aquastat', 'fao'] }, 2026), false);
   });
 });
 

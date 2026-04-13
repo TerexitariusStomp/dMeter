@@ -1,5 +1,5 @@
 // ── Story persistence tracking keys (E3) ─────────────────────────────────────
-// Hash: firstSeen, lastSeen, mentionCount, sourceCount, currentScore, peakScore, title, link, severity
+// Hash: firstSeen, lastSeen, mentionCount, sourceCount, currentScore, peakScore, title, link, severity, lang
 export const STORY_TRACK_KEY_PREFIX = 'story:track:v1:';
 // Set: unique feed names that have mentioned this story
 export const STORY_SOURCES_KEY_PREFIX = 'story:sources:v1:';
@@ -14,10 +14,10 @@ export const STORY_TRACKING_TTL_S = 172800;
  * Story tracking keys — written by list-feed-digest.ts, read by digest cron (E2).
  * All keys use 32-char SHA-256 hex prefix of the normalised title as ${titleHash}.
  *
- *   story:track:v1:${titleHash}     Hash   firstSeen/lastSeen/title/link/severity/mentionCount/currentScore
+ *   story:track:v1:${titleHash}     Hash   firstSeen/lastSeen/title/link/severity/mentionCount/currentScore/lang
  *   story:sources:v1:${titleHash}   Set    feed IDs (SADD per appearance)
  *   story:peak:v1:${titleHash}      ZSet   single member "peak", score = highest importanceScore (ZADD GT)
- *   digest:accumulator:v1:${variant} ZSet  member=titleHash, score=lastSeen_ms (updated every appearance)
+ *   digest:accumulator:v1:${variant}:${lang} ZSet  member=titleHash, score=lastSeen_ms (updated every appearance)
  *
  * TTL for all: 172800s (48h), refreshed each digest cycle.
  * Shadow scoring key (written by notification-relay.cjs):
@@ -26,7 +26,7 @@ export const STORY_TRACKING_TTL_S = 172800;
 export const STORY_TRACK_KEY = (titleHash: string) => `story:track:v1:${titleHash}`;
 export const STORY_SOURCES_KEY = (titleHash: string) => `story:sources:v1:${titleHash}`;
 export const STORY_PEAK_KEY = (titleHash: string) => `story:peak:v1:${titleHash}`;
-export const DIGEST_ACCUMULATOR_KEY = (variant: string) => `digest:accumulator:v1:${variant}`;
+export const DIGEST_ACCUMULATOR_KEY = (variant: string, lang = 'en') => `digest:accumulator:v1:${variant}:${lang}`;
 export const DIGEST_LAST_SENT_KEY = (userId: string, variant: string) => `digest:last-sent:v1:${userId}:${variant}`;
 export const SHADOW_SCORE_LOG_KEY = 'shadow:score-log:v1';
 export const STORY_TTL = 604800;           // 7 days — enough for sustained multi-day stories
@@ -58,8 +58,56 @@ export const ENERGY_INTELLIGENCE_KEY = 'energy:intelligence:v1:feed';
 export const CHOKEPOINT_FLOWS_KEY = 'energy:chokepoint-flows:v1';
 export const ENERGY_SPINE_KEY_PREFIX = 'energy:spine:v1:';
 export const ENERGY_SPINE_COUNTRIES_KEY = 'energy:spine:v1:_countries';
+export const EMBER_ELECTRICITY_KEY_PREFIX = 'energy:ember:v1:';
+export const EMBER_ELECTRICITY_ALL_KEY = 'energy:ember:v1:_all';
 export const SPR_KEY = 'economic:spr:v1';
-export const REFINERY_UTIL_KEY = 'economic:refinery-util:v1';
+export const SPR_POLICIES_KEY = 'energy:spr-policies:v1';
+export const REFINERY_INPUTS_KEY = 'economic:refinery-inputs:v1';
+
+/**
+ * Per-country chokepoint exposure index. Request-varying — excluded from bootstrap.
+ * Key: supply-chain:exposure:{iso2}:{hs2}:v1
+ */
+export const CHOKEPOINT_EXPOSURE_KEY = (iso2: string, hs2: string) =>
+  `supply-chain:exposure:${iso2}:${hs2}:v1`;
+export const CHOKEPOINT_EXPOSURE_SEED_META_KEY = 'seed-meta:supply_chain:chokepoint-exposure';
+
+/**
+ * Per-country + per-chokepoint cost shock cache.
+ * NOT in bootstrap — request-varying, PRO-gated.
+ */
+export const COST_SHOCK_KEY = (iso2: string, chokepointId: string) =>
+  `supply-chain:cost-shock:${iso2}:${chokepointId}:v1` as const;
+
+/**
+ * Per-country + per-HS2 sector dependency cache.
+ * NOT in bootstrap — request-varying, PRO-gated.
+ */
+export const SECTOR_DEPENDENCY_KEY = (iso2: string, hs2: string) =>
+  `supply-chain:sector-dep:${iso2}:${hs2}:v1` as const;
+
+/**
+ * Route Explorer lane cache — per (fromIso2, toIso2, hs2, cargoType).
+ * NOT in bootstrap — request-varying, PRO-gated.
+ */
+export const ROUTE_EXPLORER_LANE_KEY = (
+  fromIso2: string,
+  toIso2: string,
+  hs2: string,
+  cargoType: string,
+) => `supply-chain:route-explorer-lane:${fromIso2}:${toIso2}:${hs2}:${cargoType}:v1` as const;
+
+/**
+ * Route impact cache — per (fromIso2, toIso2, hs2).
+ * NOT in bootstrap — request-varying, PRO-gated. 24h Redis TTL.
+ */
+export const ROUTE_IMPACT_KEY = (fromIso2: string, toIso2: string, hs2: string) =>
+  `supply-chain:route-impact:${fromIso2}:${toIso2}:${hs2}:v1` as const;
+
+/**
+ * Shared chokepoint status cache key — written by get-chokepoint-status, read by bypass-options and cost-shock handlers.
+ */
+export const CHOKEPOINT_STATUS_KEY = 'supply_chain:chokepoints:v4' as const;
 
 /**
  * Static cache keys for the bootstrap endpoint.
@@ -71,7 +119,7 @@ export const BOOTSTRAP_CACHE_KEYS: Record<string, string> = {
   serviceStatuses:  'infra:service-statuses:v1',
   ddosAttacks:      'cf:radar:ddos:v1',
   trafficAnomalies: 'cf:radar:traffic-anomalies:v1',
-  sectors:          'market:sectors:v1',
+  sectors:          'market:sectors:v2',
   etfFlows:         'market:etf-flows:v1',
   macroSignals:     'economic:macro-signals:v1',
   bisPolicy:        'economic:bis:policy:v1',
@@ -80,7 +128,6 @@ export const BOOTSTRAP_CACHE_KEYS: Record<string, string> = {
   imfMacro:         'economic:imf:macro:v2',
   shippingRates:    'supply_chain:shipping:v2',
   chokepoints:      'supply_chain:chokepoints:v4',
-  chokepointTransits: 'supply_chain:chokepoint_transits:v1',
   minerals:         'supply_chain:minerals:v2',
   giving:           'giving:summary:v1',
   climateAnomalies: 'climate:anomalies:v2',
@@ -139,6 +186,7 @@ export const BOOTSTRAP_CACHE_KEYS: Record<string, string> = {
   euFsi:            'economic:fsi-eu:v1',
   shippingStress:   'supply_chain:shipping_stress:v1',
   socialVelocity:   'intelligence:social:reddit:v1',
+  wsbTickers:       'intelligence:wsb-tickers:v1',
   pizzint:          'intelligence:pizzint:seed:v1',
   diseaseOutbreaks: 'health:disease-outbreaks:v1',
   economicStress:   'economic:stress-index:v1',
@@ -148,6 +196,16 @@ export const BOOTSTRAP_CACHE_KEYS: Record<string, string> = {
   chokepointBaselines: 'energy:chokepoint-baselines:v1',
   portwatchChokepointsRef: 'portwatch:chokepoints:ref:v1',
   portwatchPortActivity: 'supply_chain:portwatch-ports:v1:_countries',
+  oilStocksAnalysis:    'energy:oil-stocks-analysis:v1',
+  lngVulnerability:     'energy:lng-vulnerability:v1',
+  sprPolicies:          'energy:spr-policies:v1',
+  energyCrisisPolicies: 'energy:crisis-policies:v1',
+  aaiiSentiment:        'market:aaii-sentiment:v1',
+  breadthHistory:       'market:breadth-history:v1',
+  consumerPricesOverview:   'consumer-prices:overview:ae',
+  consumerPricesCategories: 'consumer-prices:categories:ae:30d',
+  consumerPricesMovers:     'consumer-prices:movers:ae:30d',
+  consumerPricesSpread:     'consumer-prices:retailer-spread:ae:essentials-ae',
 };
 
 export const PORTWATCH_PORT_ACTIVITY_KEY_PREFIX = 'supply_chain:portwatch-ports:v1:';
@@ -163,7 +221,7 @@ export const BOOTSTRAP_TIERS: Record<string, 'slow' | 'fast'> = {
   cryptoQuotes: 'slow', gulfQuotes: 'slow', stablecoinMarkets: 'slow',
   unrestEvents: 'slow', ucdpEvents: 'slow', techEvents: 'slow',
   earthquakes: 'fast', outages: 'fast', serviceStatuses: 'fast', ddosAttacks: 'fast', trafficAnomalies: 'fast',
-  macroSignals: 'fast', chokepoints: 'fast', chokepointTransits: 'fast', riskScores: 'fast',
+  macroSignals: 'fast', chokepoints: 'fast', riskScores: 'fast',
   marketQuotes: 'fast', commodityQuotes: 'fast', positiveGeoEvents: 'fast',
   flightDelays: 'fast', insights: 'fast', predictions: 'fast',
   iranEvents: 'fast', temporalAnomalies: 'fast', weatherAlerts: 'fast',
@@ -191,6 +249,7 @@ export const BOOTSTRAP_TIERS: Record<string, 'slow' | 'fast'> = {
   euFsi: 'slow',
   shippingStress: 'fast',
   socialVelocity: 'fast',
+  wsbTickers: 'fast',
   pizzint: 'slow',
   diseaseOutbreaks: 'slow',
   economicStress: 'slow',
@@ -200,6 +259,12 @@ export const BOOTSTRAP_TIERS: Record<string, 'slow' | 'fast'> = {
   chokepointBaselines: 'slow',
   portwatchChokepointsRef: 'slow',
   portwatchPortActivity: 'slow',
+  oilStocksAnalysis: 'slow',
+  lngVulnerability: 'slow',
+  sprPolicies: 'slow',
+  energyCrisisPolicies: 'slow',
+  aaiiSentiment: 'slow',
+  breadthHistory: 'slow',
 };
 
 export const PORTWATCH_CHOKEPOINTS_REF_KEY = 'portwatch:chokepoints:ref:v1';

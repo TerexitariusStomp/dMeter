@@ -5,6 +5,8 @@ const dns = require('node:dns').promises;
 const { ConvexHttpClient } = require('convex/browser');
 const { Resend } = require('resend');
 const { decrypt } = require('./lib/crypto.cjs');
+const { callLLM } = require('./lib/llm-chain.cjs');
+const { fetchUserPreferences, extractUserContext, formatUserProfile } = require('./lib/user-context.cjs');
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -20,6 +22,8 @@ const RESEND_FROM = process.env.RESEND_FROM_EMAIL ?? 'WorldMonitor <alerts@world
 // When QUIET_HOURS_BATCH_ENABLED=0, treat batch_on_wake as critical_only.
 // Useful during relay rollout to disable queued batching before drainBatchOnWake is fully tested.
 const QUIET_HOURS_BATCH_ENABLED = process.env.QUIET_HOURS_BATCH_ENABLED !== '0';
+const AI_IMPACT_ENABLED = process.env.AI_IMPACT_ENABLED === '1';
+const AI_IMPACT_CACHE_TTL = 1800; // 30 min, matches dedup window
 
 if (!UPSTASH_URL || !UPSTASH_TOKEN) { console.error('[relay] UPSTASH_REDIS_REST_URL/TOKEN not set'); process.exit(1); }
 if (!CONVEX_URL) { console.error('[relay] CONVEX_URL not set'); process.exit(1); }
@@ -73,6 +77,32 @@ async function deactivateChannel(userId, channelType) {
     if (!res.ok) console.warn(`[relay] Deactivate failed ${userId}/${channelType}: ${res.status}`);
   } catch (err) {
     console.warn(`[relay] Deactivate request failed for ${userId}/${channelType}:`, err.message);
+  }
+}
+
+// ── Entitlement check (PRO gate for delivery) ───────────────────────────────
+
+const ENTITLEMENT_CACHE_TTL = 900; // 15 min
+
+async function isUserPro(userId) {
+  const cacheKey = `relay:entitlement:${userId}`;
+  try {
+    const cached = await upstashRest('GET', cacheKey);
+    if (cached !== null) return Number(cached) >= 1;
+  } catch { /* miss */ }
+  try {
+    const res = await fetch(`${CONVEX_SITE_URL}/relay/entitlement`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RELAY_SECRET}`, 'User-Agent': 'worldmonitor-relay/1.0' },
+      body: JSON.stringify({ userId }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return true; // fail-open: don't block delivery on entitlement service failure
+    const { tier } = await res.json();
+    await upstashRest('SET', cacheKey, String(tier ?? 0), 'EX', String(ENTITLEMENT_CACHE_TTL));
+    return (tier ?? 0) >= 1;
+  } catch {
+    return true; // fail-open
   }
 }
 
@@ -178,6 +208,15 @@ async function drainHeldForUser(userId, variant, allowedChannelTypes) {
       else if (ch.channelType === 'slack' && ch.webhookEnvelope) ok = await sendSlack(userId, ch.webhookEnvelope, text);
       else if (ch.channelType === 'discord' && ch.webhookEnvelope) ok = await sendDiscord(userId, ch.webhookEnvelope, text);
       else if (ch.channelType === 'email' && ch.email) ok = await sendEmail(ch.email, subject, text);
+      else if (ch.channelType === 'webhook' && ch.webhookEnvelope) ok = await sendWebhook(userId, ch.webhookEnvelope, {
+        eventType: 'quiet_hours_batch',
+        severity: 'info',
+        payload: {
+          title: subject,
+          alertCount: events.length,
+          alerts: events.map(ev => ({ eventType: ev.eventType, severity: ev.severity ?? 'high', title: ev.payload?.title ?? ev.eventType })),
+        },
+      });
       if (ok) anyDelivered = true;
     } catch (err) {
       console.warn(`[relay] drainHeldForUser: delivery error for ${userId}/${ch.channelType}:`, err.message);
@@ -397,6 +436,72 @@ async function sendEmail(email, subject, text) {
   }
 }
 
+async function sendWebhook(userId, webhookEnvelope, event) {
+  let url;
+  try {
+    url = decrypt(webhookEnvelope);
+  } catch (err) {
+    console.warn(`[relay] Webhook decrypt failed for ${userId}:`, err.message);
+    return false;
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    console.warn(`[relay] Webhook invalid URL for ${userId}`);
+    await deactivateChannel(userId, 'webhook');
+    return false;
+  }
+
+  if (parsed.protocol !== 'https:') {
+    console.warn(`[relay] Webhook rejected non-HTTPS for ${userId}`);
+    return false;
+  }
+
+  try {
+    const addrs = await dns.resolve4(parsed.hostname);
+    if (addrs.some(isPrivateIP)) {
+      console.warn(`[relay] Webhook SSRF blocked (private IP) for ${userId}`);
+      return false;
+    }
+  } catch (err) {
+    console.warn(`[relay] Webhook DNS resolve failed for ${userId}:`, err.message);
+    return false;
+  }
+
+  const payload = JSON.stringify({
+    version: '1',
+    eventType: event.eventType,
+    severity: event.severity ?? 'high',
+    timestamp: event.publishedAt ?? Date.now(),
+    payload: event.payload ?? {},
+    variant: event.variant ?? null,
+  });
+
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'User-Agent': 'worldmonitor-relay/1.0' },
+      body: payload,
+      signal: AbortSignal.timeout(10000),
+    });
+    if (resp.status === 404 || resp.status === 410 || resp.status === 403) {
+      console.warn(`[relay] Webhook ${resp.status} for ${userId} — deactivating`);
+      await deactivateChannel(userId, 'webhook');
+      return false;
+    }
+    if (!resp.ok) {
+      console.warn(`[relay] Webhook delivery failed for ${userId}: HTTP ${resp.status}`);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn(`[relay] Webhook delivery error for ${userId}:`, err.message);
+    return false;
+  }
+}
+
 // ── Event processing ──────────────────────────────────────────────────────────
 
 function matchesSensitivity(ruleSensitivity, eventSeverity) {
@@ -486,6 +591,69 @@ async function shadowLogScore(event) {
   } catch {}
 }
 
+// ── AI impact analysis ───────────────────────────────────────────────────────
+
+async function generateEventImpact(event, rule) {
+  if (!AI_IMPACT_ENABLED) return null;
+
+  // fetchUserPreferences returns { data, error } — must destructure `data`.
+  // Without this the wrapper object was passed to extractUserContext, which
+  // read no keys, so ctx was always empty and the gate below returned null
+  // for every user, silently disabling AI impact analysis entirely.
+  const { data: prefs, error: prefsFetchError } = await fetchUserPreferences(rule.userId, rule.variant ?? 'full');
+  if (!prefs) {
+    if (prefsFetchError) {
+      console.warn(`[relay] Prefs fetch failed for ${rule.userId} — skipping AI impact`);
+    }
+    return null;
+  }
+
+  const ctx = extractUserContext(prefs);
+  if (ctx.tickers.length === 0 && ctx.airports.length === 0 && !ctx.frameworkName) return null;
+
+  const variant = rule.variant ?? 'full';
+  const eventHash = sha256Hex(`${event.eventType}:${event.payload?.title ?? ''}`);
+  const ctxHash = sha256Hex(JSON.stringify({ ...ctx, variant })).slice(0, 16);
+  const cacheKey = `impact:ai:v1:${eventHash.slice(0, 16)}:${ctxHash}`;
+
+  try {
+    const cached = await upstashRest('GET', cacheKey);
+    if (cached) return cached;
+  } catch { /* miss */ }
+
+  const profile = formatUserProfile(ctx, variant);
+  const safeTitle = String(event.payload?.title ?? event.eventType).replace(/[\r\n]/g, ' ').slice(0, 300);
+  const safeSource = event.payload?.source ? String(event.payload.source).replace(/[\r\n]/g, ' ').slice(0, 100) : '';
+  const systemPrompt = `Assess how this event impacts a specific investor/analyst.
+Return 1-2 sentences: (1) direct impact on their assets/regions, (2) action implication.
+If no clear impact: "Low direct impact on your portfolio."
+Be specific about tickers and regions. No preamble.`;
+
+  const userPrompt = `Event: [${(event.severity ?? 'high').toUpperCase()}] ${safeTitle}
+${safeSource ? `Source: ${safeSource}` : ''}
+
+${profile}`;
+
+  let impact;
+  try {
+    impact = await Promise.race([
+      callLLM(systemPrompt, userPrompt, { maxTokens: 200, temperature: 0.2, timeoutMs: 8000 }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('global timeout')), 10000)),
+    ]);
+  } catch {
+    console.warn(`[relay] AI impact global timeout for ${rule.userId}`);
+    return null;
+  }
+  if (!impact) return null;
+
+  try {
+    await upstashRest('SET', cacheKey, impact, 'EX', String(AI_IMPACT_CACHE_TTL));
+  } catch { /* best-effort */ }
+
+  console.log(`[relay] AI impact generated for ${rule.userId} (${impact.length} chars)`);
+  return impact;
+}
+
 async function processEvent(event) {
   if (event.eventType === 'channel_welcome') { await processWelcome(event); return; }
   if (event.eventType === 'flush_quiet_held') { await processFlushQuietHeld(event); return; }
@@ -524,11 +692,21 @@ async function processEvent(event) {
 
   if (matching.length === 0) return;
 
+  // Batch PRO check: resolve all unique userIds in parallel instead of one-by-one.
+  // isUserPro() has a 15-min Redis cache, so this is cheap after the first call.
+  const uniqueUserIds = [...new Set(matching.map(r => r.userId))];
+  const proResults = await Promise.all(uniqueUserIds.map(async uid => [uid, await isUserPro(uid)]));
+  const proSet = new Set(proResults.filter(([, isPro]) => isPro).map(([uid]) => uid));
+  const skippedCount = uniqueUserIds.length - proSet.size;
+  if (skippedCount > 0) console.log(`[relay] Skipping ${skippedCount} non-PRO user(s)`);
+
   const text = formatMessage(event);
   const subject = `WorldMonitor Alert: ${event.payload?.title ?? event.eventType}`;
   const eventSeverity = event.severity ?? 'high';
 
   for (const rule of matching) {
+    if (!proSet.has(rule.userId)) continue;
+
     const quietAction = resolveQuietAction(rule, eventSeverity);
 
     if (quietAction === 'suppress') {
@@ -567,17 +745,26 @@ async function processEvent(event) {
     }
 
     const verifiedChannels = channels.filter(c => c.verified && rule.channels.includes(c.channelType));
+    if (verifiedChannels.length === 0) continue;
+
+    let deliveryText = text;
+    if (AI_IMPACT_ENABLED) {
+      const impact = await generateEventImpact(event, rule);
+      if (impact) deliveryText = `${text}\n\n— Impact —\n${impact}`;
+    }
 
     for (const ch of verifiedChannels) {
       try {
         if (ch.channelType === 'telegram' && ch.chatId) {
-          await sendTelegram(rule.userId, ch.chatId, text);
+          await sendTelegram(rule.userId, ch.chatId, deliveryText);
         } else if (ch.channelType === 'slack' && ch.webhookEnvelope) {
-          await sendSlack(rule.userId, ch.webhookEnvelope, text);
+          await sendSlack(rule.userId, ch.webhookEnvelope, deliveryText);
         } else if (ch.channelType === 'discord' && ch.webhookEnvelope) {
-          await sendDiscord(rule.userId, ch.webhookEnvelope, text);
+          await sendDiscord(rule.userId, ch.webhookEnvelope, deliveryText);
         } else if (ch.channelType === 'email' && ch.email) {
-          await sendEmail(ch.email, subject, text);
+          await sendEmail(ch.email, subject, deliveryText);
+        } else if (ch.channelType === 'webhook' && ch.webhookEnvelope) {
+          await sendWebhook(rule.userId, ch.webhookEnvelope, event);
         }
       } catch (err) {
         console.warn(`[relay] Delivery error for ${rule.userId}/${ch.channelType}:`, err instanceof Error ? err.message : String(err));
