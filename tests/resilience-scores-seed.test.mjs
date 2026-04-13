@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
@@ -121,16 +121,27 @@ describe('rebuilds ranking key on race-condition or laggards', () => {
   // landed; this leaves resilience:ranking:v9 null even with all 222 score
   // keys present. The seeder must verify and re-call the RPC in that case.
   let src;
-  it('reads ranking key after bulk RPC', async () => {
+  before(async () => {
+    // Read once in a hook so all assertions get a meaningful failure if the
+    // file read itself breaks — instead of cascading TypeErrors from
+    // `assert.match(undefined, …)` in dependent tests.
     const { readFileSync } = await import('node:fs');
     const { fileURLToPath } = await import('node:url');
     const { dirname, join } = await import('node:path');
     const dir = dirname(fileURLToPath(import.meta.url));
     src = readFileSync(join(dir, '..', 'scripts', 'seed-resilience-scores.mjs'), 'utf8');
+  });
+
+  it('probes the ranking key after bulk RPC and distinguishes absent from probe-failed', () => {
     assert.match(
       src,
-      /redisGetJson\(url,\s*token,\s*RESILIENCE_RANKING_CACHE_KEY\)/,
+      /\$\{encodeURIComponent\(RESILIENCE_RANKING_CACHE_KEY\)\}/,
       'must GET resilience:ranking:v9 after bulk warmup to verify it was written',
+    );
+    assert.match(
+      src,
+      /rankingProbeFailed\s*=\s*true/,
+      'must distinguish probe failure from genuinely-absent key for incident triage',
     );
   });
 

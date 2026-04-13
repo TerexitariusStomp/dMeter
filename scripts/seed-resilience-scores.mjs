@@ -240,11 +240,32 @@ async function seedResilienceScores() {
     // null in Redis after the bulk call. Path (b) catches the race; the
     // second RPC call sees warm per-country scores in cache and the handler's
     // re-read succeeds.
-    const rankingExists = await redisGetJson(url, token, RESILIENCE_RANKING_CACHE_KEY);
+    // Inline GET so we can distinguish "key absent" (rebuild needed) from
+    // "GET failed" (rebuild as a precaution but log it for incident triage).
+    // The shared redisGetJson() collapses both into null, which would silently
+    // mask transient Upstash hiccups in the rebuild trigger reason.
+    let rankingExists = null;
+    let rankingProbeFailed = false;
+    try {
+      const probeResp = await fetch(`${url}/get/${encodeURIComponent(RESILIENCE_RANKING_CACHE_KEY)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (!probeResp.ok) {
+        rankingProbeFailed = true;
+        console.warn(`[resilience-scores] Ranking probe HTTP ${probeResp.status}; rebuilding as a precaution`);
+      } else {
+        const data = await probeResp.json();
+        rankingExists = data?.result || null;
+      }
+    } catch (err) {
+      rankingProbeFailed = true;
+      console.warn(`[resilience-scores] Ranking probe failed (${err.message}); rebuilding as a precaution`);
+    }
     if (laggardsWarmed > 0 || rankingExists == null) {
       const reason = laggardsWarmed > 0
         ? `${laggardsWarmed} laggard warms`
-        : 'bulk-call race left ranking:v9 null';
+        : (rankingProbeFailed ? 'ranking probe failed (precautionary)' : 'bulk-call race left ranking:v9 null');
       try {
         if (laggardsWarmed > 0) {
           await redisPipeline(url, token, [['DEL', RESILIENCE_RANKING_CACHE_KEY]]);
