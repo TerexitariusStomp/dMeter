@@ -113,3 +113,43 @@ describe('script is self-contained .mjs', () => {
     }
   });
 });
+
+describe('rebuilds ranking key on race-condition or laggards', () => {
+  // Locks in the defensive rebuild added after the bulk RPC. The bulk call's
+  // handler can suffer a read-after-write race in Vercel where its own
+  // re-read of the per-country cache returns empty even though writes
+  // landed; this leaves resilience:ranking:v9 null even with all 222 score
+  // keys present. The seeder must verify and re-call the RPC in that case.
+  let src;
+  it('reads ranking key after bulk RPC', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { fileURLToPath } = await import('node:url');
+    const { dirname, join } = await import('node:path');
+    const dir = dirname(fileURLToPath(import.meta.url));
+    src = readFileSync(join(dir, '..', 'scripts', 'seed-resilience-scores.mjs'), 'utf8');
+    assert.match(
+      src,
+      /redisGetJson\(url,\s*token,\s*RESILIENCE_RANKING_CACHE_KEY\)/,
+      'must GET resilience:ranking:v9 after bulk warmup to verify it was written',
+    );
+  });
+
+  it('triggers rebuild when ranking is null OR laggards were warmed', () => {
+    assert.match(
+      src,
+      /if\s*\(laggardsWarmed\s*>\s*0\s*\|\|\s*rankingExists\s*==\s*null\)/,
+      'rebuild gate must fire on EITHER laggard warms OR null ranking key',
+    );
+  });
+
+  it('only DELs ranking when laggards were warmed (not on race-condition retry)', () => {
+    // On the race path, the key is already null — skipping DEL avoids a
+    // pointless extra Redis call. On the laggard path, DEL forces the
+    // handler to recompute fresh ranking with the now-warmed laggards.
+    assert.match(
+      src,
+      /if\s*\(laggardsWarmed\s*>\s*0\)\s*{\s*await\s+redisPipeline\([^)]+\['DEL',\s*RESILIENCE_RANKING_CACHE_KEY\]\]/,
+      'DEL must be guarded by laggardsWarmed > 0',
+    );
+  });
+});
