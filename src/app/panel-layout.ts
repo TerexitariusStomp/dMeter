@@ -5,7 +5,6 @@ import { getAlertsNearLocation } from '@/services/geo-convergence';
 import type { ClusteredEvent } from '@/types';
 import type { RelatedAsset } from '@/types';
 import type { TheaterPostureSummary } from '@/services/military-surge';
-import { MapContainer } from '@/components/MapContainer'; // Removed in Task 2 (deferred map loading)
 import type { NewsPanel } from '@/components/NewsPanel';
 import { debounce, saveToStorage, loadFromStorage } from '@/utils';
 import { escapeHtml } from '@/utils/sanitize';
@@ -671,23 +670,62 @@ export class PanelLayoutManager implements AppModule {
   private createPanels(): void {
     const panelsGrid = document.getElementById('panelsGrid')!;
 
+    // Defer MapLibre + deck.gl loading until map container enters viewport
     const mapContainer = document.getElementById('mapContainer') as HTMLElement;
     const preferGlobe = loadFromStorage<string>(STORAGE_KEYS.mapMode, 'flat') === 'globe';
-    this.ctx.map = new MapContainer(mapContainer, {
-      zoom: this.ctx.isMobile ? 2.5 : 1.0,
-      pan: { x: 0, y: 0 },
-      view: this.ctx.isMobile ? this.ctx.resolvedLocation : 'global',
-      layers: this.ctx.mapLayers,
-      timeRange: '7d',
-    }, preferGlobe);
 
-    if (this.ctx.mapLayers.resilienceScore && !this.ctx.map.isDeckGLActive?.()) {
-      this.ctx.mapLayers = { ...this.ctx.mapLayers, resilienceScore: false };
-      saveToStorage(STORAGE_KEYS.mapLayers, this.ctx.mapLayers);
-    }
+    // CSS-only placeholder while map libraries download
+    const mapPlaceholder = document.createElement('div');
+    mapPlaceholder.className = 'map-placeholder';
+    mapPlaceholder.style.cssText = `
+      width:100%;height:100%;
+      background: var(--surface, #0d1117);
+      background-image: radial-gradient(circle, var(--border, #30363d) 1px, transparent 1px);
+      background-size: 30px 30px;
+      display:flex;align-items:center;justify-content:center;
+    `;
+    mapPlaceholder.innerHTML = '<span style="color:var(--text-secondary,#8888aa);font-size:0.85rem;">Loading map...</span>';
+    mapContainer.appendChild(mapPlaceholder);
 
-    this.ctx.map.initEscalationGetters();
-    this.ctx.currentTimeRange = this.ctx.map.getTimeRange();
+    const mapObserver = new IntersectionObserver(
+      async ([entry]) => {
+        if (!entry.isIntersecting) return;
+        mapObserver.disconnect();
+
+        try {
+          // MapLibre CSS is injected automatically by Vite when DeckGLMap.ts
+          // (a static dependency of MapContainer) is dynamically imported.
+          const { MapContainer } = await import('@/components/MapContainer');
+
+          this.ctx.map = new MapContainer(mapContainer, {
+            zoom: this.ctx.isMobile ? 2.5 : 1.0,
+            pan: { x: 0, y: 0 },
+            view: this.ctx.isMobile ? this.ctx.resolvedLocation : 'global',
+            layers: this.ctx.mapLayers,
+            timeRange: '7d',
+          }, preferGlobe);
+
+          // Remove placeholder
+          mapPlaceholder.remove();
+
+          // Post-init setup
+          if (this.ctx.mapLayers.resilienceScore && !this.ctx.map.isDeckGLActive?.()) {
+            this.ctx.mapLayers = { ...this.ctx.mapLayers, resilienceScore: false };
+            saveToStorage(STORAGE_KEYS.mapLayers, this.ctx.mapLayers);
+          }
+
+          this.ctx.map.initEscalationGetters();
+          this.ctx.currentTimeRange = this.ctx.map.getTimeRange();
+
+          // Panels using this.ctx.map?.setCenter() already use optional chaining
+          // so they gracefully handle the map being null before this point.
+        } catch (err) {
+          console.error('[map] Failed to load map libraries:', err);
+        }
+      },
+      { rootMargin: '200px' },
+    );
+    mapObserver.observe(mapContainer);
 
     this.lazyNewsPanel('politics', 'panels.politics');
     this.lazyNewsPanel('tech', 'panels.tech');
