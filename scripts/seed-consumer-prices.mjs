@@ -198,7 +198,11 @@ async function run() {
   for (const { key, data, ttl, metaKey } of writes) {
     try {
       let recordCount;
-      if (Array.isArray(data.risers) || Array.isArray(data.fallers)) {
+      if (data.upstreamUnavailable === true) {
+        // Synthetic placeholder written when upstream fetch failed — keep
+        // recordCount=0 so health.js surfaces EMPTY_DATA instead of going green.
+        recordCount = 0;
+      } else if (Array.isArray(data.risers) || Array.isArray(data.fallers)) {
         const sum = (data.risers?.length ?? 0) + (data.fallers?.length ?? 0);
         recordCount = Math.max(1, sum);
       } else if (Array.isArray(data.retailers ?? data.essentialsSeries ?? data.categories)) {
