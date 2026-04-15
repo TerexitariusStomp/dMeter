@@ -197,9 +197,14 @@ async function run() {
   let failed = 0;
   for (const { key, data, ttl, metaKey } of writes) {
     try {
-      const recordCount = Array.isArray(data.retailers ?? data.categories ?? data.risers)
-        ? (data.retailers ?? data.categories ?? data.risers ?? []).length
-        : 1;
+      let recordCount;
+      if (Array.isArray(data.risers) || Array.isArray(data.fallers)) {
+        recordCount = (data.risers?.length ?? 0) + (data.fallers?.length ?? 0);
+      } else if (Array.isArray(data.retailers ?? data.categories)) {
+        recordCount = (data.retailers ?? data.categories).length;
+      } else {
+        recordCount = 1;
+      }
       await writeExtraKeyWithMeta(key, data, ttl, recordCount, metaKey);
       console.log(`  [consumer-prices] wrote ${key} (${recordCount} records)`);
     } catch (err) {

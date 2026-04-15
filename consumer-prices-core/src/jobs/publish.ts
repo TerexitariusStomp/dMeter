@@ -27,7 +27,12 @@ function makeKey(parts: string[]): string {
 function recordCount(data: unknown): number {
   if (!data || typeof data !== 'object') return 1;
   const d = data as Record<string, unknown>;
-  const arr = d.retailers ?? d.risers ?? d.essentialsSeries ?? d.categories;
+  if (Array.isArray(d.risers) || Array.isArray(d.fallers)) {
+    const risers = Array.isArray(d.risers) ? d.risers.length : 0;
+    const fallers = Array.isArray(d.fallers) ? d.fallers.length : 0;
+    return risers + fallers;
+  }
+  const arr = d.retailers ?? d.essentialsSeries ?? d.categories;
   return Array.isArray(arr) ? arr.length : 1;
 }
 
