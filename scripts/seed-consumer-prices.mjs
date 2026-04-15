@@ -199,9 +199,10 @@ async function run() {
     try {
       let recordCount;
       if (Array.isArray(data.risers) || Array.isArray(data.fallers)) {
-        recordCount = (data.risers?.length ?? 0) + (data.fallers?.length ?? 0);
-      } else if (Array.isArray(data.retailers ?? data.categories)) {
-        recordCount = (data.retailers ?? data.categories).length;
+        const sum = (data.risers?.length ?? 0) + (data.fallers?.length ?? 0);
+        recordCount = Math.max(1, sum);
+      } else if (Array.isArray(data.retailers ?? data.essentialsSeries ?? data.categories)) {
+        recordCount = (data.retailers ?? data.essentialsSeries ?? data.categories).length;
       } else {
         recordCount = 1;
       }
