@@ -522,6 +522,23 @@ describe('seedTransitSummaries Redis reads', () => {
     assert.doesNotMatch(relaySrc, /const persisted = await upstashGet\(CORRIDOR_RISK_REDIS_KEY\)/);
   });
 
+  it('loadWsbTickerSet reads market:stocks-bootstrap:v1 via envelopeRead', () => {
+    // Regression guard (Greptile review PR #3139): market:stocks-bootstrap:v1 is
+    // written via envelopeWrite at lines 1867 + dual-write elsewhere. Reading raw
+    // left data.quotes undefined, silently disabling WSB ticker matching.
+    assert.match(relaySrc, /envelopeRead\('market:stocks-bootstrap:v1'\)/);
+    assert.doesNotMatch(relaySrc, /upstashGet\('market:stocks-bootstrap:v1'\)/);
+  });
+
+  it('OREF bootstrap reads OREF_REDIS_KEY via envelopeRead (parity with orefPersistHistory)', () => {
+    // Regression guard (Greptile review PR #3139): orefPersistHistory() writes via
+    // envelopeWrite. Reading raw left cached.history undefined, so OREF history
+    // was never restored across relay restarts — every cold start hit the
+    // upstream API unnecessarily.
+    assert.match(relaySrc, /const cached = await envelopeRead\(OREF_REDIS_KEY\)/);
+    assert.doesNotMatch(relaySrc, /const cached = await upstashGet\(OREF_REDIS_KEY\)/);
+  });
+
   it('PortWatch Redis read is the first statement (before early return)', () => {
     const fnBody = relaySrc.match(/async function seedTransitSummaries\(\)\s*\{([\s\S]*?)\n\}/)?.[1] || '';
     const readPos = fnBody.indexOf('envelopeRead(PORTWATCH_REDIS_KEY)');

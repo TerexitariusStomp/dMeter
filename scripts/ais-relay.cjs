@@ -1211,7 +1211,10 @@ async function orefBootstrapHistoryWithRetry() {
 
   // Phase 1: try Redis first
   try {
-    const cached = await upstashGet(OREF_REDIS_KEY);
+    // envelopeRead unwraps the {_seed, data} shape written by orefPersistHistory()
+    // at line 1133. Reading raw left cached.history undefined, so OREF state was
+    // never restored across relay restarts (reported in PR #3139 review).
+    const cached = await envelopeRead(OREF_REDIS_KEY);
     if (cached && Array.isArray(cached.history) && cached.history.length > 0) {
       const valid = cached.history.every(
         h => Array.isArray(h.alerts) && typeof h.timestamp === 'string'
