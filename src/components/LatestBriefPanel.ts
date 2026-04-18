@@ -41,6 +41,20 @@ interface LatestBriefComposing {
 
 type LatestBriefResponse = LatestBriefReady | LatestBriefComposing;
 
+/**
+ * Typed access-failure surface. Lets the refresh loop branch on the
+ * specific condition (sign-in / upgrade) instead of retrying as if
+ * the error were transient.
+ */
+class BriefAccessError extends Error {
+  readonly code: 'sign_in_required' | 'upgrade_required';
+  constructor(code: BriefAccessError['code']) {
+    super(code);
+    this.code = code;
+    this.name = 'BriefAccessError';
+  }
+}
+
 const LATEST_BRIEF_ENDPOINT = '/api/latest-brief';
 
 const WM_LOGO_SVG = (
@@ -165,6 +179,15 @@ export class LatestBriefPanel extends Panel {
       this.renderSignInRequired();
       return;
     }
+    // Mixed-auth edge case: desktop/tester keys open the panel even
+    // when the signed-in Clerk account is FREE. /api/latest-brief
+    // verifies entitlement from the JWT's userId and returns 403
+    // for free accounts. Render the upgrade CTA locally instead of
+    // bouncing through a doomed fetch.
+    if (authState.user?.role !== 'pro') {
+      this.renderUpgradeRequired();
+      return;
+    }
     this.refreshing = true;
     const controller = new AbortController();
     this.inflightAbort = controller;
@@ -187,6 +210,13 @@ export class LatestBriefPanel extends Panel {
       if ((err as { name?: string } | null)?.name === 'AbortError') return;
       if (this.gateLocked || !hasPremiumAccess(getAuthState())) return;
       if ((getAuthState().user?.id ?? null) !== requestUserId) return;
+      // Structured access errors render a terminal CTA, not a retry
+      // error — retrying a 401 or 403 can't flip the outcome.
+      if (err instanceof BriefAccessError) {
+        if (err.code === 'sign_in_required') this.renderSignInRequired();
+        else this.renderUpgradeRequired();
+        return;
+      }
       const message = err instanceof Error ? err.message : 'Brief unavailable — try again shortly.';
       this.showError(message, () => { void this.refresh(); });
     } finally {
@@ -246,13 +276,15 @@ export class LatestBriefPanel extends Panel {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.status === 401) {
-      throw new Error('Sign in to view your brief.');
+      throw new BriefAccessError('sign_in_required');
     }
     if (res.status === 403) {
-      // PRO gate — base panel handles the visual. Keep the throw so
-      // the caller's error branch is a no-op; locked-state overlay
-      // already covers the content area.
-      throw new Error('PRO required');
+      // Server says the Clerk userId is not Pro. This can happen
+      // when the client's authState says role=pro but the server's
+      // entitlement source (Convex) disagrees, or when the Clerk
+      // plan claim goes stale. Surface as upgrade CTA — not a
+      // retryable error, since retrying won't flip entitlement.
+      throw new BriefAccessError('upgrade_required');
     }
     if (!res.ok) {
       throw new Error(`Brief service unavailable (${res.status})`);
@@ -289,6 +321,26 @@ export class LatestBriefPanel extends Panel {
         h('div', { className: 'latest-brief-empty-title' }, 'Sign in to view your brief.'),
         h('div', { className: 'latest-brief-empty-body' },
           'Your personalised brief is tied to your WorldMonitor account. Sign in to see today\u2019s issue.',
+        ),
+      ),
+    );
+  }
+
+  /**
+   * Free Clerk account (either via local authState or via a 403
+   * from the server). Render an upgrade CTA instead of retrying —
+   * the user needs a plan change, not a fresh fetch.
+   */
+  private renderUpgradeRequired(): void {
+    clearChildren(this.content);
+    const logo = h('div', { className: 'latest-brief-logo' });
+    logo.appendChild(rawHtml(WM_LOGO_SVG));
+    this.content.appendChild(
+      h('div', { className: 'latest-brief-card latest-brief-card--composing' },
+        logo,
+        h('div', { className: 'latest-brief-empty-title' }, 'Pro required.'),
+        h('div', { className: 'latest-brief-empty-body' },
+          'The WorldMonitor Brief is included with the Pro plan. Upgrade to unlock today\u2019s issue.',
         ),
       ),
     );
