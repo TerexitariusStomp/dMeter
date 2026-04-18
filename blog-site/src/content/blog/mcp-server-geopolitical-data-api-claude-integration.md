@@ -4,7 +4,7 @@ description: "World Monitor is now an MCP server with 40+ tools for geopolitical
 metaTitle: "MCP Server for Geopolitical & Market Data | World Monitor"
 keywords: "MCP server geopolitical data, Model Context Protocol, Claude MCP integration, geopolitical data API, AI agent intelligence tools, Claude Desktop MCP, OSINT API, country risk API, real-time intelligence API"
 audience: "AI engineers, developers, quant analysts, intelligence automation teams, LLM application builders"
-heroImage: "/blog/images/blog/mcp-server-geopolitical-data-api-claude-integration.jpg"
+heroImage: "/blog/images/blog/mcp-server-geopolitical-data-api-claude-integration.png"
 pubDate: "2026-04-18"
 ---
 

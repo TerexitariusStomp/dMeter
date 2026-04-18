@@ -4,7 +4,7 @@ description: "World Monitor's AI Analyst answers geopolitical and market questio
 metaTitle: "AI Geopolitical Analyst With Live Data | World Monitor"
 keywords: "AI geopolitical analyst, geopolitical risk AI, AI trade signals, market intelligence AI, geopolitical chat AI, OSINT AI analysis, AI market implications, analytical framework geopolitics"
 audience: "Geopolitical analysts, macro traders, intelligence professionals, institutional researchers, hedge fund analysts"
-heroImage: "/blog/images/blog/ai-geopolitical-analyst-chat-market-signals.jpg"
+heroImage: "/blog/images/blog/ai-geopolitical-analyst-chat-market-signals.png"
 pubDate: "2026-04-18"
 ---
 
