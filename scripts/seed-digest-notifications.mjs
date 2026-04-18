@@ -29,6 +29,13 @@ const { decrypt } = require('./lib/crypto.cjs');
 const { callLLM } = require('./lib/llm-chain.cjs');
 const { fetchUserPreferences, extractUserContext, formatUserProfile } = require('./lib/user-context.cjs');
 const { Resend } = require('resend');
+import { readRawJsonFromUpstash, redisPipeline } from '../api/_upstash-json.js';
+import {
+  composeBriefForRule,
+  extractInsights,
+  groupEligibleRulesByUser,
+} from './lib/brief-compose.mjs';
+import { signBriefUrl, BriefUrlError } from './lib/brief-url-sign.mjs';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -66,6 +73,16 @@ const DIGEST_MEDIUM_LIMIT = 10;
 const AI_SUMMARY_CACHE_TTL = 3600; // 1h
 const AI_DIGEST_ENABLED = process.env.AI_DIGEST_ENABLED !== '0';
 const ENTITLEMENT_CACHE_TTL = 900; // 15 min
+
+// ── Brief composer (consolidation of the retired seed-brief-composer) ──────
+
+const BRIEF_URL_SIGNING_SECRET = process.env.BRIEF_URL_SIGNING_SECRET ?? '';
+const WORLDMONITOR_PUBLIC_BASE_URL =
+  process.env.WORLDMONITOR_PUBLIC_BASE_URL ?? 'https://worldmonitor.app';
+const BRIEF_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
+const INSIGHTS_KEY = 'news:insights:v1';
+const BRIEF_COMPOSE_ENABLED =
+  process.env.BRIEF_COMPOSE_ENABLED !== '0' && BRIEF_URL_SIGNING_SECRET !== '';
 
 // ── Redis helpers ──────────────────────────────────────────────────────────────
 
@@ -407,6 +424,7 @@ function formatDigestHtml(stories, nowMs) {
         </tr>
       </table>
       <div data-ai-summary-slot></div>
+      <div data-brief-cta-slot></div>
       <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom: 24px;">
         <tr>
           <td style="text-align: center; padding: 14px 8px; width: 33%; background: #161616; border: 1px solid #222;">
@@ -793,20 +811,32 @@ const DIVIDER = '─'.repeat(40);
  * Keeps the per-channel formatting logic out of main() so its cognitive
  * complexity stays within the lint budget.
  */
-function buildChannelBodies(storyListPlain, aiSummary) {
+function buildChannelBodies(storyListPlain, aiSummary, magazineUrl) {
+  const briefFooterPlain = magazineUrl
+    ? `\n\n${DIVIDER}\n\n📖 Open your WorldMonitor Brief magazine:\n${magazineUrl}`
+    : '';
+  const briefFooterTelegram = magazineUrl
+    ? `\n\n${DIVIDER}\n\n📖 <a href="${magazineUrl}">Open your WorldMonitor Brief magazine</a>`
+    : '';
+  const briefFooterSlack = magazineUrl
+    ? `\n\n${DIVIDER}\n\n📖 <${magazineUrl}|Open your WorldMonitor Brief magazine>`
+    : '';
+  const briefFooterDiscord = magazineUrl
+    ? `\n\n${DIVIDER}\n\n📖 [Open your WorldMonitor Brief magazine](${magazineUrl})`
+    : '';
   if (!aiSummary) {
     return {
-      text: storyListPlain,
-      telegramText: escapeTelegramHtml(storyListPlain),
-      slackText: escapeSlackMrkdwn(storyListPlain),
-      discordText: storyListPlain,
+      text: `${storyListPlain}${briefFooterPlain}`,
+      telegramText: `${escapeTelegramHtml(storyListPlain)}${briefFooterTelegram}`,
+      slackText: `${escapeSlackMrkdwn(storyListPlain)}${briefFooterSlack}`,
+      discordText: `${storyListPlain}${briefFooterDiscord}`,
     };
   }
   return {
-    text: `EXECUTIVE SUMMARY\n\n${aiSummary}\n\n${DIVIDER}\n\n${storyListPlain}`,
-    telegramText: `<b>EXECUTIVE SUMMARY</b>\n\n${markdownToTelegramHtml(aiSummary)}\n\n${DIVIDER}\n\n${escapeTelegramHtml(storyListPlain)}`,
-    slackText: `*EXECUTIVE SUMMARY*\n\n${markdownToSlackMrkdwn(aiSummary)}\n\n${DIVIDER}\n\n${escapeSlackMrkdwn(storyListPlain)}`,
-    discordText: `**EXECUTIVE SUMMARY**\n\n${markdownToDiscord(aiSummary)}\n\n${DIVIDER}\n\n${storyListPlain}`,
+    text: `EXECUTIVE SUMMARY\n\n${aiSummary}\n\n${DIVIDER}\n\n${storyListPlain}${briefFooterPlain}`,
+    telegramText: `<b>EXECUTIVE SUMMARY</b>\n\n${markdownToTelegramHtml(aiSummary)}\n\n${DIVIDER}\n\n${escapeTelegramHtml(storyListPlain)}${briefFooterTelegram}`,
+    slackText: `*EXECUTIVE SUMMARY*\n\n${markdownToSlackMrkdwn(aiSummary)}\n\n${DIVIDER}\n\n${escapeSlackMrkdwn(storyListPlain)}${briefFooterSlack}`,
+    discordText: `**EXECUTIVE SUMMARY**\n\n${markdownToDiscord(aiSummary)}\n\n${DIVIDER}\n\n${storyListPlain}${briefFooterDiscord}`,
   };
 }
 
@@ -823,6 +853,121 @@ function injectEmailSummary(html, aiSummary) {
 <div style="font-size:13px;line-height:1.7;color:#ccc;">${formattedSummary}</div>
 </div>`;
   return html.replace('<div data-ai-summary-slot></div>', summaryHtml);
+}
+
+/**
+ * Inject the "Open your brief" CTA into the email HTML. Placed near
+ * the top of the body so recipients see the magazine link before the
+ * story list. Uses inline styles only (Gmail / Outlook friendly).
+ * When no magazineUrl is present (composer skipped / signing
+ * failed), the slot is stripped so the email stays clean.
+ */
+function injectBriefCta(html, magazineUrl) {
+  if (!html) return html;
+  if (!magazineUrl) return html.replace('<div data-brief-cta-slot></div>', '');
+  const escapedUrl = String(magazineUrl)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+  const ctaHtml = `<div style="margin:0 0 24px 0;">
+<a href="${escapedUrl}" style="display:inline-block;background:#f2ede4;color:#0a0a0a;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:0.08em;padding:14px 22px;border-radius:4px;">Open your WorldMonitor Brief →</a>
+<div style="margin-top:10px;font-size:11px;color:#888;line-height:1.5;">Your personalised editorial magazine. Opens in the browser — scroll or swipe through today's threads.</div>
+</div>`;
+  return html.replace('<div data-brief-cta-slot></div>', ctaHtml);
+}
+
+// ── Brief composition (runs once per cron tick, before digest loop) ─────────
+
+/**
+ * Write brief:{userId}:{issueDate} for every eligible user and
+ * return a Map keyed by userId with { envelope, magazineUrl } for
+ * the digest loop to consume. One brief per user regardless of how
+ * many variants they have enabled.
+ *
+ * Returns an empty Map when brief composition is disabled, insights
+ * are unavailable, or the signing secret is missing. Never throws —
+ * the digest send path must remain independent of the brief path.
+ */
+async function composeBriefsForRun(rules, nowMs) {
+  const briefByUser = new Map();
+  if (!BRIEF_COMPOSE_ENABLED) return briefByUser;
+
+  let insightsRaw = null;
+  try {
+    insightsRaw = await readRawJsonFromUpstash(INSIGHTS_KEY);
+  } catch (err) {
+    console.warn('[digest] brief: insights read failed, skipping brief composition:', err.message);
+    return briefByUser;
+  }
+  if (!insightsRaw) return briefByUser;
+
+  const insights = extractInsights(insightsRaw);
+  if (insights.topStories.length === 0) return briefByUser;
+
+  const eligibleByUser = groupEligibleRulesByUser(rules);
+  let composeSuccess = 0;
+  let composeFailed = 0;
+  for (const [userId, candidates] of eligibleByUser) {
+    try {
+      const hit = await composeAndStoreBriefForUser(userId, candidates, insights, nowMs);
+      if (hit) {
+        briefByUser.set(userId, hit);
+        composeSuccess++;
+      }
+    } catch (err) {
+      composeFailed++;
+      if (err instanceof BriefUrlError) {
+        console.warn(`[digest] brief: sign failed for ${userId} (${err.code}): ${err.message}`);
+      } else {
+        console.warn(`[digest] brief: compose failed for ${userId}:`, err.message);
+      }
+    }
+  }
+  console.log(
+    `[digest] brief: compose_success=${composeSuccess} compose_failed=${composeFailed} total_users=${eligibleByUser.size}`,
+  );
+  return briefByUser;
+}
+
+/**
+ * Per-user: walk candidates until one produces stories, SETEX the
+ * envelope, sign the magazine URL. Returns the entry the caller
+ * should stash in briefByUser, or null when no candidate had stories.
+ */
+async function composeAndStoreBriefForUser(userId, candidates, insights, nowMs) {
+  let envelope = null;
+  let chosenVariant = null;
+  for (const candidate of candidates) {
+    const composed = composeBriefForRule(candidate, insights, { nowMs });
+    if (composed) {
+      envelope = composed;
+      chosenVariant = candidate.variant;
+      break;
+    }
+  }
+  if (!envelope) return null;
+
+  const issueDate = envelope.data.date;
+  const key = `brief:${userId}:${issueDate}`;
+  const pipelineResult = await redisPipeline([
+    ['SETEX', key, String(BRIEF_TTL_SECONDS), JSON.stringify(envelope)],
+  ]);
+  if (!pipelineResult || !Array.isArray(pipelineResult) || pipelineResult.length === 0) {
+    throw new Error('null pipeline response from Upstash');
+  }
+  const cell = pipelineResult[0];
+  if (cell && typeof cell === 'object' && 'error' in cell) {
+    throw new Error(`Upstash SETEX error: ${cell.error}`);
+  }
+
+  const magazineUrl = await signBriefUrl({
+    userId,
+    issueDate,
+    baseUrl: WORLDMONITOR_PUBLIC_BASE_URL,
+    secret: BRIEF_URL_SIGNING_SECRET,
+  });
+  return { envelope, magazineUrl, chosenVariant };
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -855,6 +1000,12 @@ async function main() {
     console.log('[digest] No digest rules found — nothing to do');
     return;
   }
+
+  // Compose per-user brief envelopes once per run (extracted so main's
+  // complexity score stays in the biome budget). Failures MUST NOT
+  // block digest sends — worst case the digest goes out without the
+  // magazine CTA.
+  const briefByUser = await composeBriefsForRun(rules, nowMs);
 
   let sentCount = 0;
 
@@ -919,8 +1070,15 @@ async function main() {
     if (!storyListPlain) continue;
     const htmlRaw = formatDigestHtml(stories, nowMs);
 
-    const { text, telegramText, slackText, discordText } = buildChannelBodies(storyListPlain, aiSummary);
-    const html = injectEmailSummary(htmlRaw, aiSummary);
+    const brief = briefByUser.get(rule.userId);
+    const magazineUrl = brief?.magazineUrl ?? null;
+    const { text, telegramText, slackText, discordText } = buildChannelBodies(
+      storyListPlain,
+      aiSummary,
+      magazineUrl,
+    );
+    const htmlWithSummary = injectEmailSummary(htmlRaw, aiSummary);
+    const html = injectBriefCta(htmlWithSummary, magazineUrl);
 
     const shortDate = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(nowMs));
     const subject = aiSummary ? `WorldMonitor Intelligence Brief — ${shortDate}` : `WorldMonitor Digest — ${shortDate}`;
