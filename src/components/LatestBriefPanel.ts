@@ -22,7 +22,7 @@
 import { Panel } from './Panel';
 import { premiumFetch } from '@/services/premium-fetch';
 import { PanelGateReason, hasPremiumAccess } from '@/services/panel-gating';
-import { getAuthState } from '@/services/auth-state';
+import { getAuthState, subscribeAuthState } from '@/services/auth-state';
 import { h, rawHtml, replaceChildren, clearChildren } from '@/utils/dom-utils';
 
 interface LatestBriefReady {
@@ -57,6 +57,11 @@ const WM_LOGO_SVG = (
   + '</svg>'
 );
 
+// Composing-state poll interval. 60s balances "responsive when the
+// composer finishes between digest ticks" against "don't hammer
+// Upstash with 401-path checks from backgrounded tabs".
+const COMPOSING_POLL_MS = 60_000;
+
 export class LatestBriefPanel extends Panel {
   private refreshing = false;
   private refreshQueued = false;
@@ -69,6 +74,11 @@ export class LatestBriefPanel extends Panel {
    */
   private gateLocked = false;
   private inflightAbort: AbortController | null = null;
+  private composingPollId: ReturnType<typeof setTimeout> | null = null;
+  private unsubscribeAuth: (() => void) | null = null;
+  private onVisibility: (() => void) | null = null;
+  /** Last Clerk user-id seen. Used to detect sign-in / sign-out transitions. */
+  private lastUserId: string | null = null;
 
   constructor() {
     super({
@@ -86,13 +96,24 @@ export class LatestBriefPanel extends Panel {
     });
 
     this.renderLoading();
-    // Defer the self-fetch until updatePanelGating() (called on mount
-    // + on auth state changes) has either unlocked us or rendered
-    // the gated CTA. If we fetch first, anonymous/free users would
-    // hit 401/403 and see raw error UI for a moment before the gate
-    // repaints over us. refresh() also short-circuits when the user
-    // has no premium access, so a mid-session downgrade stops
-    // hitting the endpoint immediately.
+    this.lastUserId = getAuthState().user?.id ?? null;
+    // Refresh on auth transitions (sign in → load brief; sign out →
+    // stop polling). updatePanelGating handles the locked CTA; we
+    // handle data fetches that are keyed to the Clerk identity.
+    this.unsubscribeAuth = subscribeAuthState((state) => {
+      const nextId = state.user?.id ?? null;
+      if (nextId !== this.lastUserId) {
+        this.lastUserId = nextId;
+        if (nextId) void this.refresh();
+      }
+    });
+    // visibilitychange drives a refresh when the user returns to
+    // the tab. Addresses the "composing → stays composing forever"
+    // case where the composer completed while the tab was hidden.
+    this.onVisibility = () => {
+      if (document.visibilityState === 'visible') void this.refresh();
+    };
+    document.addEventListener('visibilitychange', this.onVisibility);
     void this.refresh();
   }
 
@@ -113,8 +134,19 @@ export class LatestBriefPanel extends Panel {
       this.refreshQueued = true;
       return;
     }
+    this.clearComposingPoll();
     // Check #1: gate before starting.
-    if (this.gateLocked || !hasPremiumAccess(getAuthState())) return;
+    const authState = getAuthState();
+    if (this.gateLocked || !hasPremiumAccess(authState)) return;
+    // Per-user endpoint needs a Clerk userId. Desktop API key +
+    // browser tester keys satisfy hasPremiumAccess but don't bind
+    // to a Clerk user, so /api/latest-brief returns 401. Render a
+    // specific "Sign in" CTA inline instead of hammering the
+    // endpoint or showing a retry-loop error.
+    if (!authState.user?.id) {
+      this.renderSignInRequired();
+      return;
+    }
     this.refreshing = true;
     const controller = new AbortController();
     this.inflightAbort = controller;
@@ -155,6 +187,7 @@ export class LatestBriefPanel extends Panel {
     this.gateLocked = true;
     this.inflightAbort?.abort();
     this.inflightAbort = null;
+    this.clearComposingPoll();
     super.showGatedCta(reason, onAction);
   }
 
@@ -205,8 +238,48 @@ export class LatestBriefPanel extends Panel {
     );
   }
 
+  /**
+   * Desktop / tester-key auth can satisfy hasPremiumAccess without a
+   * Clerk userId. /api/latest-brief is user-scoped, so there's
+   * nothing to fetch. Render a specific CTA rather than pretending
+   * this is an error state.
+   */
+  private renderSignInRequired(): void {
+    clearChildren(this.content);
+    const logo = h('div', { className: 'latest-brief-logo' });
+    logo.appendChild(rawHtml(WM_LOGO_SVG));
+    this.content.appendChild(
+      h('div', { className: 'latest-brief-card latest-brief-card--composing' },
+        logo,
+        h('div', { className: 'latest-brief-empty-title' }, 'Sign in to view your brief.'),
+        h('div', { className: 'latest-brief-empty-body' },
+          'Your personalised brief is tied to your WorldMonitor account. Sign in to see today\u2019s issue.',
+        ),
+      ),
+    );
+  }
+
+  private scheduleComposingPoll(): void {
+    this.clearComposingPoll();
+    this.composingPollId = setTimeout(() => {
+      this.composingPollId = null;
+      void this.refresh();
+    }, COMPOSING_POLL_MS);
+  }
+
+  private clearComposingPoll(): void {
+    if (this.composingPollId !== null) {
+      clearTimeout(this.composingPollId);
+      this.composingPollId = null;
+    }
+  }
+
   private renderComposing(data: LatestBriefComposing): void {
     clearChildren(this.content);
+    // While we're stuck on composing, re-poll every minute so the
+    // panel transitions to ready on the next cron tick without
+    // requiring a full page reload.
+    this.scheduleComposingPoll();
     // h()'s applyProps has no special-case for innerHTML — passing
     // it as a prop sets a literal DOM attribute named "innerHTML"
     // rather than parsing HTML. Use rawHtml() which returns a
@@ -251,5 +324,18 @@ export class LatestBriefPanel extends Panel {
     );
 
     replaceChildren(this.content, coverCard);
+  }
+
+  public override destroy(): void {
+    this.clearComposingPoll();
+    this.inflightAbort?.abort();
+    this.inflightAbort = null;
+    if (this.onVisibility) {
+      document.removeEventListener('visibilitychange', this.onVisibility);
+      this.onVisibility = null;
+    }
+    this.unsubscribeAuth?.();
+    this.unsubscribeAuth = null;
+    super.destroy();
   }
 }
