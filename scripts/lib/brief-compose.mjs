@@ -172,7 +172,10 @@ export function composeBriefForRule(rule, insights, { nowMs = Date.now() } = {})
     dateLong: dateLongFromIso(issueDate),
     issue: issueCodeFromIso(issueDate),
     insightsNumbers: insights.numbers,
-    issuedAt: Date.now(),
+    // Same nowMs as the rest of the envelope so the function stays
+    // deterministic for a given input — tests + retries see identical
+    // output.
+    issuedAt: nowMs,
     localHour: localHourInTz(nowMs, tz),
   });
 }

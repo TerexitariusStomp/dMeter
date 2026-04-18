@@ -820,14 +820,28 @@ const DIVIDER = '─'.repeat(40);
  * complexity stays within the lint budget.
  */
 function buildChannelBodies(storyListPlain, aiSummary, magazineUrl) {
+  // The URL is already HMAC-signed and shape-validated at sign time
+  // (userId regex + YYYY-MM-DD), but we still escape it per-target
+  // as defence-in-depth — same discipline injectBriefCta uses for
+  // the email button. Each target has different metacharacter rules.
+  const telegramSafeUrl = magazineUrl
+    ? String(magazineUrl)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+    : '';
+  const slackSafeUrl = magazineUrl
+    ? String(magazineUrl).replace(/[<>|]/g, '')
+    : '';
   const briefFooterPlain = magazineUrl
     ? `\n\n${DIVIDER}\n\n📖 Open your WorldMonitor Brief magazine:\n${magazineUrl}`
     : '';
   const briefFooterTelegram = magazineUrl
-    ? `\n\n${DIVIDER}\n\n📖 <a href="${magazineUrl}">Open your WorldMonitor Brief magazine</a>`
+    ? `\n\n${DIVIDER}\n\n📖 <a href="${telegramSafeUrl}">Open your WorldMonitor Brief magazine</a>`
     : '';
   const briefFooterSlack = magazineUrl
-    ? `\n\n${DIVIDER}\n\n📖 <${magazineUrl}|Open your WorldMonitor Brief magazine>`
+    ? `\n\n${DIVIDER}\n\n📖 <${slackSafeUrl}|Open your WorldMonitor Brief magazine>`
     : '';
   const briefFooterDiscord = magazineUrl
     ? `\n\n${DIVIDER}\n\n📖 [Open your WorldMonitor Brief magazine](${magazineUrl})`
