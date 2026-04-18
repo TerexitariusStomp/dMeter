@@ -102,6 +102,12 @@ export default async function handler(req: Request): Promise<Response> {
 
     const data = await resp.json();
     if (!resp.ok) {
+      // Propagate the structured already_subscribed payload with 409 so the
+      // client can route the user to billing portal instead of silently
+      // opening another Dodo checkout.
+      if (resp.status === 409 && data?.error && typeof data.error === 'object') {
+        return json(data, 409, cors);
+      }
       console.error('[create-checkout] Relay error:', resp.status, data);
       return json({ error: data?.error || 'Checkout creation failed' }, 502, cors);
     }

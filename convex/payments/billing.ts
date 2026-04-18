@@ -133,6 +133,34 @@ export const getActiveSubscription = internalQuery({
   },
 });
 
+/**
+ * Internal query used by checkout to decide whether a new purchase should
+ * be blocked. Returns the strongest existing subscription that makes a new
+ * checkout a duplicate or conflicting purchase:
+ *
+ *   - "active"  → user is already paying; caller decides by tier comparison
+ *   - "on_hold" → payment failed; block new checkouts and surface the
+ *                 billing portal instead of creating parallel subscriptions
+ *
+ * Cancelled/expired subs are ignored — the user is allowed to resubscribe.
+ * Prefers active over on_hold so the caller sees the representative record.
+ */
+export const getBlockingSubscription = internalQuery({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    const allSubs = await ctx.db
+      .query("subscriptions")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .take(50);
+
+    return (
+      allSubs.find((s) => s.status === "active") ??
+      allSubs.find((s) => s.status === "on_hold") ??
+      null
+    );
+  },
+});
+
 // ---------------------------------------------------------------------------
 // Actions
 // ---------------------------------------------------------------------------

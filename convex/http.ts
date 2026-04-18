@@ -799,6 +799,28 @@ http.route({
         headers: { "Content-Type": "application/json" },
       });
     } catch (err) {
+      // Structured ConvexError payload (e.g. already_subscribed) propagates to
+      // the edge so the browser can render a "manage subscription" UX instead
+      // of opening a second Dodo checkout. ConvexError.data is serialized as
+      // a JSON string when it crosses the action boundary — parse before
+      // matching on the code field.
+      const rawData = (err as { data?: unknown })?.data;
+      let parsed: Record<string, unknown> | null = null;
+      if (typeof rawData === "string") {
+        try {
+          parsed = JSON.parse(rawData);
+        } catch {
+          parsed = null;
+        }
+      } else if (rawData && typeof rawData === "object") {
+        parsed = rawData as Record<string, unknown>;
+      }
+      if (parsed && parsed.code === "already_subscribed") {
+        return new Response(JSON.stringify({ error: parsed }), {
+          status: 409,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
       const msg = err instanceof Error ? err.message : "Checkout creation failed";
       return new Response(JSON.stringify({ error: msg }), {
         status: 500,

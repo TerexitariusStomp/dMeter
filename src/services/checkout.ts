@@ -15,6 +15,7 @@ import * as Sentry from '@sentry/browser';
 import { DodoPayments } from 'dodopayments-checkout';
 import type { CheckoutEvent } from 'dodopayments-checkout';
 import { getCurrentClerkUser, getClerkToken } from './clerk';
+import { openBillingPortal } from './billing';
 
 const CHECKOUT_PRODUCT_PARAM = 'checkoutProduct';
 const CHECKOUT_REFERRAL_PARAM = 'checkoutReferral';
@@ -257,6 +258,13 @@ export async function startCheckout(
 
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
+      if (resp.status === 409 && isAlreadySubscribedError(err?.error)) {
+        // User already has an active/on_hold subscription. Route to billing
+        // portal instead of opening another Dodo checkout — prevents the
+        // double-charge that hit cus_0NcmwcAWw0jhVBHVOK58C on 2026-04-17/18.
+        await showAlreadySubscribedDialog(err.error);
+        return false;
+      }
       console.error('[checkout] Edge endpoint error:', resp.status, err);
       if (fallbackToPricingPage) window.open('https://worldmonitor.app/pro', '_blank');
       return false;
@@ -276,6 +284,156 @@ export async function startCheckout(
   } finally {
     _checkoutInFlight = false;
   }
+}
+
+interface AlreadySubscribedError {
+  code: 'already_subscribed';
+  existingStatus: 'active' | 'on_hold';
+  existingPlanKey: string;
+  currentPeriodEnd: number;
+  message: string;
+}
+
+function isAlreadySubscribedError(value: unknown): value is AlreadySubscribedError {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    (value as { code?: unknown }).code === 'already_subscribed'
+  );
+}
+
+/**
+ * Blocking modal that tells the user they already have a subscription and
+ * offers to open the billing portal. Returns once the user dismisses.
+ * Intentionally vanilla DOM — the main app is not a framework, and every
+ * other dialog-style surface in this file uses the same pattern.
+ */
+function showAlreadySubscribedDialog(err: AlreadySubscribedError): Promise<void> {
+  return new Promise((resolve) => {
+    const existing = document.getElementById('already-subscribed-dialog');
+    if (existing) existing.remove();
+
+    const dateLabel = Number.isFinite(err.currentPeriodEnd)
+      ? new Date(err.currentPeriodEnd).toLocaleDateString(undefined, {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+        })
+      : null;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'already-subscribed-dialog';
+    Object.assign(overlay.style, {
+      position: 'fixed',
+      inset: '0',
+      background: 'rgba(0,0,0,0.72)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: '99999',
+      padding: '20px',
+    });
+
+    const card = document.createElement('div');
+    Object.assign(card.style, {
+      background: '#111',
+      border: '1px solid #2a2a2a',
+      borderRadius: '8px',
+      padding: '24px',
+      maxWidth: '440px',
+      color: '#e8e8e8',
+      fontFamily: "'SF Mono', Monaco, 'Cascadia Code', monospace",
+      fontSize: '14px',
+      lineHeight: '1.5',
+      boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+    });
+
+    const title = document.createElement('div');
+    title.textContent =
+      err.existingStatus === 'on_hold'
+        ? 'Your subscription needs attention'
+        : 'You already have Pro';
+    Object.assign(title.style, {
+      fontSize: '16px',
+      fontWeight: '600',
+      marginBottom: '12px',
+      color: '#fff',
+    });
+
+    const body = document.createElement('div');
+    body.textContent = err.message;
+    body.style.marginBottom = '16px';
+
+    const details = document.createElement('div');
+    details.textContent = dateLabel
+      ? `Current period ends ${dateLabel}.`
+      : '';
+    Object.assign(details.style, {
+      color: '#909090',
+      fontSize: '12px',
+      marginBottom: '20px',
+    });
+
+    const buttonRow = document.createElement('div');
+    Object.assign(buttonRow.style, {
+      display: 'flex',
+      gap: '8px',
+      justifyContent: 'flex-end',
+    });
+
+    const close = (): void => {
+      overlay.remove();
+      resolve();
+    };
+
+    const dismiss = document.createElement('button');
+    dismiss.type = 'button';
+    dismiss.textContent = 'Close';
+    Object.assign(dismiss.style, {
+      background: 'transparent',
+      border: '1px solid #323232',
+      color: '#e8e8e8',
+      padding: '8px 16px',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      fontFamily: 'inherit',
+      fontSize: '13px',
+    });
+    dismiss.addEventListener('click', close);
+
+    const openPortal = document.createElement('button');
+    openPortal.type = 'button';
+    openPortal.textContent =
+      err.existingStatus === 'on_hold' ? 'Update payment method' : 'Manage subscription';
+    Object.assign(openPortal.style, {
+      background: '#22c55e',
+      border: 'none',
+      color: '#0d0d0d',
+      padding: '8px 16px',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      fontWeight: '600',
+      fontFamily: 'inherit',
+      fontSize: '13px',
+    });
+    openPortal.addEventListener('click', () => {
+      void openBillingPortal();
+      close();
+    });
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) close();
+    });
+
+    buttonRow.appendChild(dismiss);
+    buttonRow.appendChild(openPortal);
+    card.appendChild(title);
+    card.appendChild(body);
+    if (dateLabel) card.appendChild(details);
+    card.appendChild(buttonRow);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+  });
 }
 
 /**

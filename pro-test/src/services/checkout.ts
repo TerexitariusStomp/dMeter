@@ -144,6 +144,17 @@ async function doCheckout(
 
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
+      if (resp.status === 409 && err?.error?.code === 'already_subscribed') {
+        // Already subscribed — point the user at their active subscription
+        // on the dashboard instead of starting a duplicate checkout.
+        const endStr = new Date(err.error.currentPeriodEnd ?? Date.now())
+          .toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+        alert(
+          `${err.error.message ?? 'You already have an active subscription.'}\n\nCurrent period ends ${endStr}.`,
+        );
+        window.location.href = 'https://worldmonitor.app';
+        return false;
+      }
       console.error('[checkout] Edge error:', resp.status, err);
       return false;
     }
