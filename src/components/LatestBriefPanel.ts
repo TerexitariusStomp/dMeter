@@ -20,7 +20,7 @@
  */
 
 import { Panel } from './Panel';
-import { getClerkToken } from '@/services/clerk';
+import { getClerkToken, clearClerkTokenCache } from '@/services/clerk';
 import { PanelGateReason, hasPremiumAccess } from '@/services/panel-gating';
 import { getAuthState, subscribeAuthState } from '@/services/auth-state';
 import { h, rawHtml, replaceChildren, clearChildren } from '@/utils/dom-utils';
@@ -112,6 +112,12 @@ export class LatestBriefPanel extends Panel {
       this.inflightAbort?.abort();
       this.inflightAbort = null;
       this.clearComposingPoll();
+      // The Clerk token cache is keyed by time, not user. On every
+      // id transition we MUST drop it so the next fetch reflects
+      // the new session. Without this, /api/latest-brief derives
+      // userId from the stale token's sub claim and paints the
+      // previous user's brief in the new session for up to 50s.
+      clearClerkTokenCache();
       if (nextId) {
         void this.refresh();
       } else {
