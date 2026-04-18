@@ -82,8 +82,15 @@ const WORLDMONITOR_PUBLIC_BASE_URL =
   process.env.WORLDMONITOR_PUBLIC_BASE_URL ?? 'https://worldmonitor.app';
 const BRIEF_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
 const INSIGHTS_KEY = 'news:insights:v1';
+
+// Operator kill switch — used to intentionally silence brief compose
+// without surfacing a Railway red flag. Distinguished from "secret
+// missing in a production rollout" which IS worth flagging.
+const BRIEF_COMPOSE_DISABLED_BY_OPERATOR = process.env.BRIEF_COMPOSE_ENABLED === '0';
 const BRIEF_COMPOSE_ENABLED =
-  process.env.BRIEF_COMPOSE_ENABLED !== '0' && BRIEF_URL_SIGNING_SECRET !== '';
+  !BRIEF_COMPOSE_DISABLED_BY_OPERATOR && BRIEF_URL_SIGNING_SECRET !== '';
+const BRIEF_SIGNING_SECRET_MISSING =
+  !BRIEF_COMPOSE_DISABLED_BY_OPERATOR && BRIEF_URL_SIGNING_SECRET === '';
 
 // ── Redis helpers ──────────────────────────────────────────────────────────────
 
@@ -898,6 +905,17 @@ function injectBriefCta(html, magazineUrl) {
  */
 async function composeBriefsForRun(rules, nowMs) {
   const briefByUser = new Map();
+  // Missing secret without explicit operator-disable = misconfigured
+  // rollout. Count it as a compose failure so the end-of-run exit
+  // gate trips and Railway flags the run red. Digest send still
+  // proceeds (compose failures must never block notification
+  // delivery to users).
+  if (BRIEF_SIGNING_SECRET_MISSING) {
+    console.error(
+      '[digest] brief: BRIEF_URL_SIGNING_SECRET not configured. Set BRIEF_COMPOSE_ENABLED=0 to silence intentionally.',
+    );
+    return { briefByUser, composeSuccess: 0, composeFailed: 1 };
+  }
   if (!BRIEF_COMPOSE_ENABLED) return { briefByUser, composeSuccess: 0, composeFailed: 0 };
 
   let insightsRaw = null;

@@ -32,6 +32,15 @@ FROM node:22-alpine
 
 WORKDIR /app
 
+# The repo-root package.json has "type":"module" which tells Node to
+# parse .js files under shared/, server/_shared/, api/ as ESM. Inside
+# this image we don't ship the full root package.json (it would pull
+# in dev-deps metadata we don't need), but the .js files we DO ship
+# still need the nearest-pjson walk to resolve to an ESM declaration.
+# A minimal /app/package.json avoids "SyntaxError: Unexpected token
+# 'export'" at container startup.
+RUN printf '{"type":"module","private":true}\n' > /app/package.json
+
 # Install scripts/ runtime dependencies (resend, convex, etc.).
 COPY scripts/package.json scripts/package-lock.json ./scripts/
 RUN npm ci --prefix scripts --omit=dev
