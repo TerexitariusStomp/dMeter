@@ -16,6 +16,10 @@ import { DodoPayments } from 'dodopayments-checkout';
 import type { CheckoutEvent } from 'dodopayments-checkout';
 import { getCurrentClerkUser, getClerkToken } from './clerk';
 import { openBillingPortal } from './billing';
+import {
+  type AlreadySubscribedError,
+  isAlreadySubscribedError,
+} from './checkout-errors';
 
 const CHECKOUT_PRODUCT_PARAM = 'checkoutProduct';
 const CHECKOUT_REFERRAL_PARAM = 'checkoutReferral';
@@ -286,21 +290,6 @@ export async function startCheckout(
   }
 }
 
-interface AlreadySubscribedError {
-  code: 'already_subscribed';
-  existingStatus: 'active' | 'on_hold';
-  existingPlanKey: string;
-  currentPeriodEnd: number;
-  message: string;
-}
-
-function isAlreadySubscribedError(value: unknown): value is AlreadySubscribedError {
-  return (
-    !!value &&
-    typeof value === 'object' &&
-    (value as { code?: unknown }).code === 'already_subscribed'
-  );
-}
 
 /**
  * Blocking modal that tells the user they already have a subscription and
