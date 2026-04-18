@@ -20,7 +20,7 @@
  */
 
 import { Panel } from './Panel';
-import { premiumFetch } from '@/services/premium-fetch';
+import { getClerkToken } from '@/services/clerk';
 import { PanelGateReason, hasPremiumAccess } from '@/services/panel-gating';
 import { getAuthState, subscribeAuthState } from '@/services/auth-state';
 import { h, rawHtml, replaceChildren, clearChildren } from '@/utils/dom-utils';
@@ -97,14 +97,27 @@ export class LatestBriefPanel extends Panel {
 
     this.renderLoading();
     this.lastUserId = getAuthState().user?.id ?? null;
-    // Refresh on auth transitions (sign in → load brief; sign out →
-    // stop polling). updatePanelGating handles the locked CTA; we
-    // handle data fetches that are keyed to the Clerk identity.
+    // Refresh on ANY auth-id transition:
+    //   null → id      : sign-in, load brief
+    //   idA → idB      : account switch, load new user's brief
+    //   id → null      : sign-out, abort + render sign-in CTA
+    //                    (hasPremiumAccess may still be true via
+    //                    desktop/tester key, so the layout-level
+    //                    updatePanelGating won't re-lock us — we
+    //                    must clear state ourselves)
     this.unsubscribeAuth = subscribeAuthState((state) => {
       const nextId = state.user?.id ?? null;
-      if (nextId !== this.lastUserId) {
-        this.lastUserId = nextId;
-        if (nextId) void this.refresh();
+      if (nextId === this.lastUserId) return;
+      this.lastUserId = nextId;
+      this.inflightAbort?.abort();
+      this.inflightAbort = null;
+      this.clearComposingPoll();
+      if (nextId) {
+        void this.refresh();
+      } else {
+        // Sign-out. Don't leave the previous user's content on
+        // screen even when premium keys keep the panel unlocked.
+        this.renderSignInRequired();
       }
     });
     // visibilitychange drives a refresh when the user returns to
@@ -140,10 +153,9 @@ export class LatestBriefPanel extends Panel {
     if (this.gateLocked || !hasPremiumAccess(authState)) return;
     // Per-user endpoint needs a Clerk userId. Desktop API key +
     // browser tester keys satisfy hasPremiumAccess but don't bind
-    // to a Clerk user, so /api/latest-brief returns 401. Render a
-    // specific "Sign in" CTA inline instead of hammering the
-    // endpoint or showing a retry-loop error.
-    if (!authState.user?.id) {
+    // to a Clerk user, so there's nothing to fetch.
+    const requestUserId = authState.user?.id ?? null;
+    if (!requestUserId) {
       this.renderSignInRequired();
       return;
     }
@@ -152,11 +164,13 @@ export class LatestBriefPanel extends Panel {
     this.inflightAbort = controller;
     try {
       const data = await this.fetchLatest(controller.signal);
-      // Check #3 (post-response): auth may have flipped during the
-      // await. If the gate was flipped by updatePanelGating, it has
-      // already replaced `this.content` with the locked CTA — we
-      // must NOT overwrite that with brief content.
+      // Check #3 (post-response): verify we're still on the SAME
+      // user AND still unlocked. A Clerk account switch during the
+      // await (A→B) would otherwise paint user A's brief into user
+      // B's session because getClerkToken caches for up to 50s
+      // across account changes.
       if (this.gateLocked || !hasPremiumAccess(getAuthState())) return;
+      if ((getAuthState().user?.id ?? null) !== requestUserId) return;
       if (data.status === 'ready') {
         this.renderReady(data);
       } else {
@@ -166,6 +180,7 @@ export class LatestBriefPanel extends Panel {
       // AbortError comes from showGatedCta's abort() → render nothing.
       if ((err as { name?: string } | null)?.name === 'AbortError') return;
       if (this.gateLocked || !hasPremiumAccess(getAuthState())) return;
+      if ((getAuthState().user?.id ?? null) !== requestUserId) return;
       const message = err instanceof Error ? err.message : 'Brief unavailable — try again shortly.';
       this.showError(message, () => { void this.refresh(); });
     } finally {
@@ -209,7 +224,21 @@ export class LatestBriefPanel extends Panel {
   }
 
   private async fetchLatest(signal: AbortSignal): Promise<LatestBriefResponse> {
-    const res = await premiumFetch(LATEST_BRIEF_ENDPOINT, { signal });
+    // /api/latest-brief is user-scoped and Bearer-only. premiumFetch
+    // short-circuits on desktop WORLDMONITOR_API_KEY / tester keys
+    // and never sends Clerk, producing a 401 we can't recover from.
+    // Always mint a fresh Bearer here — the refresh() pre-check
+    // guaranteed authState.user exists.
+    const token = await getClerkToken();
+    if (!token) {
+      // Clerk token evicted between the pre-check and now (logout,
+      // cache expiry + Clerk session gone). Surface as sign-in.
+      throw new Error('Sign in to view your brief.');
+    }
+    const res = await fetch(LATEST_BRIEF_ENDPOINT, {
+      signal,
+      headers: { Authorization: `Bearer ${token}` },
+    });
     if (res.status === 401) {
       throw new Error('Sign in to view your brief.');
     }
