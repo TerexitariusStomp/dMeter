@@ -266,6 +266,14 @@ export async function startCheckout(
         // User already has an active/on_hold subscription. Route to billing
         // portal instead of opening another Dodo checkout — prevents the
         // double-charge that hit cus_0NcmwcAWw0jhVBHVOK58C on 2026-04-17/18.
+        //
+        // Consume any pending checkout intent stored in sessionStorage. The
+        // intent exists only to replay a /pro handoff once the user has
+        // signed in; a 409 "already subscribed" means the intent is fully
+        // resolved, and leaving it behind would re-trigger this same modal
+        // on every subsequent app startup until the sub is cancelled or the
+        // session ends.
+        clearPendingCheckoutIntent();
         await showAlreadySubscribedDialog(err.error);
         return false;
       }
