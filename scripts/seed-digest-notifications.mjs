@@ -34,6 +34,7 @@ import {
   composeBriefForRule,
   extractInsights,
   groupEligibleRulesByUser,
+  shouldExitNonZero as shouldExitOnBriefFailures,
 } from './lib/brief-compose.mjs';
 import { signBriefUrl, BriefUrlError } from './lib/brief-url-sign.mjs';
 
@@ -881,29 +882,39 @@ function injectBriefCta(html, magazineUrl) {
 
 /**
  * Write brief:{userId}:{issueDate} for every eligible user and
- * return a Map keyed by userId with { envelope, magazineUrl } for
- * the digest loop to consume. One brief per user regardless of how
- * many variants they have enabled.
+ * return { briefByUser, counters } for the digest loop + main's
+ * end-of-run exit gate. One brief per user regardless of how many
+ * variants they have enabled.
  *
- * Returns an empty Map when brief composition is disabled, insights
- * are unavailable, or the signing secret is missing. Never throws —
- * the digest send path must remain independent of the brief path.
+ * Returns empty counters when brief composition is disabled,
+ * insights are unavailable, or the signing secret is missing. Never
+ * throws — the digest send path must remain independent of the
+ * brief path, so main() handles exit-codes at the very end AFTER
+ * the digest has been dispatched.
+ *
+ * @param {unknown[]} rules
+ * @param {number} nowMs
+ * @returns {Promise<{ briefByUser: Map<string, object>; composeSuccess: number; composeFailed: number }>}
  */
 async function composeBriefsForRun(rules, nowMs) {
   const briefByUser = new Map();
-  if (!BRIEF_COMPOSE_ENABLED) return briefByUser;
+  if (!BRIEF_COMPOSE_ENABLED) return { briefByUser, composeSuccess: 0, composeFailed: 0 };
 
   let insightsRaw = null;
   try {
     insightsRaw = await readRawJsonFromUpstash(INSIGHTS_KEY);
   } catch (err) {
     console.warn('[digest] brief: insights read failed, skipping brief composition:', err.message);
-    return briefByUser;
+    // An infra-level read failure is a compose-layer failure worth
+    // the Railway red-flag — count it as one failure so the exit
+    // gate catches it. We still return a valid shape so the digest
+    // send path runs normally.
+    return { briefByUser, composeSuccess: 0, composeFailed: 1 };
   }
-  if (!insightsRaw) return briefByUser;
+  if (!insightsRaw) return { briefByUser, composeSuccess: 0, composeFailed: 0 };
 
   const insights = extractInsights(insightsRaw);
-  if (insights.topStories.length === 0) return briefByUser;
+  if (insights.topStories.length === 0) return { briefByUser, composeSuccess: 0, composeFailed: 0 };
 
   const eligibleByUser = groupEligibleRulesByUser(rules);
   let composeSuccess = 0;
@@ -927,7 +938,7 @@ async function composeBriefsForRun(rules, nowMs) {
   console.log(
     `[digest] brief: compose_success=${composeSuccess} compose_failed=${composeFailed} total_users=${eligibleByUser.size}`,
   );
-  return briefByUser;
+  return { briefByUser, composeSuccess, composeFailed };
 }
 
 /**
@@ -1003,9 +1014,11 @@ async function main() {
 
   // Compose per-user brief envelopes once per run (extracted so main's
   // complexity score stays in the biome budget). Failures MUST NOT
-  // block digest sends — worst case the digest goes out without the
-  // magazine CTA.
-  const briefByUser = await composeBriefsForRun(rules, nowMs);
+  // block digest sends — we carry counters forward and apply the
+  // exit-non-zero gate AFTER the digest dispatch so Railway still
+  // surfaces compose-layer breakage without skipping user-visible
+  // digest delivery.
+  const { briefByUser, composeSuccess, composeFailed } = await composeBriefsForRun(rules, nowMs);
 
   let sentCount = 0;
 
@@ -1113,6 +1126,18 @@ async function main() {
   }
 
   console.log(`[digest] Cron run complete: ${sentCount} digest(s) sent`);
+
+  // Brief-compose failure gate. Runs at the very end so a compose-
+  // layer outage (Upstash blip, insights key stale, signing secret
+  // missing) never blocks digest delivery to users — but Railway
+  // still flips the run red so ops see the signal. Denominator is
+  // attempted writes (shouldExitNonZero enforces this).
+  if (shouldExitOnBriefFailures({ success: composeSuccess, failed: composeFailed })) {
+    console.warn(
+      `[digest] brief: exiting non-zero — compose_failed=${composeFailed} compose_success=${composeSuccess} crossed the threshold`,
+    );
+    process.exit(1);
+  }
 }
 
 main().catch((err) => {
