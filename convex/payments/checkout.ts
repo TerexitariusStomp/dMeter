@@ -77,13 +77,17 @@ async function _createCheckoutSession(
   // customer cus_0NcmwcAWw0jhVBHVOK58C paid Pro Monthly twice within 32 min).
   //
   // Block:
-  //   - Same tier already active (duplicate — nothing to buy)
-  //   - Higher tier already active (downgrade — must use billing portal)
-  //   - on_hold (payment failed — must update payment method in portal)
+  //   - Any on_hold row (payment failed — must update payment method)
+  //   - Any active row at the same or higher tier as the requested product
+  //     (duplicate same-tier purchase, or attempted downgrade)
   //
   // Allow:
-  //   - No subscription, or only cancelled/expired subs (resubscribe)
-  //   - Upgrade: existing tier strictly lower than requested
+  //   - No subscription, or only cancelled/expired rows (resubscribe)
+  //   - Upgrade: every active row is strictly lower tier than requested
+  //
+  // We must evaluate ALL active rows, not just one: a user may have a stale
+  // active sub at one tier and a current active sub at another, and picking
+  // the wrong row as the baseline lets a same-tier duplicate slip through.
   const requestedPlanKey = resolveProductToPlan(args.productId);
   if (!requestedPlanKey) {
     throw new ConvexError(
@@ -96,28 +100,47 @@ async function _createCheckoutSession(
       `Resolved plan ${requestedPlanKey} is not in PRODUCT_CATALOG.`,
     );
   }
-  const existing = await ctx.runQuery(
-    internal.payments.billing.getBlockingSubscription,
+  const requestedTier = requestedCatalog.features.tier;
+  const existingSubs = await ctx.runQuery(
+    internal.payments.billing.getBlockingSubscriptions,
     { userId: user.userId },
   );
-  if (existing) {
-    const existingCatalog = PRODUCT_CATALOG[existing.planKey];
-    const existingTier = existingCatalog?.features.tier ?? 0;
-    const requestedTier = requestedCatalog.features.tier;
-    const isUpgrade =
-      existing.status === "active" && existingTier < requestedTier;
-    if (!isUpgrade) {
-      throw new ConvexError({
-        code: "already_subscribed",
-        existingStatus: existing.status,
-        existingPlanKey: existing.planKey,
-        currentPeriodEnd: existing.currentPeriodEnd,
-        message:
-          existing.status === "on_hold"
-            ? "Your subscription is on hold due to a payment issue. Update your payment method in the billing portal instead of starting a new subscription."
-            : "You already have an active subscription. Manage it in the billing portal.",
-      });
+
+  // on_hold takes priority — no new checkouts while a payment is unresolved.
+  const onHold = existingSubs.find((s) => s.status === "on_hold");
+  if (onHold) {
+    throw new ConvexError({
+      code: "already_subscribed",
+      existingStatus: "on_hold",
+      existingPlanKey: onHold.planKey,
+      currentPeriodEnd: onHold.currentPeriodEnd,
+      message:
+        "Your subscription is on hold due to a payment issue. Update your payment method in the billing portal instead of starting a new subscription.",
+    });
+  }
+
+  // Find the highest-tier active row across all active subs. Block if any
+  // active row has tier >= requested — only true upgrades (every active row
+  // strictly lower) are allowed through.
+  let highestActive: (typeof existingSubs)[number] | null = null;
+  let highestActiveTier = -1;
+  for (const sub of existingSubs) {
+    if (sub.status !== "active") continue;
+    const tier = PRODUCT_CATALOG[sub.planKey]?.features.tier ?? 0;
+    if (tier > highestActiveTier) {
+      highestActiveTier = tier;
+      highestActive = sub;
     }
+  }
+  if (highestActive && highestActiveTier >= requestedTier) {
+    throw new ConvexError({
+      code: "already_subscribed",
+      existingStatus: "active",
+      existingPlanKey: highestActive.planKey,
+      currentPeriodEnd: highestActive.currentPeriodEnd,
+      message:
+        "You already have an active subscription. Manage it in the billing portal.",
+    });
   }
 
   // Build metadata: HMAC-signed userId for the webhook identity bridge.
