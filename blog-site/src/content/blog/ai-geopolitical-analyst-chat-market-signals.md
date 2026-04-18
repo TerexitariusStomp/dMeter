@@ -94,24 +94,28 @@ You can iterate in conversation: "add a column for GDP," "sort by risk descendin
 Here is a practical workflow for a macro analyst starting their week:
 
 **7:30 AM: Morning brief**
+
 1. Open the WM Analyst panel
 2. Click "Summarize the current situation"
 3. Switch to **Dalio Macroeconomic** framework
 4. Ask: "Which debt-cycle dynamics shifted over the weekend?"
 
 **7:45 AM: Market implications**
+
 1. Open the AI Market Implications panel
 2. Review generated trade signals with transmission chains
 3. Switch to **Red Team** framework for contrarian signals
 4. Compare both sets of signals for confirmation or divergence
 
 **8:00 AM: Deep dive**
+
 1. Ask the analyst about the highest-confidence signal
 2. Follow up: "What invalidates this thesis?"
 3. Ask: "Build me a widget that tracks this metric daily"
 4. Pin the widget to your dashboard
 
 **8:15 AM: Share**
+
 1. Export the analyst chat session as markdown
 2. Send the key signals to your team
 3. The widget updates automatically as underlying data refreshes

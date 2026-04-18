@@ -126,6 +126,7 @@ When a chokepoint closes, the immediate question is "who else can supply what we
 4. Shows the price premium of switching, based on freight rate differentials
 
 For example, if Hormuz closes and your firm imports crude from Saudi Arabia:
+
 - **Alternative 1**: West African crude (Nigeria, Angola) via Cape of Good Hope. No chokepoint exposure, but higher freight cost and different crude grade.
 - **Alternative 2**: US shale exports via Atlantic. No chokepoint exposure, competitive on price, but limited tanker availability in a surge scenario.
 - **Alternative 3**: Pre-positioned Saudi crude via the East-West Pipeline to Yanbu (Red Sea). Avoids Hormuz, but pipeline capacity caps throughput.
