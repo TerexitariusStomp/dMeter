@@ -232,6 +232,17 @@ const STOP_WORDS = new Set([
   'says','say','said','according','reports','report','officials','official',
   'us','new','will','can','could','would','may','also','who','that','this',
   'after','about','over','more','up','out','into','than','some','other',
+  // News framing / liveblog boilerplate — these appear in a huge
+  // fraction of wire headlines and were causing the Jaccard signal
+  // to drown in framing noise rather than converge on event words.
+  // Added after the 2026-04-19 Hormuz-cluster incident (6 stories
+  // about the same Strait closure ended up as 6 separate brief
+  // pages because shared headline vocabulary was dominated by
+  // "middle east crisis live" framing rather than the actual event
+  // nouns).
+  'live','crisis','update','updates','breaking','today','yesterday','latest',
+  'middle','east','west','north','south','news','briefing','watch',
+  'amid','and','if','but','or','so','when','while','still','now','then',
 ]);
 
 function stripSourceSuffix(title) {
@@ -257,19 +268,137 @@ function jaccardSimilarity(setA, setB) {
   return intersection / (setA.size + setB.size - intersection);
 }
 
+// Jaccard threshold for the primary merge signal. Lowered from 0.55
+// to 0.35 — 0.55 required near-identical headlines and missed wire
+// duplicates that phrase the same event slightly differently
+// ("closed" vs "closes", "strait of hormuz" vs "strait hormuz",
+// "again over US blockade" vs "and fires on ships"). 0.35 catches
+// those near-misses while still rejecting unrelated stories sharing
+// a single generic word.
+const JACCARD_MERGE_THRESHOLD = 0.35;
+
+// Secondary merge signal (kicks in only once a cluster already has
+// ≥2 items, so isolated stories still need strong Jaccard before
+// being absorbed — this prevents merging two unrelated one-off
+// stories that happen to share a single named entity).
+//
+// When the cluster has already grown, a new story joins it if it
+// shares at least this many content words with the cluster's pooled
+// word set AND at least one shared word is distinctively long
+// (≥ DISTINCTIVE_LEN chars — proxy for named entities like
+// "hormuz"/"lebanon"/"kyiv"/"trump" rather than generic short
+// content words like "iran"/"news"). This is what catches the
+// 2026-04-19 Hormuz cluster: stories phrased "Iran says Hormuz
+// closed", "Defiant message from Iran … cross Hormuz", "Tanker
+// attacked as Iran closes Hormuz" all share {iran, hormuz} (with
+// "hormuz" being the distinctive entity) and correctly collapse
+// into one event.
+const CLUSTER_JOIN_MIN_SHARED_WORDS = 2;
+const CLUSTER_JOIN_DISTINCTIVE_LEN = 5;
+// When merging into a cluster that already has ≥2 items, 1 distinctive
+// shared word is enough evidence (the cluster itself is the prior).
+// When the other side is a singleton, require ≥2 distinctive shared
+// words — without the cluster-as-prior, a single entity overlap like
+// "hormuz" or "airman" isn't strong enough: two unrelated Iran stories
+// can share "iran" + "airman" as a generic vocabulary coincidence.
+// Two DISTINCTIVE words pin the topic.
+const CLUSTER_JOIN_MIN_DISTINCTIVE_WHEN_BOTH_SINGLETON = 2;
+const CLUSTER_JOIN_MIN_DISTINCTIVE_WHEN_HAS_EVIDENCE = 1;
+
+/**
+ * Does `words` share enough distinctive content with `clusterPool` to
+ * be considered the same topic? The `minDistinctive` threshold reflects
+ * how much independent evidence already exists:
+ *   - 1 when the target cluster has ≥2 items (cluster IS the evidence)
+ *   - 2 when both sides are singletons (need stronger signal)
+ *
+ * Always requires ≥ CLUSTER_JOIN_MIN_SHARED_WORDS total shared words
+ * as a basic floor.
+ *
+ * @param {Set<string>} words
+ * @param {Set<string>} clusterPool
+ * @param {number} minDistinctive
+ */
+function sharesDistinctiveContent(words, clusterPool, minDistinctive) {
+  let shared = 0;
+  let distinctive = 0;
+  for (const w of words) {
+    if (clusterPool.has(w)) {
+      shared++;
+      if (w.length >= CLUSTER_JOIN_DISTINCTIVE_LEN) distinctive++;
+    }
+  }
+  return shared >= CLUSTER_JOIN_MIN_SHARED_WORDS && distinctive >= minDistinctive;
+}
+
 function deduplicateStories(stories) {
   const clusters = [];
   for (const story of stories) {
     const words = extractTitleWords(story.title);
     let merged = false;
     for (const cluster of clusters) {
-      if (jaccardSimilarity(words, cluster.words) > 0.55) {
+      // Primary: Jaccard overlap on the union of cluster words.
+      // Secondary (only for non-singleton clusters): distinctive
+      // content-word overlap. The asymmetry is deliberate — an
+      // isolated story joining a 1-item cluster still needs strong
+      // lexical overlap (Jaccard) because there's no independent
+      // evidence of a topic yet. A cluster of 2+ items IS the
+      // evidence, so a matching entity pair is enough to join.
+      const jaccard = jaccardSimilarity(words, cluster.words);
+      const minDistinctive =
+        cluster.items.length >= 2
+          ? CLUSTER_JOIN_MIN_DISTINCTIVE_WHEN_HAS_EVIDENCE
+          : CLUSTER_JOIN_MIN_DISTINCTIVE_WHEN_BOTH_SINGLETON;
+      if (
+        jaccard >= JACCARD_MERGE_THRESHOLD ||
+        sharesDistinctiveContent(words, cluster.words, minDistinctive)
+      ) {
         cluster.items.push(story);
+        // CRITICAL: grow the cluster's word pool as it absorbs new
+        // stories. Previously `cluster.words` stayed frozen at the
+        // seed story's vocabulary, so later Jaccard comparisons
+        // always used the original headline rather than the
+        // accumulated topic signature. That hid obvious merges
+        // whenever a later story used vocabulary introduced by a
+        // sibling already in the cluster.
+        for (const w of words) cluster.words.add(w);
         merged = true;
         break;
       }
     }
-    if (!merged) clusters.push({ words, items: [story] });
+    if (!merged) clusters.push({ words: new Set(words), items: [story] });
+  }
+  // Post-pass: merge cluster-to-cluster when both have size ≥2 and
+  // share distinctive content. Protects against processing-order
+  // asymmetry where the highest-scored story of a topic happens to
+  // use unusual vocabulary and seeds a sibling cluster of
+  // near-duplicates, while the second-highest seeds the "main"
+  // cluster with typical vocabulary. Without this pass, both
+  // clusters would survive even though they cover the same event.
+  for (let i = 0; i < clusters.length; i++) {
+    for (let j = i + 1; j < clusters.length; ) {
+      const a = clusters[i];
+      const b = clusters[j];
+      // Post-pass uses the stronger (singleton) threshold regardless
+      // of cluster sizes — we're looking for clusters that SHOULD
+      // have merged during the initial pass but didn't because of
+      // processing-order asymmetry. Requiring 2+ distinctive shared
+      // words avoids collapsing unrelated regional coverage that
+      // happens to share a single entity.
+      if (
+        sharesDistinctiveContent(
+          a.words,
+          b.words,
+          CLUSTER_JOIN_MIN_DISTINCTIVE_WHEN_BOTH_SINGLETON,
+        )
+      ) {
+        for (const item of b.items) a.items.push(item);
+        for (const w of b.words) a.words.add(w);
+        clusters.splice(j, 1);
+      } else {
+        j++;
+      }
+    }
   }
   return clusters.map(({ items }) => {
     items.sort((a, b) => b.currentScore - a.currentScore || b.mentionCount - a.mentionCount);
