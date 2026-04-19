@@ -38,7 +38,7 @@ GET /api/v2/shipping/route-intelligence?fromIso2=AE&toIso2=NL&cargoType=tanker&h
   "hs2": "27",
   "primaryRouteId": "ae-to-eu-via-hormuz-suez",
   "chokepointExposures": [
-    { "chokepointId": "hormuz", "chokepointName": "Strait of Hormuz", "exposurePct": 100 },
+    { "chokepointId": "hormuz_strait", "chokepointName": "Strait of Hormuz", "exposurePct": 100 },
     { "chokepointId": "suez",   "chokepointName": "Suez Canal",        "exposurePct": 100 }
   ],
   "bypassOptions": [
@@ -82,7 +82,7 @@ Registers a webhook for chokepoint disruption alerts. Returns `201 Created`.
 ```json
 {
   "callbackUrl": "https://hooks.example.com/shipping-alerts",
-  "chokepointIds": ["hormuz", "suez", "bab-el-mandeb"],
+  "chokepointIds": ["hormuz_strait", "suez", "bab_el_mandeb"],
   "alertThreshold": 60
 }
 ```
@@ -116,7 +116,7 @@ Lists the caller's registered webhooks (filtered by the SHA-256 owner tag of the
     {
       "subscriberId": "wh_...",
       "callbackUrl": "https://hooks.example.com/...",
-      "chokepointIds": ["hormuz", "suez"],
+      "chokepointIds": ["hormuz_strait", "suez"],
       "alertThreshold": 60,
       "createdAt": "2026-04-19T12:00:00Z",
       "active": true
@@ -158,7 +158,7 @@ X-WM-Event: chokepoint.disruption
 
 {
   "subscriberId": "wh_...",
-  "chokepointId": "hormuz",
+  "chokepointId": "hormuz_strait",
   "score": 74,
   "alertThreshold": 60,
   "triggeredAt": "2026-04-19T12:03:00Z",

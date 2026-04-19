@@ -56,10 +56,10 @@ The workflow is inherently async — the edge function enqueues a job, a Railway
 1. Open the Supply Chain panel.
 2. Click a scenario trigger button (the template name).
 3. The button disables while the job runs (typically 5-30 s).
-4. When the result lands, the map repaints, and a summary card appears in the panel.
-5. Click **Deactivate** to clear the scenario state.
+4. When the result lands, the map repaints, and a scenario banner appears at the top of the panel with the scenario name, affected chokepoints, top impacted countries, and a "Simulating …" tagline.
+5. Click the **×** dismiss control on the banner (aria-label: "Dismiss scenario") to clear the scenario state — the map repaints to its baseline and the panel re-renders without the projected score and red-border callouts.
 
-For scripted use, see [`POST /api/scenario/v1/run`](/api-scenarios#run-a-scenario) — enqueue, then poll `/status` until the response has `status: "done"` (or `status: "failed"`), then render the same payload yourself. While the job is in-flight the status endpoint returns `{ status: "pending" }`.
+For scripted use, see [`POST /api/scenario/v1/run`](/api-scenarios#run-a-scenario) — enqueue, then poll `/status` until the response has a terminal status (`"done"` on success, `"failed"` on error). Non-terminal states are `"pending"` (queued) and `"processing"` (worker started); both can persist for several seconds. See the [status lifecycle table](/api-scenarios#poll-job-status) for the full contract.
 
 ## Data behind Scenario Engine
 
