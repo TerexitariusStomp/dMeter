@@ -41,7 +41,7 @@ A completed scenario returns:
 - **Sector call-outs** — which HS2 chapters take the biggest hit.
 - **A summary card** injected into the Supply Chain panel that stays visible until you deactivate the scenario.
 
-The UI is state-driven, not modal — activating a scenario sets a `scenarioState` on every map renderer (deck.gl, globe, SVG fallback) so chokepoint colors and country choropleths reflect the disruption until you deactivate. This is coordinated by `MapContainer.activateScenario` at `src/components/MapContainer.ts:1004`, which is explicitly PRO-gated.
+The UI is state-driven, not modal — activating a scenario sets a `scenarioState` on every map renderer (deck.gl, globe, SVG fallback) so chokepoint colors and country choropleths reflect the disruption until you deactivate. This is coordinated by `MapContainer.activateScenario` at `src/components/MapContainer.ts:1010`, which is explicitly PRO-gated.
 
 ## Tier & gating
 
