@@ -294,24 +294,21 @@ const JACCARD_MERGE_THRESHOLD = 0.35;
 // "hormuz" being the distinctive entity) and correctly collapse
 // into one event.
 const CLUSTER_JOIN_MIN_SHARED_WORDS = 2;
+const CLUSTER_JOIN_MIN_DISTINCTIVE_SHARED = 2;
 const CLUSTER_JOIN_DISTINCTIVE_LEN = 5;
-// When merging into a cluster that already has ≥2 items, 1 distinctive
-// shared word is enough evidence (the cluster itself is the prior).
-// Singleton-to-singleton merges need stronger signal — a single entity
-// overlap like "hormuz" is not enough: two unrelated Iran-tagged
-// stories often share "iran" + another 4-char generic. Require ≥2
-// distinctive shared words AND Jaccard above a floor so two stories
-// sharing just {french, lebanon} (different Lebanon events) don't
-// collapse.
-const CLUSTER_JOIN_MIN_DISTINCTIVE_WHEN_BOTH_SINGLETON = 2;
-const CLUSTER_JOIN_MIN_DISTINCTIVE_WHEN_HAS_EVIDENCE = 1;
-// Jaccard floor applied in addition to distinctive-word count when both
-// sides are singletons. Prevents the classic false-positive of two
-// genuinely different events that happen to share two named entities
-// (e.g. two separate Lebanon incidents both mentioning "French" and
-// "Lebanon"). The events will have different verbs / objects around
-// those entities, pulling the Jaccard below this floor.
-const SINGLETON_MERGE_MIN_JACCARD = 0.25;
+// Jaccard floor for the SECONDARY merge rule (Jaccard in this range
+// still merges if distinctive + total shared meet thresholds). Below
+// this, no amount of entity overlap is enough — the surrounding
+// vocabulary has diverged too far for us to claim the stories cover
+// the same event. Catches the classic false positives where two
+// different events share two named entities but nothing else:
+//   - Two Lebanon incidents both mentioning "French" + "Lebanon"
+//   - Two Russia events both mentioning "Russia" + "attack"
+//   - Iran-talks vs oil-price-reaction both mentioning "Iran" +
+//     "nuclear" + "talks"
+// All of those have Jaccard between 0.14 and 0.24 — below 0.25
+// they won't merge regardless of distinctive-word overlap.
+const SECONDARY_MERGE_MIN_JACCARD = 0.25;
 
 /**
  * Count words that appear in BOTH sets where the word is distinctive
@@ -373,34 +370,36 @@ function deduplicateStories(stories) {
     const words = extractTitleWords(story.title);
     let merged = false;
     for (const cluster of clusters) {
+      // Unified merge rule. Jaccard is the honest signal —
+      // naturally penalises divergence via the union denominator.
+      // Distinctive-shared is NOT sufficient on its own because
+      // "distinctive" (length ≥5) is a weak proxy for named
+      // entities: "attack"/"nuclear"/"missile"/"talks"/"rally" all
+      // clear the length bar and are generic event vocabulary.
+      // Proper nouns like "Kyiv"/"Oman" don't even correlate with
+      // length. So every merge — singleton or established cluster
+      // — goes through the same gate:
+      //
+      //   PRIMARY: Jaccard ≥ 0.35 (covers near-duplicates)
+      //   SECONDARY: Jaccard ≥ 0.25 AND distinctive-shared ≥ 2
+      //     AND total-shared ≥ 2 (covers close misses with strong
+      //     entity overlap, e.g. "Iran says closed Strait of
+      //     Hormuz" variants that use mixed vocabulary)
+      //
+      // Distinctive-shared is measured against cluster.CORE (the
+      // intersection of all cluster items' words). Bridge-headline
+      // pollution in cluster.words (union) can't leak into core
+      // because core only contains words every item has. Total-
+      // shared is against union, just to confirm some real overlap
+      // exists beyond the distinctive entities alone.
       const jaccard = jaccardSimilarity(words, cluster.words);
-      let shouldMerge = false;
-      if (jaccard >= JACCARD_MERGE_THRESHOLD) {
-        // Primary: high lexical overlap always merges.
-        shouldMerge = true;
-      } else if (cluster.items.length >= 2) {
-        // Established cluster: 1 distinctive shared word with CORE
-        // is enough evidence (the cluster's repeated vocabulary IS
-        // the topic signal). Still require ≥2 total shared words
-        // with the UNION so e.g. "iran" alone can't pull in anything
-        // tangentially Iran-related.
+      let shouldMerge = jaccard >= JACCARD_MERGE_THRESHOLD;
+      if (!shouldMerge && jaccard >= SECONDARY_MERGE_MIN_JACCARD) {
         const distinct = countDistinctiveShared(words, cluster.core);
         const total = countShared(words, cluster.words);
         shouldMerge =
-          distinct >= CLUSTER_JOIN_MIN_DISTINCTIVE_WHEN_HAS_EVIDENCE &&
+          distinct >= CLUSTER_JOIN_MIN_DISTINCTIVE_SHARED &&
           total >= CLUSTER_JOIN_MIN_SHARED_WORDS;
-      } else {
-        // Singleton-to-singleton: no prior evidence of a topic yet,
-        // so require STRONGER signal — ≥2 distinctive shared words
-        // (NOT the bridge-polluted union; for size-1 cluster, core
-        // == seed words anyway) AND Jaccard ≥ the singleton floor.
-        // Two unrelated Lebanon stories sharing just {french,
-        // lebanon} hit the distinctive count (both ≥5 chars) but
-        // have low Jaccard → blocked by the floor.
-        const distinct = countDistinctiveShared(words, cluster.core);
-        shouldMerge =
-          distinct >= CLUSTER_JOIN_MIN_DISTINCTIVE_WHEN_BOTH_SINGLETON &&
-          jaccard >= SINGLETON_MERGE_MIN_JACCARD;
       }
       if (shouldMerge) {
         cluster.items.push(story);
@@ -433,19 +432,20 @@ function deduplicateStories(stories) {
     for (let j = i + 1; j < clusters.length; ) {
       const a = clusters[i];
       const b = clusters[j];
+      // Post-pass applies the SAME unified rule as the initial pass,
+      // just between two existing clusters: Jaccard on unions, with
+      // distinctive/total measured against CORE intersections (so
+      // bridge-injected vocabulary in either cluster's union cannot
+      // drive a false-positive merge).
+      const jaccardUnion = jaccardSimilarity(a.words, b.words);
       const distinctiveCore = countDistinctiveShared(a.core, b.core);
       const totalCore = countShared(a.core, b.core);
-      // Jaccard is computed on the UNION (cluster.words) — same
-      // penalty-for-divergence signal as the initial pass. Two
-      // singletons sharing {french, lebanon} hit the distinctive /
-      // total thresholds but their Jaccard stays low (few other
-      // words overlap) and the floor blocks them.
-      const jaccardUnion = jaccardSimilarity(a.words, b.words);
-      if (
-        distinctiveCore >= CLUSTER_JOIN_MIN_DISTINCTIVE_WHEN_BOTH_SINGLETON &&
-        totalCore >= CLUSTER_JOIN_MIN_SHARED_WORDS &&
-        jaccardUnion >= SINGLETON_MERGE_MIN_JACCARD
-      ) {
+      const postMerge =
+        jaccardUnion >= JACCARD_MERGE_THRESHOLD ||
+        (jaccardUnion >= SECONDARY_MERGE_MIN_JACCARD &&
+          distinctiveCore >= CLUSTER_JOIN_MIN_DISTINCTIVE_SHARED &&
+          totalCore >= CLUSTER_JOIN_MIN_SHARED_WORDS);
+      if (postMerge) {
         for (const item of b.items) a.items.push(item);
         for (const w of b.words) a.words.add(w);
         a.core = intersectSets(a.core, b.core);
