@@ -268,31 +268,43 @@ function jaccardSimilarity(setA, setB) {
   return intersection / (setA.size + setB.size - intersection);
 }
 
-// Jaccard threshold for the primary merge signal. Lowered from 0.55
-// to 0.35 — 0.55 required near-identical headlines and missed wire
+// Jaccard threshold for the PRIMARY merge signal. 0.35 catches wire
 // duplicates that phrase the same event slightly differently
-// ("closed" vs "closes", "strait of hormuz" vs "strait hormuz",
-// "again over US blockade" vs "and fires on ships"). 0.35 catches
-// those near-misses while still rejecting unrelated stories sharing
-// a single generic word.
+// ("closed" vs "closes", "strait of hormuz" vs "strait hormuz") but
+// rejects unrelated stories sharing a single generic word.
+//
+// NOTE for future tuners: in practice this threshold is ONLY reached
+// by singleton-to-singleton comparisons and very-close pairs joining
+// a small cluster. Once a cluster absorbs 3+ stories its word UNION
+// expands to 15–30+ terms; a new 7-word candidate sharing 2 words
+// gets Jaccard ≈ 2/(7+25-2) = 0.067 — nowhere near 0.35 regardless of
+// how related it is. Multi-story cluster merges therefore flow
+// through the SECONDARY rule below. That's intentional: the
+// secondary rule checks distinctive overlap against cluster.CORE
+// (intersection of all items), which narrows sharply as the cluster
+// grows and is the right signal for "does this new story belong to
+// the topic this cluster has converged on?". If you're tempted to
+// raise JACCARD_MERGE_THRESHOLD because "it seems loose", remember
+// it barely affects established clusters — tune the secondary
+// floor (SECONDARY_MERGE_MIN_JACCARD) and
+// CLUSTER_JOIN_MIN_DISTINCTIVE_SHARED instead.
 const JACCARD_MERGE_THRESHOLD = 0.35;
 
-// Secondary merge signal (kicks in only once a cluster already has
-// ≥2 items, so isolated stories still need strong Jaccard before
-// being absorbed — this prevents merging two unrelated one-off
-// stories that happen to share a single named entity).
+// Secondary merge signal: catches close-Jaccard-miss candidates that
+// nonetheless share strong distinctive-entity overlap with a
+// cluster's core (intersection of all items). Threshold values below
+// are the triple gate applied in deduplicateStories:
+//   - Jaccard ≥ SECONDARY_MERGE_MIN_JACCARD (defined further down)
+//   - countDistinctiveShared(story, cluster.core) ≥ MIN_DISTINCTIVE_SHARED
+//   - countShared(story, cluster.words) ≥ MIN_SHARED_WORDS
 //
-// When the cluster has already grown, a new story joins it if it
-// shares at least this many content words with the cluster's pooled
-// word set AND at least one shared word is distinctively long
-// (≥ DISTINCTIVE_LEN chars — proxy for named entities like
-// "hormuz"/"lebanon"/"kyiv"/"trump" rather than generic short
-// content words like "iran"/"news"). This is what catches the
-// 2026-04-19 Hormuz cluster: stories phrased "Iran says Hormuz
-// closed", "Defiant message from Iran … cross Hormuz", "Tanker
-// attacked as Iran closes Hormuz" all share {iran, hormuz} (with
-// "hormuz" being the distinctive entity) and correctly collapse
-// into one event.
+// "Distinctive" is a length ≥ DISTINCTIVE_LEN proxy for named
+// entities. It's imperfect — generic event vocabulary like
+// "attack"/"missile"/"talks" also clears the bar — which is why the
+// Jaccard floor is required as a second independent signal. Two
+// unrelated events sharing only "attack"+"missile" would hit the
+// distinctive count but their surrounding vocabulary diverges enough
+// to push Jaccard below the floor.
 const CLUSTER_JOIN_MIN_SHARED_WORDS = 2;
 const CLUSTER_JOIN_MIN_DISTINCTIVE_SHARED = 2;
 const CLUSTER_JOIN_DISTINCTIVE_LEN = 5;

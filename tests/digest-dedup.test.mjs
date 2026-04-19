@@ -57,7 +57,36 @@ new Function('mod', `
   mod.countShared = countShared;
   mod.intersectSets = intersectSets;
   mod.deduplicateStories = deduplicateStories;
+  // Post-eval: expose every tuning constant the implementation
+  // references so the extractor regex can't silently drop a newly-
+  // added constant. If a future author adds e.g.
+  // CLUSTER_JOIN_MIN_EVIDENCE_SCALE below the current last constant
+  // and forgets to update the regex, this line throws a loud
+  // ReferenceError at test bootstrap — much easier to diagnose than
+  // deduplicateStories itself throwing from the eval body.
+  mod.__constants = {
+    JACCARD_MERGE_THRESHOLD,
+    SECONDARY_MERGE_MIN_JACCARD,
+    CLUSTER_JOIN_MIN_SHARED_WORDS,
+    CLUSTER_JOIN_MIN_DISTINCTIVE_SHARED,
+    CLUSTER_JOIN_DISTINCTIVE_LEN,
+  };
 `)(mod);
+
+// Guard: every tuning constant the dedup rule reads must be reachable
+// from the test-extractor's regex. A mismatch means the regex silently
+// stopped short of capturing a new constant — the eval above would
+// still succeed (function hoisting), but `deduplicateStories` would
+// throw ReferenceError the first time the test invokes it. This
+// assertion surfaces the break at bootstrap instead.
+assert.ok(mod.__constants, 'threshold constants must be exposed on mod');
+for (const [name, value] of Object.entries(mod.__constants)) {
+  assert.equal(
+    typeof value,
+    'number',
+    `constant ${name} must be captured by thresholdConsts regex and injected as a number`,
+  );
+}
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -390,5 +419,44 @@ describe('deduplicateStories — P1 false-positive regressions (from PR #3195 re
     );
     const sizes = result.map((r) => r.mergedHashes.length).sort((a, b) => b - a);
     assert.deepEqual(sizes, [2, 1], 'larger cluster has both talks stories');
+  });
+
+  // REGRESSION (directional-word stop-words concern): north/south/
+  // east/west were added to STOP_WORDS to strip news-framing
+  // boilerplate ("Middle East crisis live"). That also strips them
+  // from "South Sudan" / "South Korea" / "North Korea" / etc. —
+  // lowering the differentiating signal between stories that share
+  // a geographic direction. In practice the attached proper noun
+  // (sudan/korea/etc.) still differentiates, but this test locks
+  // that assumption: two unrelated "South ___" stories stay
+  // separate.
+  it('South Sudan famine and South Korea election stay separate despite stripped "south"', () => {
+    const stories = [
+      story('South Sudan famine worsens as refugees flood border', 90, 'ss1'),
+      story('South Korea election results surprise observers', 85, 'sk1'),
+    ];
+    const result = mod.deduplicateStories(stories);
+    assert.equal(
+      result.length,
+      2,
+      `expected 2 clusters (sudan vs korea differentiate even without "south"), got ${result.length}: ${result.map((r) => r.title).join(' | ')}`,
+    );
+  });
+
+  // Positive counterpart: two stories about the SAME South Sudan
+  // event must still merge, proving the "south" stop-word doesn't
+  // also damage legitimate clustering. Shared {sudan, famine} +
+  // high Jaccard.
+  it('two South Sudan famine stories still merge into one cluster', () => {
+    const stories = [
+      story('South Sudan famine worsens as refugees flood border', 90, 'ss1'),
+      story('South Sudan famine deepens amid civil war and border collapse', 85, 'ss2'),
+    ];
+    const result = mod.deduplicateStories(stories);
+    assert.equal(
+      result.length,
+      1,
+      `expected 1 cluster for the same South Sudan event, got ${result.length}: ${result.map((r) => r.title).join(' | ')}`,
+    );
   });
 });
