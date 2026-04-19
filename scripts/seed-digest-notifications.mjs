@@ -320,6 +320,16 @@ const CLUSTER_JOIN_DISTINCTIVE_LEN = 5;
 //     "nuclear" + "talks"
 // All of those have Jaccard between 0.14 and 0.24 — below 0.25
 // they won't merge regardless of distinctive-word overlap.
+//
+// IMPORTANT: the secondary rule compares with STRICT inequality
+// (jaccard > SECONDARY_MERGE_MIN_JACCARD), not ≥. A short
+// downstream-reaction headline like "Oil prices rise on Iran
+// nuclear talks optimism" vs an Iran-talks cluster can land
+// EXACTLY on 0.25 (3 shared words in a 12-word union), and with
+// ≥ it would scrape through merge despite being a different
+// event. Strict > excludes that boundary case without moving
+// the constant — which would risk breaking legitimate close-
+// miss Hormuz merges (P10 joining at J=0.267, P02↔P08 at 0.308).
 const SECONDARY_MERGE_MIN_JACCARD = 0.25;
 
 /**
@@ -406,7 +416,7 @@ function deduplicateStories(stories) {
       // exists beyond the distinctive entities alone.
       const jaccard = jaccardSimilarity(words, cluster.words);
       let shouldMerge = jaccard >= JACCARD_MERGE_THRESHOLD;
-      if (!shouldMerge && jaccard >= SECONDARY_MERGE_MIN_JACCARD) {
+      if (!shouldMerge && jaccard > SECONDARY_MERGE_MIN_JACCARD) {
         const distinct = countDistinctiveShared(words, cluster.core);
         const total = countShared(words, cluster.words);
         shouldMerge =
@@ -454,7 +464,7 @@ function deduplicateStories(stories) {
       const totalCore = countShared(a.core, b.core);
       const postMerge =
         jaccardUnion >= JACCARD_MERGE_THRESHOLD ||
-        (jaccardUnion >= SECONDARY_MERGE_MIN_JACCARD &&
+        (jaccardUnion > SECONDARY_MERGE_MIN_JACCARD &&
           distinctiveCore >= CLUSTER_JOIN_MIN_DISTINCTIVE_SHARED &&
           totalCore >= CLUSTER_JOIN_MIN_SHARED_WORDS);
       if (postMerge) {

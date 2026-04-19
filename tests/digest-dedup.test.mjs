@@ -200,14 +200,25 @@ describe('deduplicateStories', () => {
   // about the Strait-of-Hormuz closure with wildly different phrasing.
   // At the original Jaccard ≥ 0.55 with frozen cluster words, all 6
   // passed through as distinct. The new rules collapse the high-
-  // overlap variants into one cluster. One outlier (the "Defiant
-  // message from Iran as vessels attempting to cross Hormuz"
-  // headline) has Jaccard 0.13 with the rest and only shares
-  // {iran, hormuz} — we intentionally leave that outlier as its own
-  // cluster rather than relax the rule further, because relaxing
-  // would over-merge genuinely distinct events (see the Russia/
-  // Odesa and Iran/oil-price regressions below).
-  it('collapses at least 5 of 6 Hormuz wire variants into one cluster', () => {
+  // overlap core variants into one cluster. Two outliers intentionally
+  // stay separate:
+  //
+  //   - "Defiant message from Iran as vessels attempting to cross
+  //     Hormuz report gunfire" — shares only {iran, hormuz} (J≈0.13)
+  //     with the rest; below the Jaccard floor.
+  //
+  //   - "Middle East crisis live: tanker reports attack as Iran
+  //     closes strait of Hormuz; French soldier killed in Lebanon" —
+  //     a bridge headline whose French/Lebanon content dilutes its
+  //     Jaccard against the 4-story Hormuz cluster to exactly 0.25,
+  //     which our strict > floor rejects (same boundary value that
+  //     blocks the reviewer's oil-price reaction false positive, so
+  //     we cannot admit one without the other).
+  //
+  // Accepting these two outliers — a 6→3 reduction — is the deliberate
+  // trade-off for blocking the structural false positives in the
+  // regressions below (Russia/Odesa, Iran/oil-price, Lebanon-pair).
+  it('collapses at least 4 of 6 Hormuz wire variants into one cluster', () => {
     const stories = [
       story('Iran says it has closed Strait of Hormuz again over US blockade', 95, 1, 'h02'),
       story('Iran closes Strait of Hormuz again over US blockade and fires on ships', 90, 1, 'h05'),
@@ -219,14 +230,14 @@ describe('deduplicateStories', () => {
     const result = mod.deduplicateStories(stories);
     const largestClusterSize = Math.max(...result.map((r) => r.mergedHashes.length));
     assert.ok(
-      largestClusterSize >= 5,
-      `expected main Hormuz cluster to absorb ≥5 of 6 variants, got max size ${largestClusterSize}. Clusters: ${result.map((r) => `${r.mergedHashes.length}:${r.title.slice(0, 40)}`).join(' | ')}`,
+      largestClusterSize >= 4,
+      `expected main Hormuz cluster to absorb ≥4 of 6 variants, got max size ${largestClusterSize}. Clusters: ${result.map((r) => `${r.mergedHashes.length}:${r.title.slice(0, 40)}`).join(' | ')}`,
     );
-    // At most 2 clusters survive — the main one plus (possibly) the
-    // low-overlap "defiant message" outlier.
+    // At most 3 clusters survive — the main one plus up to 2
+    // documented outliers (P07 defiant-message + P11 bridge-headline).
     assert.ok(
-      result.length <= 2,
-      `expected ≤2 clusters, got ${result.length}`,
+      result.length <= 3,
+      `expected ≤3 clusters, got ${result.length}`,
     );
   });
 
@@ -403,8 +414,8 @@ describe('deduplicateStories — P1 false-positive regressions (from PR #3195 re
   // oil-price reaction story sharing {iran, nuclear, talks}. All
   // three words clear the 5-char "distinctive" bar but they're
   // generic diplomatic-event vocabulary. Secondary merge requires
-  // Jaccard ≥ 0.25 — the oil-price story's Jaccard against the
-  // talks cluster is 0.231, just below the floor.
+  // Jaccard > 0.25 — the oil-price story's Jaccard against the
+  // talks cluster is 0.231, below the floor.
   it('Iran nuclear talks coverage does not absorb an oil-price-reaction story sharing {iran, nuclear, talks}', () => {
     const stories = [
       story('US Iran nuclear talks resume in Oman', 95, 'nt1'),
@@ -419,6 +430,33 @@ describe('deduplicateStories — P1 false-positive regressions (from PR #3195 re
     );
     const sizes = result.map((r) => r.mergedHashes.length).sort((a, b) => b - a);
     assert.deepEqual(sizes, [2, 1], 'larger cluster has both talks stories');
+  });
+
+  // REGRESSION (third round / Jaccard boundary): a SHORTER oil-
+  // price variant landed EXACTLY on Jaccard = 0.25 against the
+  // talks cluster (3 shared words in a 12-word union), and with
+  // an inclusive ≥ comparison it scraped through and collapsed
+  // the three stories into 1. The fix is strict > SECONDARY_
+  // MERGE_MIN_JACCARD so the exact-boundary case falls out
+  // without bumping the constant (which would break legitimate
+  // close-miss Hormuz merges at J ≈ 0.267).
+  it('shorter oil-price variant at Jaccard exactly 0.25 still does NOT merge into talks cluster', () => {
+    const stories = [
+      story('US Iran nuclear talks resume in Oman', 95, 'nt1'),
+      story('US Iran nuclear talks enter second day in Oman', 90, 'nt2'),
+      // This variant is shorter than the one above (7 words vs 8
+      // after stop-filter). Against the 8-word cluster union, the
+      // 3 shared words give Jaccard = 3/(7+8-3) = 0.25 exactly.
+      story('Oil prices rise on Iran nuclear talks optimism', 85, 'op2'),
+    ];
+    const result = mod.deduplicateStories(stories);
+    assert.equal(
+      result.length,
+      2,
+      `expected 2 clusters (oil-price variant stays separate even at J=0.25 boundary), got ${result.length}: ${result.map((r) => r.title).join(' | ')}`,
+    );
+    const sizes = result.map((r) => r.mergedHashes.length).sort((a, b) => b - a);
+    assert.deepEqual(sizes, [2, 1], 'talks cluster has the two talks stories; oil-price is alone');
   });
 
   // REGRESSION (directional-word stop-words concern): north/south/
