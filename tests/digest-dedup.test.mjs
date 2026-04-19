@@ -20,19 +20,23 @@ const src = readFileSync(
 // We extract the pure functions (no side-effects, no imports) to test them.
 
 const STOP_WORDS_BLOCK = src.match(/const STOP_WORDS = new Set\(\[[\s\S]*?\]\);/)?.[0];
-const thresholdConsts = src.match(/const JACCARD_MERGE_THRESHOLD[\s\S]*?const CLUSTER_JOIN_MIN_DISTINCTIVE_WHEN_HAS_EVIDENCE\s*=\s*\d+;/)?.[0];
+const thresholdConsts = src.match(/const JACCARD_MERGE_THRESHOLD[\s\S]*?const SINGLETON_MERGE_MIN_JACCARD\s*=\s*[0-9.]+;/)?.[0];
 const stripSourceSuffix = src.match(/function stripSourceSuffix\(title\) \{[\s\S]*?\n\}/)?.[0];
 const extractTitleWords = src.match(/function extractTitleWords\(title\) \{[\s\S]*?\n\}/)?.[0];
 const jaccardSimilarity = src.match(/function jaccardSimilarity\(setA, setB\) \{[\s\S]*?\n\}/)?.[0];
-const sharesDistinctiveContent = src.match(/function sharesDistinctiveContent\([^)]+\) \{[\s\S]*?\n\}/)?.[0];
-const deduplicateStories = src.match(/function deduplicateStories\(stories\) \{[\s\S]*?\n\}/)?.[0];
+const countDistinctiveShared = src.match(/function countDistinctiveShared\([^)]+\) \{[\s\S]*?\n\}/)?.[0];
+const countShared = src.match(/function countShared\([^)]+\) \{[\s\S]*?\n\}/)?.[0];
+const intersectSets = src.match(/function intersectSets\([^)]+\) \{[\s\S]*?\n\}/)?.[0];
+const deduplicateStories = src.match(/function deduplicateStories\(stories\) \{[\s\S]*?^\}/m)?.[0];
 
 assert.ok(STOP_WORDS_BLOCK, 'STOP_WORDS not found in source');
 assert.ok(thresholdConsts, 'merge threshold constants not found in source');
 assert.ok(stripSourceSuffix, 'stripSourceSuffix not found in source');
 assert.ok(extractTitleWords, 'extractTitleWords not found in source');
 assert.ok(jaccardSimilarity, 'jaccardSimilarity not found in source');
-assert.ok(sharesDistinctiveContent, 'sharesDistinctiveContent not found in source');
+assert.ok(countDistinctiveShared, 'countDistinctiveShared not found in source');
+assert.ok(countShared, 'countShared not found in source');
+assert.ok(intersectSets, 'intersectSets not found in source');
 assert.ok(deduplicateStories, 'deduplicateStories not found in source');
 
 const mod = {};
@@ -42,12 +46,16 @@ new Function('mod', `
   ${stripSourceSuffix}
   ${extractTitleWords}
   ${jaccardSimilarity}
-  ${sharesDistinctiveContent}
+  ${countDistinctiveShared}
+  ${countShared}
+  ${intersectSets}
   ${deduplicateStories}
   mod.stripSourceSuffix = stripSourceSuffix;
   mod.extractTitleWords = extractTitleWords;
   mod.jaccardSimilarity = jaccardSimilarity;
-  mod.sharesDistinctiveContent = sharesDistinctiveContent;
+  mod.countDistinctiveShared = countDistinctiveShared;
+  mod.countShared = countShared;
+  mod.intersectSets = intersectSets;
   mod.deduplicateStories = deduplicateStories;
 `)(mod);
 
@@ -222,42 +230,105 @@ describe('deduplicateStories', () => {
   // different-angle coverage of the same incident.
 });
 
-describe('sharesDistinctiveContent (new secondary merge signal)', () => {
-  // The third arg is the "min distinctive shared" threshold.
-  // Call sites pass 1 for has-evidence clusters, 2 for singletons /
-  // post-pass.
-  it('requires ≥2 total shared words regardless of threshold', () => {
+describe('countDistinctiveShared / countShared (merge-rule primitives)', () => {
+  it('countShared counts words present in both sets regardless of length', () => {
     const a = new Set(['iran', 'hormuz', 'blockade']);
-    const b = new Set(['iran', 'nuclear', 'enrichment']);
-    assert.equal(mod.sharesDistinctiveContent(a, b, 1), false, 'only 1 shared word is not enough');
+    const b = new Set(['iran', 'gaza', 'attack']);
+    assert.equal(mod.countShared(a, b), 1);
   });
 
-  it('min=1 merges when 2+ shared AND ≥1 is length ≥5', () => {
-    const a = new Set(['iran', 'hormuz', 'closed']);
-    const b = new Set(['iran', 'hormuz', 'tanker', 'attack']);
-    assert.equal(mod.sharesDistinctiveContent(a, b, 1), true);
-  });
-
-  it('min=1 rejects when both shared words are short (<5 chars)', () => {
-    const a = new Set(['iran', 'gaza', 'attack']);
+  it('countDistinctiveShared counts ONLY shared words of length ≥5', () => {
+    // iran(4) + gaza(4) are shared but short. blockade is not shared.
+    const a = new Set(['iran', 'gaza', 'blockade']);
     const b = new Set(['iran', 'gaza', 'relief']);
-    assert.equal(mod.sharesDistinctiveContent(a, b, 1), false);
+    assert.equal(mod.countDistinctiveShared(a, b), 0, 'both shared words are short');
+    const c = new Set(['iran', 'hormuz', 'strait']);
+    const d = new Set(['iran', 'hormuz', 'tanker']);
+    assert.equal(mod.countDistinctiveShared(c, d), 1, 'only hormuz(6) is distinctive');
   });
 
-  it('min=2 rejects when only one distinctive word is shared (singleton guard)', () => {
-    // {iran, airman} — airman is 6 chars (distinctive), iran is 4.
-    // Under the singleton rule (need ≥2 distinctive), this fails —
-    // prevents unrelated Iran stories from collapsing just because
-    // both happen to mention "airman" once.
-    const a = new Set(['iran', 'airman', 'rescues']);
-    const b = new Set(['iran', 'airman', 'missing']);
-    assert.equal(mod.sharesDistinctiveContent(a, b, 2), false);
+  it('intersectSets returns only words present in both', () => {
+    const a = new Set(['a', 'b', 'c', 'd']);
+    const b = new Set(['c', 'd', 'e', 'f']);
+    const out = mod.intersectSets(a, b);
+    assert.deepEqual([...out].sort(), ['c', 'd']);
+  });
+});
+
+describe('deduplicateStories — P1 false-positive regressions (from PR #3195 review)', () => {
+  function story(title, score = 10, hash = undefined) {
+    return {
+      title,
+      currentScore: score,
+      mentionCount: 1,
+      sources: [],
+      severity: 'critical',
+      hash: hash ?? title.slice(0, 8),
+    };
+  }
+
+  // REGRESSION P1-1: two genuinely different Lebanon-French events
+  // must NOT collapse just because they share {french, lebanon} —
+  // both 5+ chars, but the events differ. The added Jaccard floor
+  // for singleton-to-singleton merge rejects this pair.
+  it('distinct Lebanon stories sharing only {french, lebanon} stay separate', () => {
+    const stories = [
+      story('French soldier killed in Lebanon after border fire', 90, 'leb1'),
+      story('French envoy arrives in Lebanon for emergency talks', 85, 'leb2'),
+    ];
+    const result = mod.deduplicateStories(stories);
+    assert.equal(
+      result.length,
+      2,
+      `expected 2 clusters, got ${result.length}: ${result.map((r) => r.title).join(' | ')}`,
+    );
   });
 
-  it('min=2 accepts when 2+ distinctive words are shared', () => {
-    // strait + hormuz + tanker all distinctive ≥5
-    const a = new Set(['iran', 'strait', 'hormuz', 'tanker']);
-    const b = new Set(['iran', 'strait', 'hormuz', 'blockade']);
-    assert.equal(mod.sharesDistinctiveContent(a, b, 2), true);
+  // REGRESSION P1-2: a bridge headline that merges into the Hormuz
+  // cluster must NOT pollute the cluster's distinctive-content
+  // signature. A separate Lebanon cluster must stay separate —
+  // previously the post-pass absorbed it via bridge-injected
+  // french/lebanon words in the UNION.
+  it('bridge headline does not let Hormuz cluster absorb a Lebanon cluster (core vs union)', () => {
+    const stories = [
+      // Two pure Hormuz stories so the cluster has ≥2 items.
+      story('Iran closes Strait of Hormuz again over US blockade', 95, 'h1'),
+      story('Iran says it has closed Strait of Hormuz again over US blockade', 90, 'h2'),
+      // Bridge headline — legitimately joins the Hormuz cluster but
+      // also mentions a Lebanon sub-topic.
+      story('Tanker attacked as Iran closes strait of Hormuz; French soldier killed in Lebanon', 85, 'bridge'),
+      // Pure Lebanon story — must stay separate despite the bridge
+      // injecting "french" and "lebanon" into the Hormuz UNION.
+      story('French envoy arrives in Lebanon for emergency talks', 70, 'leb'),
+    ];
+    const result = mod.deduplicateStories(stories);
+    // Expect 2 clusters: Hormuz (+ bridge) and Lebanon.
+    assert.equal(
+      result.length,
+      2,
+      `expected 2 clusters, got ${result.length}: ${result.map((r) => r.title).join(' | ')}`,
+    );
+    // The Lebanon story must survive as its own cluster — not
+    // absorbed into the Hormuz cluster.
+    const lebanonCluster = result.find((r) => r.title.includes('envoy'));
+    assert.ok(lebanonCluster, 'Lebanon cluster must still exist after post-pass');
+  });
+
+  // REGRESSION P1-2 (reverse-order): three-story reproducer the
+  // reviewer cited — Hormuz + Lebanon + mixed. The mixed headline
+  // is a legitimate bridge and joins one side; the OTHER side must
+  // stay separate. Previous buggy head collapsed all three into 1.
+  it('three stories Hormuz + Lebanon + mixed resolve to 2 clusters, not 1', () => {
+    const stories = [
+      story('Iran closes Strait of Hormuz again over US blockade', 90, 'h'),
+      story('French soldier killed in Lebanon after border fire', 85, 'leb'),
+      story('Tanker attacked as Iran closes strait of Hormuz; French soldier killed in Lebanon', 80, 'mixed'),
+    ];
+    const result = mod.deduplicateStories(stories);
+    assert.equal(
+      result.length,
+      2,
+      `expected 2 clusters (NOT the buggy 1), got ${result.length}: ${result.map((r) => r.title).join(' | ')}`,
+    );
   });
 });
