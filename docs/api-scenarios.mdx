@@ -40,7 +40,7 @@ Other shipped templates at the time of writing: `taiwan-strait-full-closure`, `s
 
 Enqueues a job. Returns `202 Accepted` with a `jobId` the caller must poll.
 
-- **Auth**: `X-WorldMonitor-Key` (or trusted browser origin) + PRO
+- **Auth**: PRO entitlement required. Granted by either (a) a valid `X-WorldMonitor-Key` (env key from `WORLDMONITOR_VALID_KEYS`, or a user-owned `wm_`-prefixed key whose owner has the `apiAccess` entitlement), **or** (b) a Clerk bearer token whose user has role `pro` or Dodo entitlement tier ≥ 1. A trusted browser Origin alone is **not** sufficient — `isCallerPremium()` in `server/_shared/premium-check.ts` only counts explicit credentials. Browser calls work because `premiumFetch()` (`src/services/premium-fetch.ts`) injects one of the two credential forms on the caller's behalf.
 - **Rate limits**:
   - 10 jobs / minute / user
   - Global queue capped at 100 in-flight jobs; excess rejected with `429` + `Retry-After: 30`
