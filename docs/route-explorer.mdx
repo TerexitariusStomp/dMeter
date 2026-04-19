@@ -53,14 +53,21 @@ Every change triggers a debounced re-fetch (~250ms) so holding a key or scrubbin
 
 ## Keyboard-first
 
-Route Explorer is built for keyboard use — all inputs and tabs are reachable without the mouse:
+Route Explorer is built for keyboard use — all inputs and tabs are reachable without the mouse. The full binding list is shown in the in-workflow help overlay (press `?`) and lives in `src/components/RouteExplorer/KeyboardHelp.ts`:
 
-- `1 / 2 / 3 / 4` — jump between Current, Alternatives, Land, Impact.
-- `?` — show the keyboard cheat sheet.
-- `Esc` — close the workflow.
-- `Tab` — move between origin, destination, HS2, cargo type.
-
-See `src/components/RouteExplorer/KeyboardHelp.ts` for the full binding list that ships with the modal.
+| Key | Action |
+|---|---|
+| `Esc` | Close the active picker first, then the panel |
+| `Tab` / `Shift+Tab` | Move focus between the panel and the map |
+| `F` | Jump to the From picker |
+| `T` | Jump to the To picker |
+| `P` | Jump to the Product (HS2) picker |
+| `S` | Swap From ↔ To |
+| `1` – `4` | Switch tabs (Current / Alternatives / Land / Impact) |
+| `↑` / `↓` | Navigate the ranked list in the left rail |
+| `Enter` | Commit the highlighted selection |
+| `Cmd+,` | Copy the shareable URL |
+| `?` | Show this help overlay |
 
 ## Map integration
 
@@ -74,9 +81,9 @@ When the workflow closes, the map restores its prior state.
 
 ## Tier & gating
 
-Route Explorer is **PRO**. Free-tier visitors can open the workflow and see the UI; the numeric payload is blurred, except for the currently-featured public demo route which renders in full. A gate-hit event is logged so product can measure which lane configurations are attempted by free users. See `src/components/RouteExplorer/RouteExplorer.ts` (`hasPremiumAccess` guard) and `src/services/analytics.ts`.
+Route Explorer is **PRO**. Free-tier visitors can open the workflow and fill in the input bar, but they hit a hard gate at fetch time — the left rail is blurred, the tab area is replaced with an "Unlock route intelligence" card and an **Upgrade to PRO** button, and no numeric payload is rendered in any tab. The underlying map, visible behind the modal, shows a generic public-route highlight as a preview of what PRO exposes.
 
-Upgrade path: any CTA inside the workflow routes to the Pro signup.
+The gate path is implemented by `renderFreeGate()` in `src/components/RouteExplorer/RouteExplorer.ts:342`; a `route-explorer:free-cta-click` analytics event fires if the Upgrade button is clicked. Clicking Upgrade routes into the Pro checkout (or falls back to the Pro marketing page).
 
 ## Data behind Route Explorer
 

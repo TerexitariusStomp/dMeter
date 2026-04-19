@@ -1,6 +1,6 @@
 ---
 title: "Scenario Engine"
-description: "Run pre-built supply-chain disruption scenarios (conflicts, sanctions, tariff shocks, weather, infrastructure failures, pandemics) and see which chokepoints, sectors, and countries are exposed — directly on the map."
+description: "Run pre-built supply-chain disruption scenarios — conflicts, sanctions, tariff shocks, and weather events — and see which chokepoints, sectors, and countries are exposed, directly on the map."
 ---
 
 Scenario Engine turns WorldMonitor's live supply-chain graph into an interactive what-if tool. Instead of asking "what is the state of this lane today," you pick a named disruption scenario — a Hormuz closure, a Panama drought, a tariff shock on semiconductors — and the engine resolves the downstream impact on chokepoints, HS2 sectors, and countries, then paints the result onto the existing map.
@@ -19,18 +19,18 @@ You can also drive it programmatically — see [Scenarios API](/api-scenarios) f
 
 ## Scenario templates
 
-Templates are defined in `server/worldmonitor/supply-chain/v1/scenario-templates.ts`. Each template has a `type` drawn from a small, curated set so scenarios are browsable by category rather than a free-form list:
+Templates are defined in `server/worldmonitor/supply-chain/v1/scenario-templates.ts`. Each template has a `type` drawn from a small, curated set so scenarios are browsable by category rather than a free-form list.
+
+The currently shipped types are:
 
 | Type | What it models |
 |---|---|
-| `conflict` | Chokepoint closure or degradation driven by an active conflict event. |
-| `weather` | Climatic disruption — drought (Panama), freeze, storm-driven congestion. |
-| `sanctions` | Targeted trade restrictions against a country or set of HS codes. |
-| `tariff_shock` | A sudden tariff action and its cost-pass-through. |
-| `infrastructure` | Port outage, cable cut, pipeline failure, terminal fire. |
-| `pandemic` | Large-scale labour / throughput loss at named hubs. |
+| `conflict` | Chokepoint closure or degradation driven by an active conflict event (Taiwan Strait full closure, Suez + Bab-el-Mandeb simultaneous, Hormuz tanker blockade). |
+| `weather` | Climatic disruption — e.g. the Panama Canal 50% drought scenario. |
+| `sanctions` | Targeted trade restrictions (e.g. Russia / Baltic grain suspension). |
+| `tariff_shock` | A sudden tariff action and its cost pass-through (e.g. US tariff escalation on electronics). |
 
-Each template declares the chokepoints it affects (IDs from the chokepoint registry), a duration in days, affected HS2 sectors, and a cost-shock multiplier. Run them as-is — there are no sliders in v1.
+Each template declares the chokepoints it affects (IDs from the chokepoint registry), a duration in days, affected HS2 sectors, and a cost-shock multiplier. Run them as-is — there are no sliders in v1. The `ScenarioType` union leaves room for `infrastructure` and `pandemic` categories, but no templates of those types ship today.
 
 ## What you get back
 
@@ -59,7 +59,7 @@ The workflow is inherently async — the edge function enqueues a job, a Railway
 4. When the result lands, the map repaints, and a summary card appears in the panel.
 5. Click **Deactivate** to clear the scenario state.
 
-For scripted use, see [`POST /api/scenario/v1/run`](/api-scenarios#run-a-scenario) — enqueue, poll `/status` until `status: "completed"`, then render the same payload yourself.
+For scripted use, see [`POST /api/scenario/v1/run`](/api-scenarios#run-a-scenario) — enqueue, then poll `/status` until the response has `status: "done"` (or `status: "failed"`), then render the same payload yourself. While the job is in-flight the status endpoint returns `{ status: "pending" }`.
 
 ## Data behind Scenario Engine
 

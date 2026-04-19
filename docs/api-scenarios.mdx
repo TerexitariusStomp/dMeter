@@ -95,13 +95,11 @@ Returns the job result or `{ status: "pending" }` while the worker is still runn
 }
 ```
 
-**Completed response (`200`)** — shape is scenario-specific; always includes:
+**Completed response (`200`)** — the worker writes the result directly to Redis; the status endpoint returns it verbatim. Shape is scenario-specific; it always includes a terminal `status` (`"done"` on success, `"failed"` on error), a timestamp, and either a `result` object or an `error` string.
+
 ```json
 {
-  "jobId": "scenario:1713456789012:a1b2c3d4",
-  "scenarioId": "hormuz-closure-30d",
-  "iso2": "SG",
-  "status": "completed",
+  "status": "done",
   "completedAt": 1713456890123,
   "result": {
     "costShockPct": 14.2,
@@ -110,6 +108,18 @@ Returns the job result or `{ status: "pending" }` while the worker is still runn
   }
 }
 ```
+
+**Failed response (`200`)**:
+
+```json
+{
+  "status": "failed",
+  "error": "computation_error",
+  "failedAt": 1713456890123
+}
+```
+
+Poll loop: while the worker is still running, the endpoint returns `{ "status": "pending" }` (synthesised by the status handler when no worker record is present). Once the worker writes its result, the status endpoint returns the worker's payload as-is with `status: "done"` or `"failed"`.
 
 **Errors**:
 
