@@ -331,13 +331,6 @@
       "removal_issue": "#3207"
     },
     {
-      "path": "api/ais-snapshot.js",
-      "category": "migration-pending",
-      "reason": "Legacy endpoint; proto + handler already exist (maritime/v1/get_vessel_snapshot). Decomm in commit 2 of #3207.",
-      "owner": "@SebastienMelki",
-      "removal_issue": "#3207"
-    },
-    {
       "path": "api/enrichment/company.js",
       "category": "migration-pending",
       "reason": "Migrating to enrichment/v1 service in commit 3 of #3207.",
