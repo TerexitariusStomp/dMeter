@@ -317,20 +317,6 @@
     },
 
     {
-      "path": "api/contact.js",
-      "category": "migration-pending",
-      "reason": "Migrating to leads/v1 service (SubmitContact RPC) in commit 4 of #3207.",
-      "owner": "@SebastienMelki",
-      "removal_issue": "#3207"
-    },
-    {
-      "path": "api/register-interest.js",
-      "category": "migration-pending",
-      "reason": "Migrating to leads/v1 service (RegisterInterest RPC) in commit 4 of #3207.",
-      "owner": "@SebastienMelki",
-      "removal_issue": "#3207"
-    },
-    {
       "path": "api/eia/[[...path]].js",
       "category": "migration-pending",
       "reason": "Catch-all EIA passthrough; replaced by typed economic/v1.GetEiaSeries in commit 5 of #3207.",

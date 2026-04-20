@@ -1,17 +1,24 @@
-export const config = { runtime: 'edge' };
+/**
+ * RPC: submitContact -- Stores an enterprise contact submission and emails ops.
+ * Port from api/contact.js
+ * Sources: Convex contactMessages:submit mutation + Resend notification email
+ */
 
 import { ConvexHttpClient } from 'convex/browser';
-import { getCorsHeaders, isDisallowedOrigin } from './_cors.js';
-import { getClientIp, verifyTurnstile } from './_turnstile.js';
-import { jsonResponse } from './_json-response.js';
-import { createIpRateLimiter } from './_ip-rate-limit.js';
+import type {
+  ServerContext,
+  SubmitContactRequest,
+  SubmitContactResponse,
+} from '../../../../src/generated/server/worldmonitor/leads/v1/service_server';
+import { ApiError, ValidationError } from '../../../../src/generated/server/worldmonitor/leads/v1/service_server';
+import { getClientIp, verifyTurnstile } from '../../../_shared/turnstile';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^[+(]?\d[\d\s()./-]{4,23}\d$/;
 const MAX_FIELD = 500;
 const MAX_MESSAGE = 2000;
 
-const FREE_EMAIL_DOMAINS = new Set([
+const FREE_EMAIL_DOMAINS = new Set<string>([
   'gmail.com', 'googlemail.com', 'yahoo.com', 'yahoo.fr', 'yahoo.co.uk', 'yahoo.co.jp',
   'hotmail.com', 'hotmail.fr', 'hotmail.co.uk', 'outlook.com', 'outlook.fr',
   'live.com', 'live.fr', 'msn.com', 'aol.com', 'icloud.com', 'me.com', 'mac.com',
@@ -24,12 +31,27 @@ const FREE_EMAIL_DOMAINS = new Set([
   't-online.de', 'libero.it', 'virgilio.it',
 ]);
 
-const RATE_LIMIT = 3;
-const RATE_WINDOW_MS = 60 * 60 * 1000;
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
-const rateLimiter = createIpRateLimiter({ limit: RATE_LIMIT, windowMs: RATE_WINDOW_MS });
+function sanitizeForSubject(str: string, maxLen = 50): string {
+  return str.replace(/[\r\n\0]/g, '').slice(0, maxLen);
+}
 
-async function sendNotificationEmail(name, email, organization, phone, message, ip, country) {
+async function sendNotificationEmail(
+  name: string,
+  email: string,
+  organization: string,
+  phone: string,
+  message: string | undefined,
+  ip: string,
+  country: string | null,
+): Promise<boolean> {
   const resendKey = process.env.RESEND_API_KEY;
   if (!resendKey) {
     console.error('[contact] RESEND_API_KEY not set — lead stored in Convex but notification NOT sent');
@@ -77,109 +99,80 @@ async function sendNotificationEmail(name, email, organization, phone, message, 
   }
 }
 
-function escapeHtml(str) {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-function sanitizeForSubject(str, maxLen = 50) {
-  return str.replace(/[\r\n\0]/g, '').slice(0, maxLen);
-}
-
-export default async function handler(req) {
-  if (isDisallowedOrigin(req)) {
-    return jsonResponse({ error: 'Origin not allowed' }, 403);
+export async function submitContact(
+  ctx: ServerContext,
+  req: SubmitContactRequest,
+): Promise<SubmitContactResponse> {
+  // Honeypot — silently accept but do nothing (bots auto-fill hidden field).
+  if (req.website) {
+    return { status: 'sent', emailSent: false };
   }
 
-  const cors = getCorsHeaders(req, 'POST, OPTIONS');
-
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: cors });
-  }
-
-  if (req.method !== 'POST') {
-    return jsonResponse({ error: 'Method not allowed' }, 405, cors);
-  }
-
-  const ip = getClientIp(req);
-  const country = req.headers.get('cf-ipcountry') || req.headers.get('x-vercel-ip-country') || null;
-
-  if (rateLimiter.isRateLimited(ip)) {
-    return jsonResponse({ error: 'Too many requests' }, 429, cors);
-  }
-
-  let body;
-  try {
-    body = await req.json();
-  } catch {
-    return jsonResponse({ error: 'Invalid JSON' }, 400, cors);
-  }
-
-  if (body.website) {
-    return jsonResponse({ status: 'sent' }, 200, cors);
-  }
+  const ip = getClientIp(ctx.request);
+  const country = ctx.request.headers.get('cf-ipcountry')
+    || ctx.request.headers.get('x-vercel-ip-country');
 
   const turnstileOk = await verifyTurnstile({
-    token: body.turnstileToken || '',
+    token: req.turnstileToken || '',
     ip,
     logPrefix: '[contact]',
     missingSecretPolicy: 'allow-in-development',
   });
   if (!turnstileOk) {
-    return jsonResponse({ error: 'Bot verification failed' }, 403, cors);
+    throw new ApiError(403, 'Bot verification failed', '');
   }
 
-  const { email, name, organization, phone, message, source } = body;
+  const { email, name, organization, phone, message, source } = req;
 
-  if (!email || typeof email !== 'string' || !EMAIL_RE.test(email)) {
-    return jsonResponse({ error: 'Invalid email' }, 400, cors);
+  if (!email || !EMAIL_RE.test(email)) {
+    throw new ValidationError([{ field: 'email', description: 'Invalid email' }]);
   }
 
   const emailDomain = email.split('@')[1]?.toLowerCase();
   if (emailDomain && FREE_EMAIL_DOMAINS.has(emailDomain)) {
-    return jsonResponse({ error: 'Please use your work email address' }, 422, cors);
+    throw new ApiError(422, 'Please use your work email address', '');
   }
 
-  if (!name || typeof name !== 'string' || name.trim().length === 0) {
-    return jsonResponse({ error: 'Name is required' }, 400, cors);
+  if (!name || name.trim().length === 0) {
+    throw new ValidationError([{ field: 'name', description: 'Name is required' }]);
   }
-  if (!organization || typeof organization !== 'string' || organization.trim().length === 0) {
-    return jsonResponse({ error: 'Company is required' }, 400, cors);
+  if (!organization || organization.trim().length === 0) {
+    throw new ValidationError([{ field: 'organization', description: 'Company is required' }]);
   }
-  if (!phone || typeof phone !== 'string' || !PHONE_RE.test(phone.trim())) {
-    return jsonResponse({ error: 'Valid phone number is required' }, 400, cors);
+  if (!phone || !PHONE_RE.test(phone.trim())) {
+    throw new ValidationError([{ field: 'phone', description: 'Valid phone number is required' }]);
   }
 
   const safeName = name.slice(0, MAX_FIELD);
   const safeOrg = organization.slice(0, MAX_FIELD);
   const safePhone = phone.trim().slice(0, 30);
-  const safeMsg = typeof message === 'string' ? message.slice(0, MAX_MESSAGE) : undefined;
-  const safeSource = typeof source === 'string' ? source.slice(0, 100) : 'enterprise-contact';
+  const safeMsg = message ? message.slice(0, MAX_MESSAGE) : undefined;
+  const safeSource = source ? source.slice(0, 100) : 'enterprise-contact';
 
   const convexUrl = process.env.CONVEX_URL;
   if (!convexUrl) {
-    return jsonResponse({ error: 'Service unavailable' }, 503, cors);
+    throw new ApiError(503, 'Service unavailable', '');
   }
 
-  try {
-    const client = new ConvexHttpClient(convexUrl);
-    await client.mutation('contactMessages:submit', {
-      name: safeName,
-      email: email.trim(),
-      organization: safeOrg,
-      phone: safePhone,
-      message: safeMsg,
-      source: safeSource,
-    });
+  const client = new ConvexHttpClient(convexUrl);
+  await client.mutation('contactMessages:submit' as any, {
+    name: safeName,
+    email: email.trim(),
+    organization: safeOrg,
+    phone: safePhone,
+    message: safeMsg,
+    source: safeSource,
+  });
 
-    const emailSent = await sendNotificationEmail(safeName, email.trim(), safeOrg, safePhone, safeMsg, ip, country);
+  const emailSent = await sendNotificationEmail(
+    safeName,
+    email.trim(),
+    safeOrg,
+    safePhone,
+    safeMsg,
+    ip,
+    country,
+  );
 
-    return jsonResponse({ status: 'sent', emailSent }, 200, cors);
-  } catch (err) {
-    console.error('[contact] error:', err);
-    return jsonResponse({ error: 'Failed to send message' }, 500, cors);
-  }
+  return { status: 'sent', emailSent };
 }

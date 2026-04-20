@@ -1,4 +1,4 @@
-const DISPOSABLE_DOMAINS = new Set([
+const DISPOSABLE_DOMAINS = new Set<string>([
   'guerrillamail.com', 'guerrillamail.de', 'guerrillamail.net', 'guerrillamail.org',
   'guerrillamailblock.com', 'grr.la', 'sharklasers.com', 'spam4.me',
   'tempmail.com', 'temp-mail.org', 'temp-mail.io',
@@ -27,23 +27,25 @@ const DISPOSABLE_DOMAINS = new Set([
 
 const OFFENSIVE_RE = /(nigger|faggot|fuckfaggot)/i;
 
-const TYPO_TLDS = new Set(['con', 'coma', 'comhade', 'gmai', 'gmial']);
+const TYPO_TLDS = new Set<string>(['con', 'coma', 'comhade', 'gmai', 'gmial']);
 
-async function hasMxRecords(domain) {
+export type EmailValidationResult = { valid: true } | { valid: false; reason: string };
+
+async function hasMxRecords(domain: string): Promise<boolean> {
   try {
     const res = await fetch(
       `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=MX`,
-      { headers: { Accept: 'application/dns-json' }, signal: AbortSignal.timeout(3000) }
+      { headers: { Accept: 'application/dns-json' }, signal: AbortSignal.timeout(3000) },
     );
     if (!res.ok) return true;
-    const data = await res.json();
+    const data = (await res.json()) as { Answer?: unknown[] };
     return Array.isArray(data.Answer) && data.Answer.length > 0;
   } catch {
     return true;
   }
 }
 
-export async function validateEmail(email) {
+export async function validateEmail(email: string): Promise<EmailValidationResult> {
   const normalized = email.trim().toLowerCase();
   const atIdx = normalized.indexOf('@');
   if (atIdx < 1) return { valid: false, reason: 'Invalid email format' };

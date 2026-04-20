@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { getClientIp, verifyTurnstile } from './_turnstile.js';
+import { getClientIp, verifyTurnstile } from '../server/_shared/turnstile.ts';
 
 const originalFetch = globalThis.fetch;
 const originalEnv = { ...process.env };

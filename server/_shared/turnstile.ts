@@ -1,7 +1,6 @@
 const TURNSTILE_VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 
-export function getClientIp(request) {
-  // Prefer platform-populated IP headers before falling back to x-forwarded-for.
+export function getClientIp(request: Request): string {
   return (
     request.headers.get('x-real-ip') ||
     request.headers.get('cf-connecting-ip') ||
@@ -10,12 +9,21 @@ export function getClientIp(request) {
   );
 }
 
+export type TurnstileMissingSecretPolicy = 'allow' | 'allow-in-development' | 'deny';
+
+export interface VerifyTurnstileArgs {
+  token: string;
+  ip: string;
+  logPrefix?: string;
+  missingSecretPolicy?: TurnstileMissingSecretPolicy;
+}
+
 export async function verifyTurnstile({
   token,
   ip,
   logPrefix = '[turnstile]',
   missingSecretPolicy = 'allow',
-}) {
+}: VerifyTurnstileArgs): Promise<boolean> {
   const secret = process.env.TURNSTILE_SECRET_KEY;
   if (!secret) {
     if (missingSecretPolicy === 'allow') return true;
@@ -33,7 +41,7 @@ export async function verifyTurnstile({
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ secret, response: token, remoteip: ip }),
     });
-    const data = await res.json();
+    const data = (await res.json()) as { success?: boolean };
     return data.success === true;
   } catch {
     return false;

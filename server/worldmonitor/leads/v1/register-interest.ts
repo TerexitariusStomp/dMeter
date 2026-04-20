@@ -1,24 +1,36 @@
-export const config = { runtime: 'edge' };
+/**
+ * RPC: registerInterest -- Adds an email to the Pro waitlist and emails a confirmation.
+ * Port from api/register-interest.js
+ * Sources: Convex registerInterest:register mutation + Resend confirmation email
+ */
 
 import { ConvexHttpClient } from 'convex/browser';
-import { getCorsHeaders, isDisallowedOrigin } from './_cors.js';
-import { getClientIp, verifyTurnstile } from './_turnstile.js';
-import { jsonResponse } from './_json-response.js';
-import { createIpRateLimiter } from './_ip-rate-limit.js';
-import { validateEmail } from './_email-validation.js';
+import type {
+  ServerContext,
+  RegisterInterestRequest,
+  RegisterInterestResponse,
+} from '../../../../src/generated/server/worldmonitor/leads/v1/service_server';
+import { ApiError, ValidationError } from '../../../../src/generated/server/worldmonitor/leads/v1/service_server';
+import { getClientIp, verifyTurnstile } from '../../../_shared/turnstile';
+import { validateEmail } from '../../../_shared/email-validation';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_EMAIL_LENGTH = 320;
 const MAX_META_LENGTH = 100;
 
-const RATE_LIMIT = 5;
-const RATE_WINDOW_MS = 60 * 60 * 1000;
+const DESKTOP_SOURCES = new Set<string>(['desktop-settings']);
 
-const rateLimiter = createIpRateLimiter({ limit: RATE_LIMIT, windowMs: RATE_WINDOW_MS });
+interface ConvexRegisterResult {
+  status: 'registered' | 'already_registered';
+  referralCode: string;
+  referralCount: number;
+  position?: number;
+  emailSuppressed?: boolean;
+}
 
-async function sendConfirmationEmail(email, referralCode) {
+async function sendConfirmationEmail(email: string, referralCode: string): Promise<void> {
   const referralLink = `https://worldmonitor.app/pro?ref=${referralCode}`;
-  const shareText = encodeURIComponent('I just joined the World Monitor Pro waitlist \u2014 real-time global intelligence powered by AI. Join me:');
+  const shareText = encodeURIComponent("I just joined the World Monitor Pro waitlist \u2014 real-time global intelligence powered by AI. Join me:");
   const shareUrl = encodeURIComponent(referralLink);
   const twitterShare = `https://x.com/intent/tweet?text=${shareText}&url=${shareUrl}`;
   const linkedinShare = `https://www.linkedin.com/sharing/share-offsite/?url=${shareUrl}`;
@@ -40,7 +52,7 @@ async function sendConfirmationEmail(email, referralCode) {
       body: JSON.stringify({
         from: 'World Monitor <noreply@worldmonitor.app>',
         to: [email],
-        subject: 'You\u2019re on the World Monitor Pro waitlist',
+        subject: "You\u2019re on the World Monitor Pro waitlist",
         html: `
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; background: #0a0a0a; color: #e0e0e0;">
             <div style="background: #4ade80; height: 4px;"></div>
@@ -168,105 +180,71 @@ async function sendConfirmationEmail(email, referralCode) {
   }
 }
 
-export default async function handler(req) {
-  if (isDisallowedOrigin(req)) {
-    return jsonResponse({ error: 'Origin not allowed' }, 403);
+export async function registerInterest(
+  ctx: ServerContext,
+  req: RegisterInterestRequest,
+): Promise<RegisterInterestResponse> {
+  // Honeypot — silently accept but do nothing.
+  if (req.website) {
+    return { status: 'registered', referralCode: '', referralCount: 0, position: 0, emailSuppressed: false };
   }
 
-  const cors = getCorsHeaders(req, 'POST, OPTIONS');
+  const ip = getClientIp(ctx.request);
+  const isDesktopSource = typeof req.source === 'string' && DESKTOP_SOURCES.has(req.source);
 
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: cors });
-  }
-
-  if (req.method !== 'POST') {
-    return jsonResponse({ error: 'Method not allowed' }, 405, cors);
-  }
-
-  const ip = getClientIp(req);
-  if (rateLimiter.isRateLimited(ip)) {
-    return jsonResponse({ error: 'Too many requests' }, 429, cors);
-  }
-
-  let body;
-  try {
-    body = await req.json();
-  } catch {
-    return jsonResponse({ error: 'Invalid JSON' }, 400, cors);
-  }
-
-  // Honeypot — bots auto-fill this hidden field; real users leave it empty
-  if (body.website) {
-    return jsonResponse({ status: 'registered' }, 200, cors);
-  }
-
-  // Cloudflare Turnstile verification — skip for desktop app (no browser captcha available).
-  // Desktop bypasses captcha, so enforce stricter rate limit (2/hr vs 5/hr).
-  const DESKTOP_SOURCES = new Set(['desktop-settings']);
-  const isDesktopSource = typeof body.source === 'string' && DESKTOP_SOURCES.has(body.source);
-  if (isDesktopSource) {
-    const entry = rateLimiter.getEntry(ip);
-    if (entry && entry.count > 2) {
-      return jsonResponse({ error: 'Rate limit exceeded' }, 429, cors);
-    }
-  } else {
+  // Desktop sources bypass Turnstile (no browser captcha). Gateway-level per-IP
+  // rate limit (5/h) already throttles abuse for both cases.
+  if (!isDesktopSource) {
     const turnstileOk = await verifyTurnstile({
-      token: body.turnstileToken || '',
+      token: req.turnstileToken || '',
       ip,
       logPrefix: '[register-interest]',
     });
     if (!turnstileOk) {
-      return jsonResponse({ error: 'Bot verification failed' }, 403, cors);
+      throw new ApiError(403, 'Bot verification failed', '');
     }
   }
 
-  const { email, source, appVersion, referredBy } = body;
-  if (!email || typeof email !== 'string' || email.length > MAX_EMAIL_LENGTH || !EMAIL_RE.test(email)) {
-    return jsonResponse({ error: 'Invalid email address' }, 400, cors);
+  const { email, source, appVersion, referredBy } = req;
+  if (!email || email.length > MAX_EMAIL_LENGTH || !EMAIL_RE.test(email)) {
+    throw new ValidationError([{ field: 'email', description: 'Invalid email address' }]);
   }
 
   const emailCheck = await validateEmail(email);
   if (!emailCheck.valid) {
-    return jsonResponse({ error: emailCheck.reason }, 400, cors);
+    throw new ValidationError([{ field: 'email', description: emailCheck.reason }]);
   }
 
-  const safeSource = typeof source === 'string'
-    ? source.slice(0, MAX_META_LENGTH)
-    : 'unknown';
-  const safeAppVersion = typeof appVersion === 'string'
-    ? appVersion.slice(0, MAX_META_LENGTH)
-    : 'unknown';
-  const safeReferredBy = typeof referredBy === 'string'
-    ? referredBy.slice(0, 20)
-    : undefined;
+  const safeSource = source ? source.slice(0, MAX_META_LENGTH) : 'unknown';
+  const safeAppVersion = appVersion ? appVersion.slice(0, MAX_META_LENGTH) : 'unknown';
+  const safeReferredBy = referredBy ? referredBy.slice(0, 20) : undefined;
 
   const convexUrl = process.env.CONVEX_URL;
   if (!convexUrl) {
-    return jsonResponse({ error: 'Registration service unavailable' }, 503, cors);
+    throw new ApiError(503, 'Registration service unavailable', '');
   }
 
-  try {
-    const client = new ConvexHttpClient(convexUrl);
-    const result = await client.mutation('registerInterest:register', {
-      email,
-      source: safeSource,
-      appVersion: safeAppVersion,
-      referredBy: safeReferredBy,
-    });
+  const client = new ConvexHttpClient(convexUrl);
+  const result = (await client.mutation('registerInterest:register' as any, {
+    email,
+    source: safeSource,
+    appVersion: safeAppVersion,
+    referredBy: safeReferredBy,
+  })) as ConvexRegisterResult;
 
-    // Send confirmation email for new registrations (awaited to avoid Edge isolate termination)
-    // Skip if email is on the suppression list (previously bounced)
-    if (result.status === 'registered' && result.referralCode) {
-      if (!result.emailSuppressed) {
-        await sendConfirmationEmail(email, result.referralCode);
-      } else {
-        console.log(`[register-interest] Skipped email to suppressed address: ${email}`);
-      }
+  if (result.status === 'registered' && result.referralCode) {
+    if (!result.emailSuppressed) {
+      await sendConfirmationEmail(email, result.referralCode);
+    } else {
+      console.log(`[register-interest] Skipped email to suppressed address: ${email}`);
     }
-
-    return jsonResponse(result, 200, cors);
-  } catch (err) {
-    console.error('[register-interest] Convex error:', err);
-    return jsonResponse({ error: 'Registration failed' }, 500, cors);
   }
+
+  return {
+    status: result.status,
+    referralCode: result.referralCode,
+    referralCount: result.referralCount,
+    position: result.position ?? 0,
+    emailSuppressed: result.emailSuppressed ?? false,
+  };
 }
