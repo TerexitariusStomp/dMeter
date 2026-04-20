@@ -70,60 +70,10 @@ describe('Edge Function no node: built-ins', () => {
   }
 });
 
-describe('Legacy api/*.js endpoint allowlist', () => {
-  const ALLOWED_LEGACY_ENDPOINTS = new Set([
-    'ais-snapshot.js',
-    'bootstrap.js',
-    'cache-purge.js',
-    'contact.js',
-    'download.js',
-    'fwdstart.js',
-    'geo.js',
-    'gpsjam.js',
-    'health.js',
-    'military-flights.js',
-    'og-story.js',
-    'opensky.js',
-    'oref-alerts.js',
-    'polymarket.js',
-    'product-catalog.js',
-    'register-interest.js',
-    'reverse-geocode.js',
-    'mcp-proxy.js',
-    'rss-proxy.js',
-    'satellites.js',
-    'seed-health.js',
-    'story.js',
-    'telegram-feed.js',
-    'sanctions-entity-search.js',
-    'version.js',
-  ]);
-
-  const currentEndpoints = readdirSync(apiDir).filter(
-    (f) => f.endsWith('.js') && !f.startsWith('_'),
-  );
-
-  for (const file of currentEndpoints) {
-    it(`${file} is in the legacy endpoint allowlist`, () => {
-      assert.ok(
-        ALLOWED_LEGACY_ENDPOINTS.has(file),
-        `${file} is a new api/*.js endpoint not in the allowlist. ` +
-          'New data endpoints must use the sebuf protobuf RPC pattern ' +
-          '(proto definition → buf generate → handler in server/worldmonitor/{domain}/v1/ → wired in handler.ts). ' +
-          'If this is a non-data ops endpoint, add it to ALLOWED_LEGACY_ENDPOINTS in tests/edge-functions.test.mjs.',
-      );
-    });
-  }
-
-  it('allowlist has no stale entries (all listed files exist)', () => {
-    for (const file of ALLOWED_LEGACY_ENDPOINTS) {
-      assert.ok(
-        existsSync(join(apiDir, file)),
-        `${file} is in ALLOWED_LEGACY_ENDPOINTS but does not exist in api/ — remove it from the allowlist.`,
-      );
-    }
-  });
-});
+// The legacy api/*.js allowlist that previously lived here was replaced by
+// api/api-route-exceptions.json + scripts/enforce-sebuf-api-contract.mjs (see
+// docs/adding-endpoints.mdx). The new check covers nested paths and .ts files,
+// which this block missed.
 
 describe('reverse-geocode Redis write', () => {
   const geocodePath = join(apiDir, 'reverse-geocode.js');
