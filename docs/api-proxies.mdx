@@ -37,14 +37,6 @@ All proxies:
 
 Fetches an RSS/Atom feed and returns the parsed JSON. The URL must match one of the patterns in `_rss-allowed-domains.js` — arbitrary URLs are refused to prevent SSRF.
 
-### `GET /api/enrichment/company?domain=<host>`
-
-Returns company metadata (name, logo, industry, HQ country) for a website domain. Composite of public sources.
-
-### `GET /api/enrichment/signals?domain=<host>`
-
-Returns trust and risk signals (TLS grade, DNS age, WHOIS country, threat-list membership) for a domain.
-
 ## Skills registry
 
 ### `GET /api/skills/fetch-agentskills`

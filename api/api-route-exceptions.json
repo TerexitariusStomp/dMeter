@@ -317,20 +317,6 @@
     },
 
     {
-      "path": "api/enrichment/company.js",
-      "category": "migration-pending",
-      "reason": "Migrating to enrichment/v1 service in commit 3 of #3207.",
-      "owner": "@SebastienMelki",
-      "removal_issue": "#3207"
-    },
-    {
-      "path": "api/enrichment/signals.js",
-      "category": "migration-pending",
-      "reason": "Migrating to enrichment/v1 service in commit 3 of #3207.",
-      "owner": "@SebastienMelki",
-      "removal_issue": "#3207"
-    },
-    {
       "path": "api/contact.js",
       "category": "migration-pending",
       "reason": "Migrating to leads/v1 service (SubmitContact RPC) in commit 4 of #3207.",
