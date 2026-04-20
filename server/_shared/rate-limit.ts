@@ -80,6 +80,9 @@ interface EndpointRatePolicy {
 const ENDPOINT_RATE_POLICIES: Record<string, EndpointRatePolicy> = {
   '/api/news/v1/summarize-article-cache': { limit: 3000, window: '60 s' },
   '/api/intelligence/v1/classify-event': { limit: 600, window: '60 s' },
+  // Legacy /api/sanctions-entity-search rate limit was 30/min per IP. Preserve
+  // that budget now that LookupSanctionEntity proxies OpenSanctions live.
+  '/api/sanctions/v1/lookup-entity': { limit: 30, window: '60 s' },
 };
 
 const endpointLimiters = new Map<string, Ratelimit>();
