@@ -78,6 +78,7 @@ const BOOTSTRAP_CACHE_KEYS = {
   dmrvAareRiver:        'dmrv:aare-river:v1',
   dmrvAdresseGeocode:   'dmrv:adresse-geocode:v1',
   dmrvApiStatusCheck:   'dmrv:api-status-check:v1',
+  dmrvNasaOpen:         'dmrv:nasa-open:v1',
   techReadiness:    'economic:worldbank-techreadiness:v1',
   progressData:     'economic:worldbank-progress:v1',
   renewableEnergy:  'economic:worldbank-renewable:v1',
@@ -205,7 +206,7 @@ const SLOW_KEYS = new Set([
   'dmrvCurrentuv',
   'dmrvGbifBiodiversity', 'dmrvObisMarine', 'dmrvOpentopodata',
   'dmrvAdresseGeocode',
-  'dmrvApiStatusCheck',
+  'dmrvNasaOpen',
 ]);
 const FAST_KEYS = new Set([
   'earthquakes', 'outages', 'serviceStatuses', 'ddosAttacks', 'trafficAnomalies', 'macroSignals', 'chokepoints',

@@ -108,6 +108,7 @@ const SEED_DOMAINS = {
   'dmrv:aare-river':          { key: 'seed-meta:dmrv:aare-river',          intervalMin: 30 },
   'dmrv:adresse-geocode':     { key: 'seed-meta:dmrv:adresse-geocode',     intervalMin: 1440 },
   'dmrv:api-status-check':    { key: 'seed-meta:dmrv:api-status-check',    intervalMin: 30 },
+  'dmrv:nasa-open':           { key: 'seed-meta:dmrv:nasa-open',           intervalMin: 360 },
   'sanctions:pressure':       { key: 'seed-meta:sanctions:pressure',       intervalMin: 360 },
   'health:air-quality':       { key: 'seed-meta:health:air-quality',       intervalMin: 60 },  // hourly cron (shared seeder writes health + climate keys)
   'economic:grocery-basket':  { key: 'seed-meta:economic:grocery-basket',  intervalMin: 5040 }, // weekly seed; intervalMin = maxStaleMin / 2

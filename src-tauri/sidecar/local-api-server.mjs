@@ -148,6 +148,7 @@ const ALLOWED_ENV_KEYS = new Set([
   'OPENAQ_API_KEY', 'WAQI_API_KEY', 'AQICN_API_KEY',
   'DATAVERSE_API_KEY', 'FIRE_MAPS_API_KEY',
   'WINDY_WEBCAMS_API_KEY', 'WINDY_POINT_FORECAST_API_KEY', 'WINDY_MAP_FORECAST_API_KEY', 'WINDY_PLUGINS_API_KEY',
+  'NASA_OPEN_API_KEY', 'NASA_API_KEY',
 ]);
 
 const CHROME_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
@@ -1038,6 +1039,10 @@ async function validateSecretAgainstProvider(key, rawValue, context = {}) {
     case 'WINDY_MAP_FORECAST_API_KEY':
     case 'WINDY_PLUGINS_API_KEY':
       return ok('Windy API key stored');
+
+    case 'NASA_OPEN_API_KEY':
+    case 'NASA_API_KEY':
+      return ok('NASA Open API key stored (DEMO_KEY fallback is supported)');
 
     case 'AVIATIONSTACK_API': {
       const response = await fetchWithTimeout(

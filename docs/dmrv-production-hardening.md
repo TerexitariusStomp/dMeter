@@ -56,6 +56,7 @@ These are useful but can be key-limited, region-limited, or more volatile:
 23. aare-river
 24. adresse-geocode
 25. api-status-check
+26. nasa-open
 
 ## Containerized smoke tests run
 

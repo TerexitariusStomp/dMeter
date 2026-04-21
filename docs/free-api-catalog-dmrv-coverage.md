@@ -81,6 +81,12 @@ This run integrated/confirmed all high-value dMRV-relevant APIs from that catalo
 - cache key: `dmrv:api-status-check:v1`
 - endpoint: `GET /api/dmrv/api-status-check`
 
+13. NASA Open APIs (DEMO key supported)
+- free-api-catalog entry: NASA Open APIs
+- dMeter seeder: `scripts/seed-nasa-open.mjs`
+- cache key: `dmrv:nasa-open:v1`
+- endpoint: `GET /api/dmrv/nasa-open`
+
 ## Already integrated before this pass (confirmed)
 
 - OpenAQ (air quality) -> `seed-health-air-quality.mjs` + `OPENAQ_API_KEY`

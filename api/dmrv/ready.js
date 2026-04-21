@@ -43,6 +43,7 @@ const OPTIONAL_DATASETS = [
   ['aare-river', 'seed-meta:dmrv:aare-river', 30],
   ['adresse-geocode', 'seed-meta:dmrv:adresse-geocode', 1440],
   ['api-status-check', 'seed-meta:dmrv:api-status-check', 30],
+  ['nasa-open', 'seed-meta:dmrv:nasa-open', 360],
 ];
 
 function datasetStatus(meta, intervalMin, now) {

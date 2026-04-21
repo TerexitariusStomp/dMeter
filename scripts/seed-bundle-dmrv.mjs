@@ -304,4 +304,12 @@ await runBundle('dmrv', [
     intervalMs:   30 * MIN,
     timeoutMs:    20_000,
   },
-], { maxBundleMs: 35 * 60_000 }); // 35min budget for 35-dataset bundle
+  {
+    label:        'NASA Open',
+    script:       'seed-nasa-open.mjs',
+    seedMetaKey:  'seed-meta:dmrv:nasa-open',
+    canonicalKey: 'dmrv:nasa-open:v1',
+    intervalMs:   6 * HOUR,
+    timeoutMs:    30_000,
+  },
+], { maxBundleMs: 36 * 60_000 }); // 36min budget for 36-dataset bundle
