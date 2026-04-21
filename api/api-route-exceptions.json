@@ -317,20 +317,6 @@
     },
 
     {
-      "path": "api/eia/[[...path]].js",
-      "category": "migration-pending",
-      "reason": "Catch-all EIA passthrough; replaced by typed economic/v1.GetEiaSeries in commit 5 of #3207.",
-      "owner": "@SebastienMelki",
-      "removal_issue": "#3207"
-    },
-    {
-      "path": "api/satellites.js",
-      "category": "migration-pending",
-      "reason": "Folding into natural/v1.ListSatellitePositions in commit 5 of #3207.",
-      "owner": "@SebastienMelki",
-      "removal_issue": "#3207"
-    },
-    {
       "path": "api/supply-chain/v1/country-products.ts",
       "category": "migration-pending",
       "reason": "Hand-rolled endpoint sitting under a proto domain URL prefix (the exact drift this PR's guardrail is designed to prevent). Promoting to proto supply-chain/v1.GetCountryProducts in commit 6 of #3207.",

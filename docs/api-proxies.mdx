@@ -18,10 +18,8 @@ Most proxies are intended for **our own dashboard** and are lightly gated. They 
 
 | Endpoint | Upstream | Purpose |
 |----------|----------|---------|
-| `GET /api/eia/[...path]` | EIA v2 (energy.gov) | Catch-all proxy for US Energy Information Administration series. Path segments are appended to `https://api.eia.gov/v2/...`. |
 | `GET /api/opensky` | OpenSky Network | Live ADS-B state vectors. Used by the flights layer. |
 | `GET /api/polymarket` | Polymarket gamma-api | Active event contracts. |
-| `GET /api/satellites` | CelesTrak | LEO/GEO satellite orbital elements. |
 | `GET /api/gpsjam` | gpsjam.org | GPS interference hotspot reports. |
 | `GET /api/oref-alerts` | OREF (Israel Home Front Command) | Tzeva Adom rocket alert mirror. |
 | `GET /api/supply-chain/hormuz-tracker` | Internal AIS + registry | Real-time Hormuz transit dashboard data. |
