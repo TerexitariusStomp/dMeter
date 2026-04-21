@@ -1,0 +1,3 @@
+# MRV Intro
+
+MRV consists of three distinct features, all of which are vital to conveying legitimacy of regenerative projects (such as tree planting) to stakeholders. Monitoring is the process of measuring the total ecosystem and social services provided by the project. When measuring data is collected through satellite, IOT, georeferenced imagery from boots on the ground, as well as surveys. Reporting involves describing the methodologies that were used to collect and analyze the data, as well as potential biases and any assumptions that went into the data collection. Verification refers to the review process involving a third party that was utilized to ensure the validity of the uploaded data and methodologies.
