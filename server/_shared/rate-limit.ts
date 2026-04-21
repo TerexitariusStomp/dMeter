@@ -139,3 +139,59 @@ export async function checkEndpointRateLimit(
     return null;
   }
 }
+
+// --- In-handler scoped rate limits ---
+//
+// Handlers that need a per-subscope cap *in addition to* the gateway-level
+// endpoint policy (e.g. a tighter budget for one request variant) use this
+// helper. Gateway's checkEndpointRateLimit still runs first — this is a
+// second stage.
+
+const scopedLimiters = new Map<string, Ratelimit>();
+
+function getScopedRatelimit(scope: string, limit: number, window: Duration): Ratelimit | null {
+  const cacheKey = `${scope}|${limit}|${window}`;
+  const cached = scopedLimiters.get(cacheKey);
+  if (cached) return cached;
+
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+
+  const rl = new Ratelimit({
+    redis: new Redis({ url, token }),
+    limiter: Ratelimit.slidingWindow(limit, window),
+    prefix: 'rl:scope',
+    analytics: false,
+  });
+  scopedLimiters.set(cacheKey, rl);
+  return rl;
+}
+
+export interface ScopedRateLimitResult {
+  allowed: boolean;
+  limit: number;
+  reset: number;
+}
+
+/**
+ * Returns whether the request is under the scoped budget. `scope` is an
+ * opaque namespace (e.g. `${pathname}#desktop`); `identifier` is usually the
+ * client IP but can be any stable caller identifier. Fail-open on Redis errors
+ * to stay consistent with checkRateLimit / checkEndpointRateLimit semantics.
+ */
+export async function checkScopedRateLimit(
+  scope: string,
+  limit: number,
+  window: Duration,
+  identifier: string,
+): Promise<ScopedRateLimitResult> {
+  const rl = getScopedRatelimit(scope, limit, window);
+  if (!rl) return { allowed: true, limit, reset: 0 };
+  try {
+    const result = await rl.limit(`${scope}:${identifier}`);
+    return { allowed: result.success, limit: result.limit, reset: result.reset };
+  } catch {
+    return { allowed: true, limit, reset: 0 };
+  }
+}

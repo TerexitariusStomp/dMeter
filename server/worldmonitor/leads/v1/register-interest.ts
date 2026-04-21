@@ -13,12 +13,21 @@ import type {
 import { ApiError, ValidationError } from '../../../../src/generated/server/worldmonitor/leads/v1/service_server';
 import { getClientIp, verifyTurnstile } from '../../../_shared/turnstile';
 import { validateEmail } from '../../../_shared/email-validation';
+import { checkScopedRateLimit } from '../../../_shared/rate-limit';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_EMAIL_LENGTH = 320;
 const MAX_META_LENGTH = 100;
 
 const DESKTOP_SOURCES = new Set<string>(['desktop-settings']);
+
+// Legacy api/register-interest.js capped desktop-source signups at 2/hr per IP
+// on top of the generic 5/hr endpoint budget. Since `source` is an unsigned
+// client-supplied field, this cap is the backstop — the signed-header fix that
+// actually authenticates the desktop bypass is tracked as a follow-up.
+const DESKTOP_RATE_SCOPE = '/api/leads/v1/register-interest#desktop';
+const DESKTOP_RATE_LIMIT = 2;
+const DESKTOP_RATE_WINDOW = '1 h' as const;
 
 interface ConvexRegisterResult {
   status: 'registered' | 'already_registered';
@@ -192,9 +201,22 @@ export async function registerInterest(
   const ip = getClientIp(ctx.request);
   const isDesktopSource = typeof req.source === 'string' && DESKTOP_SOURCES.has(req.source);
 
-  // Desktop sources bypass Turnstile (no browser captcha). Gateway-level per-IP
-  // rate limit (5/h) already throttles abuse for both cases.
-  if (!isDesktopSource) {
+  // Desktop sources bypass Turnstile (no browser captcha). `source` is
+  // attacker-controlled, so anyone claiming desktop-settings skips the
+  // captcha — apply a tighter 2/hr per-IP cap on that path to cap abuse
+  // (matches the legacy handler's in-memory secondary cap). Proper fix is
+  // a signed desktop-secret header; tracked as a follow-up.
+  if (isDesktopSource) {
+    const scoped = await checkScopedRateLimit(
+      DESKTOP_RATE_SCOPE,
+      DESKTOP_RATE_LIMIT,
+      DESKTOP_RATE_WINDOW,
+      ip,
+    );
+    if (!scoped.allowed) {
+      throw new ApiError(429, 'Too many requests', '');
+    }
+  } else {
     const turnstileOk = await verifyTurnstile({
       token: req.turnstileToken || '',
       ip,
