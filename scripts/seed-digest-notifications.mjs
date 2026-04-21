@@ -329,10 +329,15 @@ async function buildDigest(rule, windowStartMs) {
 
   // Secondary topic-grouping pass: re-orders `sliced` so related stories
   // form contiguous blocks. Disabled via DIGEST_DEDUP_TOPIC_GROUPING=0.
+  // Only runs under mode=embed — Jaccard fallback returns an empty
+  // embeddingByHash, and running the secondary pass on it would just
+  // produce a noisy "missing embedding" warn every tick under MODE=jaccard.
   // Errors are returned (not thrown) and MUST NOT cascade into the
   // outer Jaccard fallback — they just preserve primary order.
-  const { reps: top, topicCount, error: topicErr } =
-    groupTopicsPostDedup(sliced, cfg, embeddingByHash);
+  const shouldGroupTopics = cfg.topicGroupingEnabled && cfg.mode === 'embed';
+  const { reps: top, topicCount, error: topicErr } = shouldGroupTopics
+    ? groupTopicsPostDedup(sliced, cfg, embeddingByHash)
+    : { reps: sliced, topicCount: sliced.length, error: null };
   if (topicErr) {
     console.warn(
       `[digest] topic grouping failed, preserving primary order: ${topicErr.message}`,
@@ -340,7 +345,7 @@ async function buildDigest(rule, windowStartMs) {
   }
   if (logSummary) {
     const finalLog =
-      cfg.topicGroupingEnabled && !topicErr
+      shouldGroupTopics && !topicErr
         ? logSummary.replace(
             /clusters=(\d+) /,
             `clusters=$1 topics=${topicCount} `,

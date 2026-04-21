@@ -137,7 +137,6 @@ function titleHashHex(normalizedTitle) {
  * @param {typeof deduplicateStoriesJaccard} [deps.jaccard]
  * @param {typeof defaultRedisPipeline} [deps.redisPipeline]
  * @param {() => number} [deps.now]
- * @param {(line: string) => void} [deps.log]
  * @param {(line: string) => void} [deps.warn]
  * @returns {Promise<{
  *   reps: Array<object>,
@@ -149,9 +148,6 @@ export async function deduplicateStories(stories, deps = {}) {
   const cfg = readOrchestratorConfig(deps.env ?? process.env);
   const jaccard = deps.jaccard ?? deduplicateStoriesJaccard;
   const warn = deps.warn ?? ((line) => console.warn(line));
-  // NOTE: deps.log is accepted but no longer called internally — the caller
-  // owns the structured log line so it can splice in `topics=N`. Kept in the
-  // deps signature for test backcompat; ignored at runtime.
 
   if (cfg.invalidModeRaw !== null) {
     warn(
@@ -239,6 +235,12 @@ export async function deduplicateStories(stories, deps = {}) {
         const winningIdx = cluster.find((i) => items[i].story.hash === rep.hash);
         if (winningIdx !== undefined) {
           embeddingByHash.set(rep.hash, items[winningIdx].embedding);
+        } else {
+          // Defensive: shouldn't fire — materializeCluster always picks a
+          // hash that's in the cluster. Warn so a future refactor that
+          // synthesises a new rep doesn't silently skip the sidecar
+          // (would cause topic grouping to fall through to primary order).
+          warn(`[digest] dedup sidecar: materialized rep ${rep.hash} not found in its cluster — topic grouping will skip this rep`);
         }
       }
     }
@@ -285,7 +287,7 @@ export async function deduplicateStories(stories, deps = {}) {
  */
 export function groupTopicsPostDedup(top, cfg, embeddingByHash, deps = {}) {
   if (!cfg.topicGroupingEnabled || !Array.isArray(top) || top.length <= 1) {
-    return { reps: top ?? [], topicCount: top?.length ?? 0, error: null };
+    return { reps: Array.isArray(top) ? top : [], topicCount: Array.isArray(top) ? top.length : 0, error: null };
   }
 
   const clusterFn = deps.clusterFn ?? singleLinkCluster;

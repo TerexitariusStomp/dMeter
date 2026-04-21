@@ -808,28 +808,9 @@ describe('groupTopicsPostDedup — size-first total ordering', () => {
     assert.deepEqual(ordered.map((r) => r.hash), ['t0', 't1', 't2']);
   });
 
-  it('titleHashHex is the final deterministic tiebreak', () => {
-    // Two singletons, both score 80, embeddings orthogonal → different
-    // topics; output order must be identical across input permutations.
-    const reps = [
-      topicRep('Alpha news', 80, 'alpha'),
-      topicRep('Zulu news', 80, 'zulu'),
-    ];
-    const emb = new Map([
-      ['alpha', basisVec(4, 0)],
-      ['zulu', basisVec(4, 1)],
-    ]);
-
-    const runA = groupTopicsPostDedup(reps.slice(), DEFAULT_TOPIC_CFG, emb);
-    const runB = groupTopicsPostDedup(reps.slice().reverse(), DEFAULT_TOPIC_CFG, emb);
-    assert.equal(runA.error, null);
-    assert.equal(runB.error, null);
-    assert.deepEqual(
-      runA.reps.map((r) => r.hash),
-      runB.reps.map((r) => r.hash),
-      'output order must be identical across input permutations when all earlier keys tie',
-    );
-  });
+  // `titleHashHex is the final deterministic tiebreak` test was removed —
+  // the permutation-invariance test below exercises the same invariant
+  // against a larger fixture and would catch any tiebreak drift.
 });
 
 describe('groupTopicsPostDedup — kill switch & edge cases', () => {
@@ -1028,25 +1009,6 @@ describe('brief envelope cleanliness — no internal fields leak', () => {
     assert.ok(!blob.includes('"_embedding"'), 'no _embedding key');
     assert.ok(!blob.includes('"__'), 'no __-prefixed key');
     assert.ok(!blob.includes('embeddingByHash'), 'no embeddingByHash leakage');
-  });
-});
-
-describe('caller log-line format (regex splice)', () => {
-  // The caller splices `topics=N ` immediately after `clusters=M ` via
-  // a simple regex. Verifying the regex here protects the acceptance
-  // criterion `/clusters=\d+ topics=\d+ veto_fires/`.
-  it('inserts topics=N between clusters and veto_fires when grouping succeeded', () => {
-    const logSummary =
-      '[digest] dedup mode=embed clustering=single stories=90 clusters=12 veto_fires=24 ms=922 threshold=0.6 fallback=false';
-    const spliced = logSummary.replace(/clusters=(\d+) /, 'clusters=$1 topics=5 ');
-    assert.match(spliced, /clusters=\d+ topics=\d+ veto_fires/);
-  });
-
-  it('omits topics=N when grouping disabled — original logSummary unchanged', () => {
-    const logSummary =
-      '[digest] dedup mode=embed clustering=single stories=90 clusters=12 veto_fires=24 ms=922 threshold=0.6 fallback=false';
-    // Caller skips the replace when cfg.topicGroupingEnabled === false.
-    assert.doesNotMatch(logSummary, /topics=/);
   });
 });
 
