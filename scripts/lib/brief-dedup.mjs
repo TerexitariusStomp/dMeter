@@ -319,10 +319,19 @@ export function groupTopicsPostDedup(top, cfg, embeddingByHash, deps = {}) {
       vetoFn: null,
     });
 
-    const topicOf = new Array(top.length);
+    // Dense-fill with -1 sentinel so an incomplete clusterFn (a future
+    // injection that doesn't cover every input index) surfaces as an
+    // explicit error instead of silently poisoning the phase-1 aggregates
+    // (topicSize[undefined] / topicMax[undefined] would degrade the sort).
+    const topicOf = new Array(top.length).fill(-1);
     clusters.forEach((members, tIdx) => {
       for (const i of members) topicOf[i] = tIdx;
     });
+    for (let i = 0; i < topicOf.length; i++) {
+      if (topicOf[i] === -1) {
+        throw new Error(`topic grouping: clusterFn missed index ${i}`);
+      }
+    }
 
     const hashOf = top.map((rep) =>
       titleHashHex(normalizeForEmbedding(rep.title ?? '')),
