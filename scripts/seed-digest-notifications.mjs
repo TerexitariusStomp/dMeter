@@ -329,12 +329,18 @@ async function buildDigest(rule, windowStartMs) {
 
   // Secondary topic-grouping pass: re-orders `sliced` so related stories
   // form contiguous blocks. Disabled via DIGEST_DEDUP_TOPIC_GROUPING=0.
-  // Only runs under mode=embed — Jaccard fallback returns an empty
-  // embeddingByHash, and running the secondary pass on it would just
-  // produce a noisy "missing embedding" warn every tick under MODE=jaccard.
-  // Errors are returned (not thrown) and MUST NOT cascade into the
-  // outer Jaccard fallback — they just preserve primary order.
-  const shouldGroupTopics = cfg.topicGroupingEnabled && cfg.mode === 'embed';
+  // Gate on the sidecar Map being non-empty — this is the precise
+  // signal for "primary embed path produced vectors". Gating on
+  // cfg.mode is WRONG: the embed path can run AND fall back to
+  // Jaccard at runtime (try/catch inside deduplicateStories), leaving
+  // cfg.mode==='embed' but embeddingByHash empty. The Map size is the
+  // only ground truth. Kill-switch (mode=jaccard) and runtime fallback
+  // both produce size=0 → shouldGroupTopics=false → no misleading
+  // "topic grouping failed: missing embedding" warn.
+  // Errors from the helper are returned (not thrown) and MUST NOT
+  // cascade into the outer Jaccard fallback — they just preserve
+  // primary order.
+  const shouldGroupTopics = cfg.topicGroupingEnabled && embeddingByHash.size > 0;
   const { reps: top, topicCount, error: topicErr } = shouldGroupTopics
     ? groupTopicsPostDedup(sliced, cfg, embeddingByHash)
     : { reps: sliced, topicCount: sliced.length, error: null };

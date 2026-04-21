@@ -157,7 +157,7 @@ export async function deduplicateStories(stories, deps = {}) {
   if (cfg.invalidModeRaw !== null) {
     warn(
       `[digest] dedup unrecognised DIGEST_DEDUP_MODE=${cfg.invalidModeRaw} — ` +
-        'defaulting to embed. Valid values: embed | jaccard.',
+        'falling back to jaccard (safe rollback path). Valid values: embed | jaccard.',
     );
   }
 

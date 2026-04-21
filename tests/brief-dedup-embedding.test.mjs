@@ -141,6 +141,34 @@ describe('Scenario 1 — happy path: embed clusters near-duplicates', () => {
     assert.match(logSummary, /mode=embed/);
     assert.match(logSummary, /fallback=false/);
   });
+
+  it('runtime Jaccard fallback returns empty embeddingByHash + empty logSummary', async () => {
+    // Regression guard for the nested-fallback leak: when the embed
+    // path throws at runtime, deduplicateStories falls back to Jaccard
+    // but cfg.mode is still 'embed'. The caller's shouldGroupTopics
+    // gate must rely on embeddingByHash.size > 0 (ground truth) rather
+    // than cfg.mode === 'embed' (stale signal), else a false
+    // "topic grouping failed: missing embedding" warn fires on top
+    // of the legitimate "falling back to Jaccard" warn.
+    const throwingEmbedder = async () => {
+      throw new EmbeddingProviderError('forced', { status: 500 });
+    };
+    const stories = [
+      story('Iran closes Strait of Hormuz', 90, 1, 'h0'),
+      story('Iran shuts Strait of Hormuz', 85, 1, 'h1'),
+    ];
+    const { reps, embeddingByHash, logSummary } = await deduplicateStories(stories, {
+      env: EMBED_MODE, // configured mode === 'embed'
+      embedBatch: throwingEmbedder,
+      redisPipeline: noopPipeline,
+    });
+    assert.ok(reps.length >= 1, 'Jaccard produced reps');
+    assert.equal(embeddingByHash.size, 0, 'fallback path MUST return empty Map');
+    assert.equal(logSummary, '', 'fallback path MUST return empty logSummary');
+    // Caller-side invariant: shouldGroupTopics using Map size (ground
+    // truth) is false; using cfg.mode would be true (stale) and leak.
+    assert.equal(embeddingByHash.size > 0, false, 'correct gate: size-based');
+  });
 });
 
 // ── Scenario 2 — timeout ──────────────────────────────────────────────────────
