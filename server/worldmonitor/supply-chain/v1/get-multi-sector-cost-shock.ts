@@ -6,6 +6,7 @@ import type {
   MultiSectorCostShock,
   WarRiskTier,
 } from '../../../../src/generated/server/worldmonitor/supply_chain/v1/service_server';
+import { ValidationError } from '../../../../src/generated/server/worldmonitor/supply_chain/v1/service_server';
 
 import { isCallerPremium } from '../../../_shared/premium-check';
 import { getCachedJson } from '../../../_shared/redis';
@@ -70,10 +71,19 @@ export async function getMultiSectorCostShock(
   const chokepointId = (req.chokepointId ?? '').trim().toLowerCase();
   const closureDays = clampClosureDays(req.closureDays ?? 30);
 
-  if (!/^[A-Z]{2}$/.test(iso2)) return emptyResponse(iso2, chokepointId, closureDays);
-  if (!chokepointId) return emptyResponse(iso2, chokepointId, closureDays);
+  // Input-shape errors return 400 — restoring the legacy /api/supply-chain/v1/
+  // multi-sector-cost-shock contract. Empty-payload-200 is reserved for the
+  // PRO-gate deny path (intentional contract shift), not for caller bugs
+  // (malformed or missing fields). Distinguishing the two matters for external
+  // API consumers, tests, and silent-failure detection in logs.
+  if (!/^[A-Z]{2}$/.test(iso2)) {
+    throw new ValidationError([{ field: 'iso2', description: 'iso2 must be a 2-letter uppercase ISO country code' }]);
+  }
+  if (!chokepointId) {
+    throw new ValidationError([{ field: 'chokepointId', description: 'chokepointId is required' }]);
+  }
   if (!CHOKEPOINT_REGISTRY.some(c => c.id === chokepointId)) {
-    return emptyResponse(iso2, chokepointId, closureDays);
+    throw new ValidationError([{ field: 'chokepointId', description: `Unknown chokepointId: ${chokepointId}` }]);
   }
 
   const isPro = await isCallerPremium(ctx.request);
