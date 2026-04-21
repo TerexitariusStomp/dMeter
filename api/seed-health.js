@@ -115,6 +115,10 @@ const SEED_DOMAINS = {
   'dmrv:open-elevation':      { key: 'seed-meta:dmrv:open-elevation',      intervalMin: 1440 },
   'dmrv:noaa-nws-forecast':   { key: 'seed-meta:dmrv:noaa-nws-forecast',   intervalMin: 30 },
   'dmrv:global-flood-api':    { key: 'seed-meta:dmrv:global-flood-api',    intervalMin: 60 },
+  'dmrv:open-meteo-air-quality': { key: 'seed-meta:dmrv:open-meteo-air-quality', intervalMin: 60 },
+  'dmrv:open-meteo-marine':      { key: 'seed-meta:dmrv:open-meteo-marine',      intervalMin: 60 },
+  'dmrv:worms-marine-species':   { key: 'seed-meta:dmrv:worms-marine-species',   intervalMin: 1440 },
+  'dmrv:tle-satellites':         { key: 'seed-meta:dmrv:tle-satellites',         intervalMin: 360 },
   'sanctions:pressure':       { key: 'seed-meta:sanctions:pressure',       intervalMin: 360 },
   'health:air-quality':       { key: 'seed-meta:health:air-quality',       intervalMin: 60 },  // hourly cron (shared seeder writes health + climate keys)
   'economic:grocery-basket':  { key: 'seed-meta:economic:grocery-basket',  intervalMin: 5040 }, // weekly seed; intervalMin = maxStaleMin / 2

@@ -85,6 +85,10 @@ const BOOTSTRAP_CACHE_KEYS = {
   dmrvOpenElevation:    'dmrv:open-elevation:v1',
   dmrvNoaaNwsForecast:  'dmrv:noaa-nws-forecast:v1',
   dmrvGlobalFloodApi:   'dmrv:global-flood-api:v1',
+  dmrvOpenMeteoAirQuality: 'dmrv:open-meteo-air-quality:v1',
+  dmrvOpenMeteoMarine:     'dmrv:open-meteo-marine:v1',
+  dmrvWormsMarineSpecies:  'dmrv:worms-marine-species:v1',
+  dmrvTleSatellites:       'dmrv:tle-satellites:v1',
   techReadiness:    'economic:worldbank-techreadiness:v1',
   progressData:     'economic:worldbank-progress:v1',
   renewableEnergy:  'economic:worldbank-renewable:v1',
@@ -215,6 +219,8 @@ const SLOW_KEYS = new Set([
   'dmrvNasaOpen',
   'dmrvNasaPower',
   'dmrvOpenElevation',
+  'dmrvWormsMarineSpecies',
+  'dmrvTleSatellites',
 ]);
 const FAST_KEYS = new Set([
   'earthquakes', 'outages', 'serviceStatuses', 'ddosAttacks', 'trafficAnomalies', 'macroSignals', 'chokepoints',
@@ -228,6 +234,7 @@ const FAST_KEYS = new Set([
   'dmrvMetnoForecast', 'dmrvAareRiver',
   'dmrvApiStatusCheck',
   'dmrvNoaaNwsAlerts', 'dmrvOpenNotifyIss', 'dmrvNoaaNwsForecast', 'dmrvGlobalFloodApi',
+  'dmrvOpenMeteoAirQuality', 'dmrvOpenMeteoMarine',
 ]);
 
 // No public/s-maxage: CF (in front of api.worldmonitor.app) ignores Vary: Origin and would

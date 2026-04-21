@@ -63,6 +63,10 @@ These are useful but can be key-limited, region-limited, or more volatile:
 30. open-elevation
 31. noaa-nws-forecast
 32. global-flood-api
+33. open-meteo-air-quality
+34. open-meteo-marine
+35. worms-marine-species
+36. tle-satellites
 
 ## Containerized smoke tests run
 

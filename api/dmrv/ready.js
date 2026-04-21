@@ -50,6 +50,10 @@ const OPTIONAL_DATASETS = [
   ['open-elevation', 'seed-meta:dmrv:open-elevation', 1440],
   ['noaa-nws-forecast', 'seed-meta:dmrv:noaa-nws-forecast', 30],
   ['global-flood-api', 'seed-meta:dmrv:global-flood-api', 60],
+  ['open-meteo-air-quality', 'seed-meta:dmrv:open-meteo-air-quality', 60],
+  ['open-meteo-marine', 'seed-meta:dmrv:open-meteo-marine', 60],
+  ['worms-marine-species', 'seed-meta:dmrv:worms-marine-species', 1440],
+  ['tle-satellites', 'seed-meta:dmrv:tle-satellites', 360],
 ];
 
 function datasetStatus(meta, intervalMin, now) {

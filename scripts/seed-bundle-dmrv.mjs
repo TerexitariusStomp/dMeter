@@ -360,4 +360,36 @@ await runBundle('dmrv', [
     intervalMs:   HOUR,
     timeoutMs:    30_000,
   },
-], { maxBundleMs: 42 * 60_000 }); // 42min budget for 42-dataset bundle
+  {
+    label:        'Open-Meteo Air Quality',
+    script:       'seed-open-meteo-air-quality.mjs',
+    seedMetaKey:  'seed-meta:dmrv:open-meteo-air-quality',
+    canonicalKey: 'dmrv:open-meteo-air-quality:v1',
+    intervalMs:   HOUR,
+    timeoutMs:    30_000,
+  },
+  {
+    label:        'Open-Meteo Marine',
+    script:       'seed-open-meteo-marine.mjs',
+    seedMetaKey:  'seed-meta:dmrv:open-meteo-marine',
+    canonicalKey: 'dmrv:open-meteo-marine:v1',
+    intervalMs:   HOUR,
+    timeoutMs:    30_000,
+  },
+  {
+    label:        'WoRMS Marine Species',
+    script:       'seed-worms-marine-species.mjs',
+    seedMetaKey:  'seed-meta:dmrv:worms-marine-species',
+    canonicalKey: 'dmrv:worms-marine-species:v1',
+    intervalMs:   DAY,
+    timeoutMs:    30_000,
+  },
+  {
+    label:        'TLE Satellites',
+    script:       'seed-tle-satellites.mjs',
+    seedMetaKey:  'seed-meta:dmrv:tle-satellites',
+    canonicalKey: 'dmrv:tle-satellites:v1',
+    intervalMs:   6 * HOUR,
+    timeoutMs:    35_000,
+  },
+], { maxBundleMs: 46 * 60_000 }); // 46min budget for 46-dataset bundle

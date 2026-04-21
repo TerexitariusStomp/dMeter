@@ -123,6 +123,30 @@ This run integrated/confirmed all high-value dMRV-relevant APIs from that catalo
 - cache key: `dmrv:global-flood-api:v1`
 - endpoint: `GET /api/dmrv/global-flood-api`
 
+20. Open-Meteo Air Quality API (no auth)
+- free-api-catalog entry: Air Quality API (Open-Meteo)
+- dMeter seeder: `scripts/seed-open-meteo-air-quality.mjs`
+- cache key: `dmrv:open-meteo-air-quality:v1`
+- endpoint: `GET /api/dmrv/open-meteo-air-quality`
+
+21. Open-Meteo Marine API (no auth)
+- free-api-catalog entry: Marine API (Open-Meteo)
+- dMeter seeder: `scripts/seed-open-meteo-marine.mjs`
+- cache key: `dmrv:open-meteo-marine:v1`
+- endpoint: `GET /api/dmrv/open-meteo-marine`
+
+22. WoRMS API (no auth)
+- free-api-catalog entry: WoRMS
+- dMeter seeder: `scripts/seed-worms-marine-species.mjs`
+- cache key: `dmrv:worms-marine-species:v1`
+- endpoint: `GET /api/dmrv/worms-marine-species`
+
+23. TLE API (no auth)
+- free-api-catalog entry: TLE / Satellite TLE Data
+- dMeter seeder: `scripts/seed-tle-satellites.mjs`
+- cache key: `dmrv:tle-satellites:v1`
+- endpoint: `GET /api/dmrv/tle-satellites`
+
 ## Already integrated before this pass (confirmed)
 
 - OpenAQ (air quality) -> `seed-health-air-quality.mjs` + `OPENAQ_API_KEY`
@@ -138,7 +162,7 @@ This run integrated/confirmed all high-value dMRV-relevant APIs from that catalo
 
 ## dMRV control-plane updates applied
 
-- Bundle expanded to 33 datasets:
+- Bundle expanded to 37 datasets:
   - `scripts/seed-bundle-dmrv.mjs`
 - Bootstrap/cache/health parity updated:
   - `api/bootstrap.js`
