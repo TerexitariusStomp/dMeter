@@ -113,6 +113,7 @@ const BOOTSTRAP_CACHE_KEYS = {
   dmrvSurftruthsTideStations:'dmrv:surftruths-tide-stations:v1',
   dmrvSurftruthsGfsLocations:'dmrv:surftruths-gfs-locations:v1',
   dmrvWebsitecarbonData:     'dmrv:websitecarbon-data:v1',
+  dmrvEarthEngine:           'dmrv:earth-engine:v1',
   techReadiness:    'economic:worldbank-techreadiness:v1',
   progressData:     'economic:worldbank-progress:v1',
   renewableEnergy:  'economic:worldbank-renewable:v1',
@@ -247,7 +248,7 @@ const SLOW_KEYS = new Set([
   'dmrvTleSatellites',
   'dmrvRestorEco', 'dmrvSilviEarth', 'dmrvXenoCanto', 'dmrvNaturemapr', 'dmrvPlantnet', 'dmrvCitsci', 'dmrvReeflifesurvey',
   'dmrvOverpassOsm', 'dmrvNominatimGeocode', 'dmrvIntentionalCommunities',
-  'dmrvWebsitecarbonData', 'dmrvSurftruthsTideStations',
+  'dmrvWebsitecarbonData', 'dmrvSurftruthsTideStations', 'dmrvEarthEngine',
 ]);
 const FAST_KEYS = new Set([
   'earthquakes', 'outages', 'serviceStatuses', 'ddosAttacks', 'trafficAnomalies', 'macroSignals', 'chokepoints',

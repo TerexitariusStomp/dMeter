@@ -584,4 +584,12 @@ await runBundle('dmrv', [
     intervalMs:   DAY,
     timeoutMs:    30_000,
   },
-], { maxBundleMs: 72 * 60_000 }); // 72min budget for 70-dataset bundle
+  {
+    label:        'Earth Engine',
+    script:       'seed-earth-engine.mjs',
+    seedMetaKey:  'seed-meta:dmrv:earth-engine',
+    canonicalKey: 'dmrv:earth-engine:v1',
+    intervalMs:   DAY,
+    timeoutMs:    35_000,
+  },
+], { maxBundleMs: 74 * 60_000 }); // 74min budget for 71-dataset bundle

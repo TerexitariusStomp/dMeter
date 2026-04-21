@@ -143,6 +143,7 @@ const SEED_DOMAINS = {
   'dmrv:surftruths-tide-stations': { key: 'seed-meta:dmrv:surftruths-tide-stations', intervalMin: 1440 },
   'dmrv:surftruths-gfs-locations': { key: 'seed-meta:dmrv:surftruths-gfs-locations', intervalMin: 360 },
   'dmrv:websitecarbon-data':       { key: 'seed-meta:dmrv:websitecarbon-data',       intervalMin: 1440 },
+  'dmrv:earth-engine':             { key: 'seed-meta:dmrv:earth-engine',             intervalMin: 1440 },
   'sanctions:pressure':       { key: 'seed-meta:sanctions:pressure',       intervalMin: 360 },
   'health:air-quality':       { key: 'seed-meta:health:air-quality',       intervalMin: 60 },  // hourly cron (shared seeder writes health + climate keys)
   'economic:grocery-basket':  { key: 'seed-meta:economic:grocery-basket',  intervalMin: 5040 }, // weekly seed; intervalMin = maxStaleMin / 2

@@ -78,6 +78,7 @@ const OPTIONAL_DATASETS = [
   ['surftruths-tide-stations', 'seed-meta:dmrv:surftruths-tide-stations', 1440],
   ['surftruths-gfs-locations', 'seed-meta:dmrv:surftruths-gfs-locations', 360],
   ['websitecarbon-data', 'seed-meta:dmrv:websitecarbon-data', 1440],
+  ['earth-engine', 'seed-meta:dmrv:earth-engine', 1440],
 ];
 
 function datasetStatus(meta, intervalMin, now) {
