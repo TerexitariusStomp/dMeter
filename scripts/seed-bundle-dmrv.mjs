@@ -496,4 +496,28 @@ await runBundle('dmrv', [
     intervalMs:   HOUR,
     timeoutMs:    30_000,
   },
-], { maxBundleMs: 60 * 60_000 }); // 60min budget for 59-dataset bundle
+  {
+    label:        'Overpass OSM',
+    script:       'seed-overpass-osm.mjs',
+    seedMetaKey:  'seed-meta:dmrv:overpass-osm',
+    canonicalKey: 'dmrv:overpass-osm:v1',
+    intervalMs:   6 * HOUR,
+    timeoutMs:    40_000,
+  },
+  {
+    label:        'Nominatim Geocode',
+    script:       'seed-nominatim-geocode.mjs',
+    seedMetaKey:  'seed-meta:dmrv:nominatim-geocode',
+    canonicalKey: 'dmrv:nominatim-geocode:v1',
+    intervalMs:   DAY,
+    timeoutMs:    30_000,
+  },
+  {
+    label:        'wttr Weather',
+    script:       'seed-wttr-weather.mjs',
+    seedMetaKey:  'seed-meta:dmrv:wttr-weather',
+    canonicalKey: 'dmrv:wttr-weather:v1',
+    intervalMs:   HOUR,
+    timeoutMs:    30_000,
+  },
+], { maxBundleMs: 63 * 60_000 }); // 63min budget for 62-dataset bundle

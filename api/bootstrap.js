@@ -102,6 +102,9 @@ const BOOTSTRAP_CACHE_KEYS = {
   dmrvReeflifesurvey:      'dmrv:reeflifesurvey:v1',
   dmrvInaturalist:         'dmrv:inaturalist:v1',
   dmrvNaturespots:         'dmrv:naturespots:v1',
+  dmrvOverpassOsm:         'dmrv:overpass-osm:v1',
+  dmrvNominatimGeocode:    'dmrv:nominatim-geocode:v1',
+  dmrvWttrWeather:         'dmrv:wttr-weather:v1',
   techReadiness:    'economic:worldbank-techreadiness:v1',
   progressData:     'economic:worldbank-progress:v1',
   renewableEnergy:  'economic:worldbank-renewable:v1',
@@ -235,6 +238,7 @@ const SLOW_KEYS = new Set([
   'dmrvWormsMarineSpecies',
   'dmrvTleSatellites',
   'dmrvRestorEco', 'dmrvSilviEarth', 'dmrvXenoCanto', 'dmrvNaturemapr', 'dmrvPlantnet', 'dmrvCitsci', 'dmrvReeflifesurvey',
+  'dmrvOverpassOsm', 'dmrvNominatimGeocode',
 ]);
 const FAST_KEYS = new Set([
   'earthquakes', 'outages', 'serviceStatuses', 'ddosAttacks', 'trafficAnomalies', 'macroSignals', 'chokepoints',
@@ -250,6 +254,7 @@ const FAST_KEYS = new Set([
   'dmrvNoaaNwsAlerts', 'dmrvOpenNotifyIss', 'dmrvNoaaNwsForecast', 'dmrvGlobalFloodApi',
   'dmrvOpenMeteoAirQuality', 'dmrvOpenMeteoMarine',
   'dmrvSpotteron', 'dmrvEbird', 'dmrvObservationOrg', 'dmrvGuardiansofearth', 'dmrvInaturalist', 'dmrvNaturespots',
+  'dmrvWttrWeather',
 ]);
 
 // No public/s-maxage: CF (in front of api.worldmonitor.app) ignores Vary: Origin and would

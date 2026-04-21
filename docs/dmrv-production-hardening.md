@@ -80,6 +80,9 @@ These are useful but can be key-limited, region-limited, or more volatile:
 47. reeflifesurvey
 48. inaturalist
 49. naturespots
+50. overpass-osm
+51. nominatim-geocode
+52. wttr-weather
 
 ## Containerized smoke tests run
 

@@ -67,6 +67,9 @@ const OPTIONAL_DATASETS = [
   ['reeflifesurvey', 'seed-meta:dmrv:reeflifesurvey', 1440],
   ['inaturalist', 'seed-meta:dmrv:inaturalist', 60],
   ['naturespots', 'seed-meta:dmrv:naturespots', 60],
+  ['overpass-osm', 'seed-meta:dmrv:overpass-osm', 360],
+  ['nominatim-geocode', 'seed-meta:dmrv:nominatim-geocode', 1440],
+  ['wttr-weather', 'seed-meta:dmrv:wttr-weather', 60],
 ];
 
 function datasetStatus(meta, intervalMin, now) {
