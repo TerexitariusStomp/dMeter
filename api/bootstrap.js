@@ -107,6 +107,8 @@ const BOOTSTRAP_CACHE_KEYS = {
   dmrvWttrWeather:         'dmrv:wttr-weather:v1',
   dmrvHkoWeather:          'dmrv:hko-weather:v1',
   dmrvSgWeather:           'dmrv:sg-weather:v1',
+  dmrvDwdWeather:          'dmrv:dwd-weather:v1',
+  dmrvIntentionalCommunities: 'dmrv:intentional-communities:v1',
   techReadiness:    'economic:worldbank-techreadiness:v1',
   progressData:     'economic:worldbank-progress:v1',
   renewableEnergy:  'economic:worldbank-renewable:v1',
@@ -257,7 +259,7 @@ const FAST_KEYS = new Set([
   'dmrvOpenMeteoAirQuality', 'dmrvOpenMeteoMarine',
   'dmrvSpotteron', 'dmrvEbird', 'dmrvObservationOrg', 'dmrvGuardiansofearth', 'dmrvInaturalist', 'dmrvNaturespots',
   'dmrvWttrWeather',
-  'dmrvHkoWeather', 'dmrvSgWeather',
+  'dmrvHkoWeather', 'dmrvSgWeather', 'dmrvDwdWeather', 'dmrvIntentionalCommunities',
 ]);
 
 // No public/s-maxage: CF (in front of api.worldmonitor.app) ignores Vary: Origin and would

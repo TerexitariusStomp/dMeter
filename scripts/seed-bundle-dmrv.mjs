@@ -536,4 +536,20 @@ await runBundle('dmrv', [
     intervalMs:   10 * MIN,
     timeoutMs:    25_000,
   },
-], { maxBundleMs: 65 * 60_000 }); // 65min budget for 64-dataset bundle
+  {
+    label:        'DWD Weather',
+    script:       'seed-dwd-weather.mjs',
+    seedMetaKey:  'seed-meta:dmrv:dwd-weather',
+    canonicalKey: 'dmrv:dwd-weather:v1',
+    intervalMs:   30 * MIN,
+    timeoutMs:    30_000,
+  },
+  {
+    label:        'Intentional Communities',
+    script:       'seed-intentional-communities.mjs',
+    seedMetaKey:  'seed-meta:dmrv:intentional-communities',
+    canonicalKey: 'dmrv:intentional-communities:v1',
+    intervalMs:   6 * HOUR,
+    timeoutMs:    35_000,
+  },
+], { maxBundleMs: 67 * 60_000 }); // 67min budget for 66-dataset bundle

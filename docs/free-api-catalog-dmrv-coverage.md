@@ -187,5 +187,9 @@ Additional free-api-catalog entries integrated in this wave:
 - wttr.in -> `scripts/seed-wttr-weather.mjs` -> `dmrv:wttr-weather:v1`
 - Hong Kong Observatory Open Data -> `scripts/seed-hko-weather.mjs` -> `dmrv:hko-weather:v1`
 - Singapore data.gov.sg realtime weather -> `scripts/seed-sg-weather.mjs` -> `dmrv:sg-weather:v1`
+- Deutscher Wetterdienst (DWD) API -> `scripts/seed-dwd-weather.mjs` -> `dmrv:dwd-weather:v1`
+
+Additional local-source integration:
+- Intentional Community Unified API (`/root/workspace/intentional-community-api`) -> `scripts/seed-intentional-communities.mjs` -> `dmrv:intentional-communities:v1`
 
 The integrated set is optimized for real-time dMRV usefulness, operational reliability, and free/no-auth-first coverage.

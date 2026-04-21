@@ -72,6 +72,8 @@ const OPTIONAL_DATASETS = [
   ['wttr-weather', 'seed-meta:dmrv:wttr-weather', 60],
   ['hko-weather', 'seed-meta:dmrv:hko-weather', 15],
   ['sg-weather', 'seed-meta:dmrv:sg-weather', 10],
+  ['dwd-weather', 'seed-meta:dmrv:dwd-weather', 30],
+  ['intentional-communities', 'seed-meta:dmrv:intentional-communities', 360],
 ];
 
 function datasetStatus(meta, intervalMin, now) {

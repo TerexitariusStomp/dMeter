@@ -137,6 +137,8 @@ const SEED_DOMAINS = {
   'dmrv:wttr-weather':           { key: 'seed-meta:dmrv:wttr-weather',           intervalMin: 60 },
   'dmrv:hko-weather':            { key: 'seed-meta:dmrv:hko-weather',            intervalMin: 15 },
   'dmrv:sg-weather':             { key: 'seed-meta:dmrv:sg-weather',             intervalMin: 10 },
+  'dmrv:dwd-weather':            { key: 'seed-meta:dmrv:dwd-weather',            intervalMin: 30 },
+  'dmrv:intentional-communities': { key: 'seed-meta:dmrv:intentional-communities', intervalMin: 360 },
   'sanctions:pressure':       { key: 'seed-meta:sanctions:pressure',       intervalMin: 360 },
   'health:air-quality':       { key: 'seed-meta:health:air-quality',       intervalMin: 60 },  // hourly cron (shared seeder writes health + climate keys)
   'economic:grocery-basket':  { key: 'seed-meta:economic:grocery-basket',  intervalMin: 5040 }, // weekly seed; intervalMin = maxStaleMin / 2

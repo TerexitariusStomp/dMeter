@@ -85,6 +85,8 @@ These are useful but can be key-limited, region-limited, or more volatile:
 52. wttr-weather
 53. hko-weather
 54. sg-weather
+55. dwd-weather
+56. intentional-communities
 
 ## Containerized smoke tests run
 
