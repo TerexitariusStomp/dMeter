@@ -67,6 +67,19 @@ These are useful but can be key-limited, region-limited, or more volatile:
 34. open-meteo-marine
 35. worms-marine-species
 36. tle-satellites
+37. restor-eco
+38. silvi-earth
+39. xeno-canto
+40. naturemapr
+41. spotteron
+42. plantnet
+43. citsci
+44. ebird
+45. observation-org
+46. guardiansofearth
+47. reeflifesurvey
+48. inaturalist
+49. naturespots
 
 ## Containerized smoke tests run
 

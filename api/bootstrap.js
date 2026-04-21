@@ -89,6 +89,19 @@ const BOOTSTRAP_CACHE_KEYS = {
   dmrvOpenMeteoMarine:     'dmrv:open-meteo-marine:v1',
   dmrvWormsMarineSpecies:  'dmrv:worms-marine-species:v1',
   dmrvTleSatellites:       'dmrv:tle-satellites:v1',
+  dmrvRestorEco:           'dmrv:restor-eco:v1',
+  dmrvSilviEarth:          'dmrv:silvi-earth:v1',
+  dmrvXenoCanto:           'dmrv:xeno-canto:v1',
+  dmrvNaturemapr:          'dmrv:naturemapr:v1',
+  dmrvSpotteron:           'dmrv:spotteron:v1',
+  dmrvPlantnet:            'dmrv:plantnet:v1',
+  dmrvCitsci:              'dmrv:citsci:v1',
+  dmrvEbird:               'dmrv:ebird:v1',
+  dmrvObservationOrg:      'dmrv:observation-org:v1',
+  dmrvGuardiansofearth:    'dmrv:guardiansofearth:v1',
+  dmrvReeflifesurvey:      'dmrv:reeflifesurvey:v1',
+  dmrvInaturalist:         'dmrv:inaturalist:v1',
+  dmrvNaturespots:         'dmrv:naturespots:v1',
   techReadiness:    'economic:worldbank-techreadiness:v1',
   progressData:     'economic:worldbank-progress:v1',
   renewableEnergy:  'economic:worldbank-renewable:v1',
@@ -221,6 +234,7 @@ const SLOW_KEYS = new Set([
   'dmrvOpenElevation',
   'dmrvWormsMarineSpecies',
   'dmrvTleSatellites',
+  'dmrvRestorEco', 'dmrvSilviEarth', 'dmrvXenoCanto', 'dmrvNaturemapr', 'dmrvPlantnet', 'dmrvCitsci', 'dmrvReeflifesurvey',
 ]);
 const FAST_KEYS = new Set([
   'earthquakes', 'outages', 'serviceStatuses', 'ddosAttacks', 'trafficAnomalies', 'macroSignals', 'chokepoints',
@@ -235,6 +249,7 @@ const FAST_KEYS = new Set([
   'dmrvApiStatusCheck',
   'dmrvNoaaNwsAlerts', 'dmrvOpenNotifyIss', 'dmrvNoaaNwsForecast', 'dmrvGlobalFloodApi',
   'dmrvOpenMeteoAirQuality', 'dmrvOpenMeteoMarine',
+  'dmrvSpotteron', 'dmrvEbird', 'dmrvObservationOrg', 'dmrvGuardiansofearth', 'dmrvInaturalist', 'dmrvNaturespots',
 ]);
 
 // No public/s-maxage: CF (in front of api.worldmonitor.app) ignores Vary: Origin and would

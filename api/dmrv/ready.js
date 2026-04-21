@@ -54,6 +54,19 @@ const OPTIONAL_DATASETS = [
   ['open-meteo-marine', 'seed-meta:dmrv:open-meteo-marine', 60],
   ['worms-marine-species', 'seed-meta:dmrv:worms-marine-species', 1440],
   ['tle-satellites', 'seed-meta:dmrv:tle-satellites', 360],
+  ['restor-eco', 'seed-meta:dmrv:restor-eco', 1440],
+  ['silvi-earth', 'seed-meta:dmrv:silvi-earth', 360],
+  ['xeno-canto', 'seed-meta:dmrv:xeno-canto', 360],
+  ['naturemapr', 'seed-meta:dmrv:naturemapr', 360],
+  ['spotteron', 'seed-meta:dmrv:spotteron', 60],
+  ['plantnet', 'seed-meta:dmrv:plantnet', 1440],
+  ['citsci', 'seed-meta:dmrv:citsci', 360],
+  ['ebird', 'seed-meta:dmrv:ebird', 360],
+  ['observation-org', 'seed-meta:dmrv:observation-org', 360],
+  ['guardiansofearth', 'seed-meta:dmrv:guardiansofearth', 60],
+  ['reeflifesurvey', 'seed-meta:dmrv:reeflifesurvey', 1440],
+  ['inaturalist', 'seed-meta:dmrv:inaturalist', 60],
+  ['naturespots', 'seed-meta:dmrv:naturespots', 60],
 ];
 
 function datasetStatus(meta, intervalMin, now) {
