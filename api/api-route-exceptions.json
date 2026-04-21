@@ -317,27 +317,6 @@
     },
 
     {
-      "path": "api/scenario/v1/run.ts",
-      "category": "migration-pending",
-      "reason": "Literal filename under a v1 path — does not fit the sebuf [rpc].ts gateway shape. Migrating to scenario/v1.RunScenario in commit 7 of #3207. Preserves 405/POST guard, scenarioId validation, per-user rate limiting, AbortSignal.timeout.",
-      "owner": "@SebastienMelki",
-      "removal_issue": "#3207"
-    },
-    {
-      "path": "api/scenario/v1/status.ts",
-      "category": "migration-pending",
-      "reason": "Literal filename. Migrating to scenario/v1.GetScenarioStatus in commit 7 of #3207. Preserves JOB_ID_RE path-traversal guard.",
-      "owner": "@SebastienMelki",
-      "removal_issue": "#3207"
-    },
-    {
-      "path": "api/scenario/v1/templates.ts",
-      "category": "migration-pending",
-      "reason": "Literal filename. Migrating to scenario/v1.ListScenarioTemplates in commit 7 of #3207.",
-      "owner": "@SebastienMelki",
-      "removal_issue": "#3207"
-    },
-    {
       "path": "api/v2/shipping/route-intelligence.ts",
       "category": "migration-pending",
       "reason": "Partner-facing endpoint. Migrating to shipping/v2.GetRouteIntelligence in commit 8 of #3207; webhook payload shape preserved exactly.",

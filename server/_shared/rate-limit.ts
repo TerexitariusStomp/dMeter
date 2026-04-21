@@ -88,6 +88,10 @@ const ENDPOINT_RATE_POLICIES: Record<string, EndpointRatePolicy> = {
   // these hit Convex + Resend per request.
   '/api/leads/v1/submit-contact': { limit: 3, window: '1 h' },
   '/api/leads/v1/register-interest': { limit: 5, window: '1 h' },
+  // Scenario engine: legacy /api/scenario/v1/run capped at 10 jobs/min/IP via
+  // inline Upstash INCR. Gateway now enforces the same budget with per-IP
+  // keying in checkEndpointRateLimit.
+  '/api/scenario/v1/run-scenario': { limit: 10, window: '60 s' },
 };
 
 const endpointLimiters = new Map<string, Ratelimit>();

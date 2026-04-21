@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package worldmonitor.scenario.v1;
+
+import "buf/validate/validate.proto";
+
+// RunScenarioRequest enqueues a scenario job on the scenario-queue:pending
+// Upstash list for the async scenario-worker to pick up.
+message RunScenarioRequest {
+  // Scenario template id — must match an entry in SCENARIO_TEMPLATES.
+  string scenario_id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 128
+  ];
+  // Optional 2-letter ISO country code to scope the impact computation.
+  // When absent, the worker computes for all countries with seeded exposure.
+  string iso2 = 2 [
+    (buf.validate.field).string.pattern = "^([A-Z]{2})?$"
+  ];
+}
+
+// RunScenarioResponse carries the enqueued job id. Clients poll
+// GetScenarioStatus with this id until status != "pending".
+message RunScenarioResponse {
+  // Generated job id of the form `scenario:{epoch_ms}:{8-char-suffix}`.
+  string job_id = 1;
+  // Always "pending" at enqueue time.
+  string status = 2;
+}

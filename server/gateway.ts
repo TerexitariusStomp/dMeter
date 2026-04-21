@@ -223,6 +223,12 @@ const RPC_CACHE_TIER: Record<string, CacheTier> = {
   '/api/supply-chain/v1/get-sector-dependency': 'slow-browser',
   '/api/supply-chain/v1/get-route-explorer-lane': 'slow-browser',
   '/api/supply-chain/v1/get-route-impact': 'slow-browser',
+  // Scenario engine: list-scenario-templates is a compile-time constant catalog;
+  // daily tier gives browser max-age=3600 matching the legacy /api/scenario/v1/templates
+  // endpoint header. get-scenario-status is premium-gated — gateway short-circuits
+  // to 'slow-browser' but the entry is still required by tests/route-cache-tier.test.mjs.
+  '/api/scenario/v1/list-scenario-templates': 'daily',
+  '/api/scenario/v1/get-scenario-status': 'slow-browser',
   '/api/health/v1/list-disease-outbreaks': 'slow',
   '/api/health/v1/list-air-quality-alerts': 'fast',
   '/api/intelligence/v1/get-social-velocity': 'fast',
