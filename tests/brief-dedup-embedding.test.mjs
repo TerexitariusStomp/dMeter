@@ -23,7 +23,11 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { deduplicateStories } from '../scripts/lib/brief-dedup.mjs';
+import {
+  deduplicateStories,
+  groupTopicsPostDedup,
+  readOrchestratorConfig,
+} from '../scripts/lib/brief-dedup.mjs';
 import { deduplicateStoriesJaccard } from '../scripts/lib/brief-dedup-jaccard.mjs';
 import {
   EmbeddingProviderError,
@@ -114,7 +118,7 @@ describe('Scenario 1 — happy path: embed clusters near-duplicates', () => {
       story('Iran shuts Strait of Hormuz', 85, 1, 'h1'),
       story('Myanmar coup leader elected president', 80, 1, 'h2'),
     ];
-    const out = await deduplicateStories(stories, {
+    const { reps: out, logSummary } = await deduplicateStories(stories, {
       env: EMBED_MODE,
       embedBatch: embedder.embedBatch,
       redisPipeline: noopPipeline,
@@ -133,9 +137,9 @@ describe('Scenario 1 — happy path: embed clusters near-duplicates', () => {
     assert.ok(singleton);
     assert.equal(singleton.mergedHashes[0], 'h2');
 
-    // Structured log line emitted.
-    assert.ok(collector.lines.some((l) => l.line.includes('mode=embed')));
-    assert.ok(collector.lines.some((l) => l.line.includes('fallback=false')));
+    // Structured log line composed in logSummary (caller emits).
+    assert.match(logSummary, /mode=embed/);
+    assert.match(logSummary, /fallback=false/);
   });
 });
 
@@ -152,7 +156,7 @@ describe('Scenario 2 — cold-cache timeout collapses to Jaccard', () => {
     ];
     const collector = lineCollector();
 
-    const out = await deduplicateStories(stories, {
+    const { reps: out } = await deduplicateStories(stories, {
       env: EMBED_MODE,
       embedBatch: throwingEmbedder,
       redisPipeline: noopPipeline,
@@ -188,7 +192,7 @@ describe('Scenario 3 — provider outage collapses to Jaccard', () => {
     const stories = [story('a', 10, 1, 'a1'), story('b', 10, 1, 'b1')];
     const collector = lineCollector();
 
-    const out = await deduplicateStories(stories, {
+    const { reps: out } = await deduplicateStories(stories, {
       env: EMBED_MODE,
       embedBatch: throwingEmbedder,
       redisPipeline: noopPipeline,
@@ -264,7 +268,7 @@ describe('Scenario 5 — entity veto blocks same-location, different-actor merge
     ]);
     const embedder = stubEmbedder(vecByTitle);
 
-    const out = await deduplicateStories(stories, {
+    const { reps: out } = await deduplicateStories(stories, {
       env: EMBED_MODE,
       embedBatch: embedder.embedBatch,
       redisPipeline: noopPipeline,
@@ -284,7 +288,7 @@ describe('Scenario 5 — entity veto blocks same-location, different-actor merge
     ]);
     const embedder = stubEmbedder(vecByTitle);
 
-    const out = await deduplicateStories(stories, {
+    const { reps: out } = await deduplicateStories(stories, {
       env: { ...EMBED_MODE, DIGEST_DEDUP_ENTITY_VETO_ENABLED: '0' },
       embedBatch: embedder.embedBatch,
       redisPipeline: noopPipeline,
@@ -371,7 +375,7 @@ describe('Scenario 7 — cluster-level fixture', () => {
     );
     const embedder = stubEmbedder(vecByTitle);
 
-    const out = await deduplicateStories(stories, {
+    const { reps: out } = await deduplicateStories(stories, {
       env: EMBED_MODE,
       embedBatch: embedder.embedBatch,
       redisPipeline: noopPipeline,
@@ -427,7 +431,7 @@ describe('Scenario 9 — permutation-invariance', () => {
     }
 
     // Baseline run on the canonical input order.
-    const baseline = await deduplicateStories(stories, {
+    const { reps: baseline } = await deduplicateStories(stories, {
       env: EMBED_MODE,
       embedBatch: stubEmbedder(vecByTitle).embedBatch,
       redisPipeline: noopPipeline,
@@ -446,7 +450,7 @@ describe('Scenario 9 — permutation-invariance', () => {
         const j = Math.floor(rand() * (i + 1));
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
       }
-      const out = await deduplicateStories(shuffled, {
+      const { reps: out } = await deduplicateStories(shuffled, {
         env: EMBED_MODE,
         embedBatch: stubEmbedder(vecByTitle).embedBatch,
         redisPipeline: noopPipeline,
@@ -658,7 +662,7 @@ describe('readOrchestratorConfig — DIGEST_DEDUP_CLUSTERING', () => {
     const cfg = readOrchestratorConfig({ DIGEST_DEDUP_CLUSTERING: 'average' });
     assert.equal(cfg.clustering, 'single');
   });
-  it('structured log line includes clustering=<algo>', async () => {
+  it('structured logSummary includes clustering=<algo>', async () => {
     const { deduplicateStories } = await import('../scripts/lib/brief-dedup.mjs');
     const stories = [story('x', 10, 1, 'x1'), story('y', 10, 1, 'y1')];
     const vec = new Map([
@@ -666,14 +670,444 @@ describe('readOrchestratorConfig — DIGEST_DEDUP_CLUSTERING', () => {
       [normalizeForEmbedding('y'), [0.99, Math.sqrt(1 - 0.99 * 0.99), 0]],
     ]);
     const { embedBatch } = stubEmbedder(vec);
-    const lines = [];
-    await deduplicateStories(stories, {
+    const { logSummary } = await deduplicateStories(stories, {
       env: { DIGEST_DEDUP_MODE: 'embed', DIGEST_DEDUP_COSINE_THRESHOLD: '0.5' },
       embedBatch,
       redisPipeline: async () => [],
-      log: (l) => lines.push(l),
     });
-    assert.ok(lines.some((l) => /clustering=(single|complete)/.test(l)), 'log line must mention clustering algorithm');
+    assert.match(logSummary, /clustering=(single|complete)/, 'logSummary must mention clustering algorithm');
+  });
+});
+
+// ── Topic-grouping post-dedup (secondary pass) ────────────────────────────────
+
+/**
+ * Build a basis-aligned unit vector for topic `c`. `jitter ∈ [0, 0.1)`
+ * lets within-topic members share cosine ~0.99+ while staying unit
+ * length. The jitter is parked in dimension `dim-1`, which no topic or
+ * singleton basis occupies — this guarantees cross-topic cosine = 0
+ * regardless of jitter, so the 0.45 secondary threshold has a clean
+ * separation in either direction.
+ */
+function basisVec(dim, c, jitter = 0) {
+  const v = new Array(dim).fill(0);
+  v[c] = 1 - jitter;
+  if (jitter > 0) v[dim - 1] = Math.sqrt(1 - (1 - jitter) * (1 - jitter));
+  return v;
+}
+
+function topicRep(title, score, hash) {
+  return {
+    title,
+    currentScore: score,
+    mentionCount: 1,
+    sources: [],
+    severity: 'critical',
+    hash,
+    mergedHashes: [hash],
+  };
+}
+
+const DEFAULT_TOPIC_CFG = { topicGroupingEnabled: true, topicThreshold: 0.45 };
+
+describe('groupTopicsPostDedup — size-first total ordering', () => {
+  it('4-member topic leads 3-member topic leads singletons (size DESC)', () => {
+    // 12 reps: topic A (basis 0, 4 members, scores 98/92/85/80),
+    //         topic B (basis 1, 3 members, scores 91/90/85),
+    //         5 singletons (bases 2..6, scores 95/88/70/65/60).
+    const reps = [];
+    const emb = new Map();
+    const dim = 10;
+    [98, 92, 85, 80].forEach((s, i) => {
+      const r = topicRep(`A-${i}`, s, `a${i}`);
+      reps.push(r);
+      emb.set(r.hash, basisVec(dim, 0, (i + 1) * 0.01));
+    });
+    [91, 90, 85].forEach((s, i) => {
+      const r = topicRep(`B-${i}`, s, `b${i}`);
+      reps.push(r);
+      emb.set(r.hash, basisVec(dim, 1, (i + 1) * 0.01));
+    });
+    [95, 88, 70, 65, 60].forEach((s, i) => {
+      const r = topicRep(`S-${i}`, s, `s${i}`);
+      reps.push(r);
+      emb.set(r.hash, basisVec(dim, 2 + i, 0));
+    });
+
+    // Feed in score-DESC (the digest's pre-grouping order) and verify
+    // topic ordering overrides raw score order.
+    const primaryOrder = reps.slice().sort((a, b) => b.currentScore - a.currentScore);
+    const { reps: ordered, topicCount, error } = groupTopicsPostDedup(
+      primaryOrder,
+      DEFAULT_TOPIC_CFG,
+      emb,
+    );
+    assert.equal(error, null);
+    // 1 topic (size 4) + 1 topic (size 3) + 5 singletons = 7
+    assert.equal(topicCount, 7);
+    // Topic A leads; members in score DESC: 98, 92, 85, 80
+    assert.deepEqual(
+      ordered.slice(0, 4).map((r) => r.hash),
+      ['a0', 'a1', 'a2', 'a3'],
+    );
+    // Topic B next; members in score DESC: 91, 90, 85
+    assert.deepEqual(
+      ordered.slice(4, 7).map((r) => r.hash),
+      ['b0', 'b1', 'b2'],
+    );
+    // Singletons by score DESC: 95, 88, 70, 65, 60
+    assert.deepEqual(
+      ordered.slice(7).map((r) => r.hash),
+      ['s0', 's1', 's2', 's3', 's4'],
+    );
+    // Critically: Louisiana-score-95 singleton comes AFTER Iran-war-max-91
+    // (topic of 3) — the user's explicit editorial intent.
+    const louisianaIdx = ordered.findIndex((r) => r.hash === 's0');
+    const lastTopicBIdx = ordered.findIndex((r) => r.hash === 'b2');
+    assert.ok(louisianaIdx > lastTopicBIdx, 'single-rep score 95 appears after 3-member topic max 91');
+  });
+
+  it('topicMax breaks ties between same-size topics', () => {
+    // Two topics, both size 2. Topic X max=80, topic Y max=90 → Y leads.
+    const reps = [];
+    const emb = new Map();
+    const dim = 6;
+    [80, 70].forEach((s, i) => {
+      const r = topicRep(`X-${i}`, s, `x${i}`);
+      reps.push(r);
+      emb.set(r.hash, basisVec(dim, 0, (i + 1) * 0.01));
+    });
+    [90, 60].forEach((s, i) => {
+      const r = topicRep(`Y-${i}`, s, `y${i}`);
+      reps.push(r);
+      emb.set(r.hash, basisVec(dim, 1, (i + 1) * 0.01));
+    });
+
+    const { reps: ordered, error } = groupTopicsPostDedup(reps, DEFAULT_TOPIC_CFG, emb);
+    assert.equal(error, null);
+    // Y-topic (max 90) leads X-topic (max 80) despite X having a higher low.
+    assert.deepEqual(
+      ordered.map((r) => r.hash),
+      ['y0', 'y1', 'x0', 'x1'],
+    );
+  });
+
+  it('within a topic, reps are ordered by currentScore DESC', () => {
+    const reps = [
+      topicRep('T-low', 70, 't2'),
+      topicRep('T-hi', 90, 't0'),
+      topicRep('T-mid', 80, 't1'),
+    ];
+    const emb = new Map([
+      ['t0', basisVec(4, 0, 0.01)],
+      ['t1', basisVec(4, 0, 0.02)],
+      ['t2', basisVec(4, 0, 0.03)],
+    ]);
+    const { reps: ordered, error } = groupTopicsPostDedup(reps, DEFAULT_TOPIC_CFG, emb);
+    assert.equal(error, null);
+    assert.deepEqual(ordered.map((r) => r.hash), ['t0', 't1', 't2']);
+  });
+
+  it('titleHashHex is the final deterministic tiebreak', () => {
+    // Two singletons, both score 80, embeddings orthogonal → different
+    // topics; output order must be identical across input permutations.
+    const reps = [
+      topicRep('Alpha news', 80, 'alpha'),
+      topicRep('Zulu news', 80, 'zulu'),
+    ];
+    const emb = new Map([
+      ['alpha', basisVec(4, 0)],
+      ['zulu', basisVec(4, 1)],
+    ]);
+
+    const runA = groupTopicsPostDedup(reps.slice(), DEFAULT_TOPIC_CFG, emb);
+    const runB = groupTopicsPostDedup(reps.slice().reverse(), DEFAULT_TOPIC_CFG, emb);
+    assert.equal(runA.error, null);
+    assert.equal(runB.error, null);
+    assert.deepEqual(
+      runA.reps.map((r) => r.hash),
+      runB.reps.map((r) => r.hash),
+      'output order must be identical across input permutations when all earlier keys tie',
+    );
+  });
+});
+
+describe('groupTopicsPostDedup — kill switch & edge cases', () => {
+  it('topicGroupingEnabled=false preserves primary order byte-identical', () => {
+    const reps = [
+      topicRep('a', 98, 'a'),
+      topicRep('b', 95, 'b'),
+      topicRep('c', 92, 'c'),
+    ];
+    // Embeddings would normally merge all three into one topic, but kill
+    // switch must short-circuit before calling the clusterer.
+    const emb = new Map([
+      ['a', basisVec(4, 0, 0.01)],
+      ['b', basisVec(4, 0, 0.02)],
+      ['c', basisVec(4, 0, 0.03)],
+    ]);
+    const { reps: ordered, topicCount, error } = groupTopicsPostDedup(
+      reps,
+      { topicGroupingEnabled: false, topicThreshold: 0.45 },
+      emb,
+    );
+    assert.equal(error, null);
+    assert.equal(topicCount, reps.length);
+    assert.deepEqual(ordered, reps, 'output === input reference when disabled');
+  });
+
+  it('empty input returns {reps: [], topicCount: 0, error: null}', () => {
+    const { reps, topicCount, error } = groupTopicsPostDedup([], DEFAULT_TOPIC_CFG, new Map());
+    assert.deepEqual(reps, []);
+    assert.equal(topicCount, 0);
+    assert.equal(error, null);
+  });
+
+  it('single-rep input passes through with topicCount=1', () => {
+    const only = [topicRep('solo', 99, 'solo')];
+    const { reps: out, topicCount, error } = groupTopicsPostDedup(
+      only,
+      DEFAULT_TOPIC_CFG,
+      new Map([['solo', basisVec(4, 0)]]),
+    );
+    assert.equal(error, null);
+    assert.equal(topicCount, 1);
+    assert.deepEqual(out, only);
+  });
+});
+
+describe('groupTopicsPostDedup — permutation invariance', () => {
+  it('15 reps in 5 topics of 3 produce identical ordering across 5 shuffles', () => {
+    const N_TOPICS = 5;
+    const PER = 3;
+    const dim = N_TOPICS + 1; // +1 free dimension for jitter
+    const reps = [];
+    const emb = new Map();
+    for (let c = 0; c < N_TOPICS; c++) {
+      for (let k = 0; k < PER; k++) {
+        const score = 100 - (c * PER + k);
+        const r = topicRep(`c${c}-k${k}`, score, `c${c}k${k}`);
+        reps.push(r);
+        emb.set(r.hash, basisVec(dim, c, 0.001 * (k + 1)));
+      }
+    }
+
+    const sigFor = (arr) => arr.map((r) => r.hash).join('|');
+    const baseline = groupTopicsPostDedup(reps.slice(), DEFAULT_TOPIC_CFG, emb);
+    assert.equal(baseline.error, null);
+    const baselineSig = sigFor(baseline.reps);
+
+    let seed = 7;
+    const rand = () => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return seed / 0x7fffffff;
+    };
+    for (let r = 0; r < 5; r++) {
+      const shuffled = reps.slice();
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      const run = groupTopicsPostDedup(shuffled, DEFAULT_TOPIC_CFG, emb);
+      assert.equal(run.error, null);
+      assert.equal(
+        sigFor(run.reps),
+        baselineSig,
+        `shuffle ${r} produced a different ordering`,
+      );
+    }
+  });
+});
+
+describe('groupTopicsPostDedup — error boundary (nested fallback)', () => {
+  it('injected clusterFn that throws returns error, primary order preserved, no re-throw', () => {
+    const reps = [
+      topicRep('a', 90, 'a'),
+      topicRep('b', 80, 'b'),
+      topicRep('c', 70, 'c'),
+    ];
+    const emb = new Map([
+      ['a', basisVec(4, 0)],
+      ['b', basisVec(4, 1)],
+      ['c', basisVec(4, 2)],
+    ]);
+    const boom = () => {
+      throw new Error('boom');
+    };
+
+    let threw = false;
+    let result;
+    try {
+      result = groupTopicsPostDedup(reps, DEFAULT_TOPIC_CFG, emb, { clusterFn: boom });
+    } catch (_err) {
+      threw = true;
+    }
+    assert.equal(threw, false, 'helper must NOT re-throw — it returns the error');
+    assert.ok(result.error instanceof Error);
+    assert.equal(result.error.message, 'boom');
+    assert.equal(result.topicCount, reps.length);
+    assert.deepEqual(result.reps, reps, 'primary order preserved on failure');
+  });
+
+  it('missing embedding for any rep returns primary order + descriptive error', () => {
+    const reps = [
+      topicRep('a', 90, 'a'),
+      topicRep('b', 80, 'b'),
+    ];
+    const emb = new Map([['a', basisVec(4, 0)]]);
+    const { reps: out, error } = groupTopicsPostDedup(reps, DEFAULT_TOPIC_CFG, emb);
+    assert.ok(error instanceof Error);
+    assert.match(error.message, /missing embedding/);
+    assert.deepEqual(out, reps);
+  });
+});
+
+describe('deduplicateStories — embeddingByHash keys match materialized rep', () => {
+  it('winning rep is items[1] (higher mentionCount) — sidecar key is that hash', async () => {
+    // Primary cluster of two items at the SAME score; items[1] has a
+    // higher mentionCount so materializeCluster picks it as rep.
+    // Sidecar embeddingByHash must be keyed by the rep's hash.
+    const loser = story('Iran shuts Hormuz', 80, 1, 'loser');
+    const winner = story('Iran closes Strait of Hormuz', 80, 5, 'winner');
+    const vec = new Map([
+      [normalizeForEmbedding(loser.title), [1, 0, 0]],
+      [normalizeForEmbedding(winner.title), [0.95, Math.sqrt(1 - 0.95 * 0.95), 0]],
+    ]);
+    const embedder = stubEmbedder(vec);
+
+    const { reps, embeddingByHash } = await deduplicateStories([loser, winner], {
+      env: {
+        ...EMBED_MODE,
+        DIGEST_DEDUP_TOPIC_GROUPING: '1',
+        DIGEST_DEDUP_ENTITY_VETO_ENABLED: '0', // let cosine merge w/o veto
+      },
+      embedBatch: embedder.embedBatch,
+      redisPipeline: noopPipeline,
+    });
+    assert.equal(reps.length, 1, 'one merged cluster');
+    const rep = reps[0];
+    // Sort key for materializeCluster is (currentScore DESC, mentionCount DESC)
+    // → `winner` (mentionCount 5) wins over `loser` (mentionCount 1).
+    assert.equal(rep.hash, 'winner');
+    assert.ok(embeddingByHash.has('winner'), 'sidecar keyed by rep.hash, not loser hash');
+    assert.ok(!embeddingByHash.has('loser'), 'non-rep items never appear in sidecar');
+  });
+});
+
+describe('brief envelope cleanliness — no internal fields leak', () => {
+  it('composeBriefFromDigestStories output never serializes embedding / __ fields', async () => {
+    const { composeBriefFromDigestStories } = await import('../scripts/lib/brief-compose.mjs');
+
+    // Run the full flow: dedup → topic-group → compose.
+    const stories = [
+      story('Iran closes Strait of Hormuz', 92, 1, 'h0'),
+      story('Iran shuts Strait of Hormuz', 88, 1, 'h1'),
+      story('Myanmar coup leader elected', 80, 1, 'h2'),
+    ];
+    const vec = new Map([
+      [normalizeForEmbedding(stories[0].title), [1, 0, 0]],
+      [normalizeForEmbedding(stories[1].title), [0.95, Math.sqrt(1 - 0.95 * 0.95), 0]],
+      [normalizeForEmbedding(stories[2].title), [0, 0, 1]],
+    ]);
+    const embedder = stubEmbedder(vec);
+    const { reps, embeddingByHash } = await deduplicateStories(stories, {
+      env: { ...EMBED_MODE, DIGEST_DEDUP_TOPIC_GROUPING: '1' },
+      embedBatch: embedder.embedBatch,
+      redisPipeline: noopPipeline,
+    });
+    const cfg = readOrchestratorConfig({ ...EMBED_MODE, DIGEST_DEDUP_TOPIC_GROUPING: '1' });
+    const { reps: top } = groupTopicsPostDedup(reps, cfg, embeddingByHash);
+
+    const rule = {
+      userId: 'user_test',
+      sensitivity: 'all',
+      digestTimezone: 'UTC',
+    };
+    const envelope = composeBriefFromDigestStories(rule, top, {}, { nowMs: 1_700_000_000_000 });
+    const blob = JSON.stringify(envelope ?? {});
+    assert.ok(!blob.includes('"_embedding"'), 'no _embedding key');
+    assert.ok(!blob.includes('"__'), 'no __-prefixed key');
+    assert.ok(!blob.includes('embeddingByHash'), 'no embeddingByHash leakage');
+  });
+});
+
+describe('caller log-line format (regex splice)', () => {
+  // The caller splices `topics=N ` immediately after `clusters=M ` via
+  // a simple regex. Verifying the regex here protects the acceptance
+  // criterion `/clusters=\d+ topics=\d+ veto_fires/`.
+  it('inserts topics=N between clusters and veto_fires when grouping succeeded', () => {
+    const logSummary =
+      '[digest] dedup mode=embed clustering=single stories=90 clusters=12 veto_fires=24 ms=922 threshold=0.6 fallback=false';
+    const spliced = logSummary.replace(/clusters=(\d+) /, 'clusters=$1 topics=5 ');
+    assert.match(spliced, /clusters=\d+ topics=\d+ veto_fires/);
+  });
+
+  it('omits topics=N when grouping disabled — original logSummary unchanged', () => {
+    const logSummary =
+      '[digest] dedup mode=embed clustering=single stories=90 clusters=12 veto_fires=24 ms=922 threshold=0.6 fallback=false';
+    // Caller skips the replace when cfg.topicGroupingEnabled === false.
+    assert.doesNotMatch(logSummary, /topics=/);
+  });
+});
+
+describe('groupTopicsPostDedup — runs on sliced input, not pre-slice', () => {
+  it('reflects slice(0, 30) input size in topicCount', () => {
+    // 50 distinct singletons; slice to 30; each at an orthogonal basis so
+    // topic grouping produces one topic per rep = 30 topics.
+    const reps = [];
+    const emb = new Map();
+    const dim = 35;
+    for (let i = 0; i < 50; i++) {
+      const r = topicRep(`s-${i}`, 100 - i, `h${i}`);
+      reps.push(r);
+      emb.set(r.hash, basisVec(dim, i % (dim - 1)));
+    }
+    const sliced = reps.slice(0, 30);
+    const { reps: out, topicCount, error } = groupTopicsPostDedup(sliced, DEFAULT_TOPIC_CFG, emb);
+    assert.equal(error, null);
+    assert.equal(out.length, 30);
+    assert.ok(topicCount <= 30);
+  });
+});
+
+describe('readOrchestratorConfig — topic-grouping env parsing', () => {
+  it('defaults: topicGroupingEnabled=true, topicThreshold=0.45', () => {
+    const cfg = readOrchestratorConfig({});
+    assert.equal(cfg.topicGroupingEnabled, true);
+    assert.equal(cfg.topicThreshold, 0.45);
+  });
+
+  it('DIGEST_DEDUP_TOPIC_GROUPING=0 disables', () => {
+    const cfg = readOrchestratorConfig({ DIGEST_DEDUP_TOPIC_GROUPING: '0' });
+    assert.equal(cfg.topicGroupingEnabled, false);
+  });
+
+  it('any non-"0" DIGEST_DEDUP_TOPIC_GROUPING value is treated as enabled', () => {
+    // Default-on kill-switch pattern: "yes", "1", "true", "" all enable.
+    for (const v of ['yes', '1', 'true', '', 'on']) {
+      const cfg = readOrchestratorConfig({ DIGEST_DEDUP_TOPIC_GROUPING: v });
+      assert.equal(cfg.topicGroupingEnabled, true, `value=${JSON.stringify(v)} should enable`);
+    }
+  });
+
+  it('DIGEST_DEDUP_TOPIC_THRESHOLD=foo (invalid) falls back to 0.45', () => {
+    const cfg = readOrchestratorConfig({ DIGEST_DEDUP_TOPIC_THRESHOLD: 'foo' });
+    assert.equal(cfg.topicThreshold, 0.45);
+  });
+
+  it('DIGEST_DEDUP_TOPIC_THRESHOLD=1.5 (out of range) falls back to 0.45', () => {
+    const cfg = readOrchestratorConfig({ DIGEST_DEDUP_TOPIC_THRESHOLD: '1.5' });
+    assert.equal(cfg.topicThreshold, 0.45);
+  });
+
+  it('DIGEST_DEDUP_TOPIC_THRESHOLD=0 (boundary, invalid) falls back to 0.45', () => {
+    const cfg = readOrchestratorConfig({ DIGEST_DEDUP_TOPIC_THRESHOLD: '0' });
+    assert.equal(cfg.topicThreshold, 0.45);
+  });
+
+  it('DIGEST_DEDUP_TOPIC_THRESHOLD=0.55 (valid) is honoured', () => {
+    const cfg = readOrchestratorConfig({ DIGEST_DEDUP_TOPIC_THRESHOLD: '0.55' });
+    assert.equal(cfg.topicThreshold, 0.55);
   });
 });
 

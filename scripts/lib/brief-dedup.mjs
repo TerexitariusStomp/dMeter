@@ -14,6 +14,10 @@
  *                                       location veto; default on
  *   DIGEST_DEDUP_COSINE_THRESHOLD     = float in (0, 1], default 0.60
  *   DIGEST_DEDUP_WALL_CLOCK_MS        = int ms, default 45000
+ *   DIGEST_DEDUP_TOPIC_GROUPING       = '0' disables secondary topic
+ *                                       grouping pass; default on
+ *   DIGEST_DEDUP_TOPIC_THRESHOLD      = float in (0, 1], default 0.45
+ *                                       — looser secondary-pass cosine
  *
  * Anything non-{embed,jaccard} in MODE = jaccard with a loud warn so
  * a typo can't stay hidden.
@@ -53,6 +57,8 @@ import { defaultRedisPipeline } from './_upstash-pipeline.mjs';
  *   entityVetoEnabled: boolean,
  *   cosineThreshold: number,
  *   wallClockMs: number,
+ *   topicGroupingEnabled: boolean,
+ *   topicThreshold: number,
  *   invalidModeRaw: string | null,
  * }}
  */
@@ -90,12 +96,27 @@ export function readOrchestratorConfig(env = process.env) {
   const wallClockMs =
     Number.isInteger(wallClockRaw) && wallClockRaw > 0 ? wallClockRaw : 45_000;
 
+  // Secondary topic-grouping pass (default on). Kill switch: set to '0'.
+  // Any non-'0' value (including '', 'yes', '1') is treated as enabled.
+  const topicGroupingEnabled = env.DIGEST_DEDUP_TOPIC_GROUPING !== '0';
+
+  // Looser cosine for the secondary pass (default 0.45). Invalid/out-of-range
+  // values fall back to the default silently so a Railway typo can't disable
+  // the feature by accident.
+  const topicThresholdRaw = Number.parseFloat(env.DIGEST_DEDUP_TOPIC_THRESHOLD ?? '');
+  const topicThreshold =
+    Number.isFinite(topicThresholdRaw) && topicThresholdRaw > 0 && topicThresholdRaw <= 1
+      ? topicThresholdRaw
+      : 0.45;
+
   return {
     mode,
     clustering,
     entityVetoEnabled: env.DIGEST_DEDUP_ENTITY_VETO_ENABLED !== '0',
     cosineThreshold,
     wallClockMs,
+    topicGroupingEnabled,
+    topicThreshold,
     invalidModeRaw,
   };
 }
@@ -118,12 +139,19 @@ function titleHashHex(normalizedTitle) {
  * @param {() => number} [deps.now]
  * @param {(line: string) => void} [deps.log]
  * @param {(line: string) => void} [deps.warn]
+ * @returns {Promise<{
+ *   reps: Array<object>,
+ *   embeddingByHash: Map<string, number[]>,
+ *   logSummary: string,
+ * }>}
  */
 export async function deduplicateStories(stories, deps = {}) {
   const cfg = readOrchestratorConfig(deps.env ?? process.env);
   const jaccard = deps.jaccard ?? deduplicateStoriesJaccard;
-  const log = deps.log ?? ((line) => console.log(line));
   const warn = deps.warn ?? ((line) => console.warn(line));
+  // NOTE: deps.log is accepted but no longer called internally — the caller
+  // owns the structured log line so it can splice in `topics=N`. Kept in the
+  // deps signature for test backcompat; ignored at runtime.
 
   if (cfg.invalidModeRaw !== null) {
     warn(
@@ -132,12 +160,14 @@ export async function deduplicateStories(stories, deps = {}) {
     );
   }
 
-  if (!Array.isArray(stories) || stories.length === 0) return [];
+  if (!Array.isArray(stories) || stories.length === 0) {
+    return { reps: [], embeddingByHash: new Map(), logSummary: '' };
+  }
 
   // Kill switch: Railway operator sets MODE=jaccard to instantly
   // revert to the legacy deduper without a redeploy.
   if (cfg.mode === 'jaccard') {
-    return jaccard(stories);
+    return { reps: jaccard(stories), embeddingByHash: new Map(), logSummary: '' };
   }
 
   const embedImpl = deps.embedBatch ?? embedBatch;
@@ -196,16 +226,28 @@ export async function deduplicateStories(stories, deps = {}) {
     });
 
     const embedClusters = clusterResult.clusters;
-    const embedOutput = embedClusters.map((cluster) =>
-      materializeCluster(cluster.map((i) => items[i].story)),
-    );
+    const embeddingByHash = new Map();
+    const embedOutput = [];
+    for (const cluster of embedClusters) {
+      const rep = materializeCluster(cluster.map((i) => items[i].story));
+      embedOutput.push(rep);
+      if (cfg.topicGroupingEnabled) {
+        // Find the item inside this cluster whose story wins materialize
+        // (materializeCluster sort key: currentScore DESC, mentionCount DESC
+        // — ties broken by input order). The winning story's hash matches
+        // rep.hash; its embedding is the topic-grouping vector for rep.
+        const winningIdx = cluster.find((i) => items[i].story.hash === rep.hash);
+        if (winningIdx !== undefined) {
+          embeddingByHash.set(rep.hash, items[winningIdx].embedding);
+        }
+      }
+    }
 
-    log(
+    const logSummary =
       `[digest] dedup mode=embed clustering=${cfg.clustering} stories=${items.length} clusters=${embedClusters.length} ` +
-        `veto_fires=${clusterResult.vetoFires} ms=${nowImpl() - started} ` +
-        `threshold=${cfg.cosineThreshold} fallback=false`,
-    );
-    return embedOutput;
+      `veto_fires=${clusterResult.vetoFires} ms=${nowImpl() - started} ` +
+      `threshold=${cfg.cosineThreshold} fallback=false`;
+    return { reps: embedOutput, embeddingByHash, logSummary };
   } catch (err) {
     const reason =
       err instanceof Error && typeof err.name === 'string' && err.name !== 'Error'
@@ -215,6 +257,100 @@ export async function deduplicateStories(stories, deps = {}) {
     warn(
       `[digest] dedup embed path failed, falling back to Jaccard reason=${reason} msg=${msg}`,
     );
-    return jaccard(stories);
+    return { reps: jaccard(stories), embeddingByHash: new Map(), logSummary: '' };
+  }
+}
+
+// ── Secondary topic-grouping pass ───────────────────────────────────────
+
+/**
+ * Pure function. Re-orders already-sliced, already-deduped reps so related
+ * stories form contiguous blocks, with the dominant thread (by topic size)
+ * leading. Runs AFTER `deduplicateStories` + score-floor + top-N slice.
+ *
+ * No I/O, no logging, no Redis. Caller owns logging. Errors are RETURNED
+ * not thrown — a throw would otherwise propagate into the caller's outer
+ * try/catch around `deduplicateStories` and trigger the Jaccard fallback
+ * for a topic-grouping bug, which is the wrong blast radius.
+ *
+ * Sort key: (topicSize DESC, topicMax DESC, repScore DESC, titleHashHex ASC)
+ * — total, deterministic, stable across input permutations.
+ *
+ * @param {Array<{hash:string, title:string, currentScore:number}>} top
+ * @param {{ topicGroupingEnabled: boolean, topicThreshold: number }} cfg
+ * @param {Map<string, number[]>} embeddingByHash
+ * @param {object} [deps]
+ * @param {typeof singleLinkCluster} [deps.clusterFn] — injected for testing
+ * @returns {{ reps: Array<object>, topicCount: number, error: Error | null }}
+ */
+export function groupTopicsPostDedup(top, cfg, embeddingByHash, deps = {}) {
+  if (!cfg.topicGroupingEnabled || !Array.isArray(top) || top.length <= 1) {
+    return { reps: top ?? [], topicCount: top?.length ?? 0, error: null };
+  }
+
+  const clusterFn = deps.clusterFn ?? singleLinkCluster;
+
+  try {
+    const items = top.map((rep) => ({
+      title: rep.title,
+      embedding: embeddingByHash?.get(rep.hash),
+    }));
+
+    if (items.some((it) => !Array.isArray(it.embedding))) {
+      return {
+        reps: top,
+        topicCount: top.length,
+        error: new Error('topic grouping: missing embedding for at least one rep'),
+      };
+    }
+
+    const { clusters } = clusterFn(items, {
+      cosineThreshold: cfg.topicThreshold,
+      // Topic level: do NOT re-apply the event-level entity veto. At this
+      // cosine (~0.45) stories sharing the same broader narrative should
+      // group even when their actor sets diverge (Biden+Xi vs Biden+Putin).
+      vetoFn: null,
+    });
+
+    const topicOf = new Array(top.length);
+    clusters.forEach((members, tIdx) => {
+      for (const i of members) topicOf[i] = tIdx;
+    });
+
+    const topicSize = new Array(clusters.length).fill(0);
+    const topicMax = new Array(clusters.length).fill(-Infinity);
+    top.forEach((rep, i) => {
+      const t = topicOf[i];
+      topicSize[t] += 1;
+      const s = Number(rep.currentScore ?? 0);
+      if (s > topicMax[t]) topicMax[t] = s;
+    });
+
+    const hashOf = top.map((rep) =>
+      titleHashHex(normalizeForEmbedding(rep.title ?? '')),
+    );
+
+    const order = [...top.keys()].sort((a, b) => {
+      const tA = topicOf[a];
+      const tB = topicOf[b];
+      if (topicSize[tA] !== topicSize[tB]) return topicSize[tB] - topicSize[tA];
+      if (topicMax[tA] !== topicMax[tB]) return topicMax[tB] - topicMax[tA];
+      const sA = Number(top[a].currentScore ?? 0);
+      const sB = Number(top[b].currentScore ?? 0);
+      if (sA !== sB) return sB - sA;
+      return hashOf[a] < hashOf[b] ? -1 : hashOf[a] > hashOf[b] ? 1 : 0;
+    });
+
+    return {
+      reps: order.map((i) => top[i]),
+      topicCount: clusters.length,
+      error: null,
+    };
+  } catch (err) {
+    return {
+      reps: top,
+      topicCount: top.length,
+      error: err instanceof Error ? err : new Error(String(err)),
+    };
   }
 }
