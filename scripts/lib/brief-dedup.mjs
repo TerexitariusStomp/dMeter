@@ -71,9 +71,14 @@ export function readOrchestratorConfig(env = process.env) {
   } else if (modeRaw === 'jaccard') {
     mode = 'jaccard';
   } else {
-    // Unrecognised value — default to embed (the normal prod path)
-    // but surface so a DIGEST_DEDUP_MODE=embbed typo is obvious.
-    mode = 'embed';
+    // Unrecognised value — fall back to the SAFE path (Jaccard), not
+    // the newer embed path. This matches the file-header contract: a
+    // typo like `DIGEST_DEDUP_MODE=jacard` while an operator is trying
+    // to set the kill switch during an embed outage must NOT silently
+    // keep embed on. The invalidModeRaw warn surfaces the typo so it's
+    // fixed, but the fail-closed default protects the cron in the
+    // meantime.
+    mode = 'jaccard';
     invalidModeRaw = modeRaw;
   }
 
@@ -319,29 +324,65 @@ export function groupTopicsPostDedup(top, cfg, embeddingByHash, deps = {}) {
       for (const i of members) topicOf[i] = tIdx;
     });
 
+    const hashOf = top.map((rep) =>
+      titleHashHex(normalizeForEmbedding(rep.title ?? '')),
+    );
+
+    // Two-phase sort, NOT a single global key. A global key that ties
+    // on (topicSize, topicMax) falls through to per-rep repScore, which
+    // interleaves members of same-size-same-max topics (A90,B90,A80,B70
+    // would sort as [A90,B90,A80,B70] — broken contiguity). Phase 1
+    // orders the TOPICS; phase 2 orders members inside each topic.
+
+    // Phase 1 prep: per-topic aggregates + a TOPIC-level tiebreak hash
+    // (min member title hash) so cross-topic ties break by topic
+    // identity, not by an individual rep's hash.
     const topicSize = new Array(clusters.length).fill(0);
     const topicMax = new Array(clusters.length).fill(-Infinity);
+    const topicTieHash = new Array(clusters.length).fill(null);
     top.forEach((rep, i) => {
       const t = topicOf[i];
       topicSize[t] += 1;
       const s = Number(rep.currentScore ?? 0);
       if (s > topicMax[t]) topicMax[t] = s;
+      if (topicTieHash[t] === null || hashOf[i] < topicTieHash[t]) {
+        topicTieHash[t] = hashOf[i];
+      }
     });
 
-    const hashOf = top.map((rep) =>
-      titleHashHex(normalizeForEmbedding(rep.title ?? '')),
-    );
+    // Members grouped by topic for phase-2 ordering.
+    const membersOf = Array.from({ length: clusters.length }, () => []);
+    for (let i = 0; i < top.length; i++) {
+      membersOf[topicOf[i]].push(i);
+    }
 
-    const order = [...top.keys()].sort((a, b) => {
-      const tA = topicOf[a];
-      const tB = topicOf[b];
-      if (topicSize[tA] !== topicSize[tB]) return topicSize[tB] - topicSize[tA];
-      if (topicMax[tA] !== topicMax[tB]) return topicMax[tB] - topicMax[tA];
-      const sA = Number(top[a].currentScore ?? 0);
-      const sB = Number(top[b].currentScore ?? 0);
-      if (sA !== sB) return sB - sA;
-      return hashOf[a] < hashOf[b] ? -1 : hashOf[a] > hashOf[b] ? 1 : 0;
+    // Phase 2: sort members within each topic by (repScore DESC,
+    // titleHashHex ASC). Deterministic within a topic.
+    for (const members of membersOf) {
+      members.sort((a, b) => {
+        const sA = Number(top[a].currentScore ?? 0);
+        const sB = Number(top[b].currentScore ?? 0);
+        if (sA !== sB) return sB - sA;
+        return hashOf[a] < hashOf[b] ? -1 : hashOf[a] > hashOf[b] ? 1 : 0;
+      });
+    }
+
+    // Phase 1 sort: order TOPICS by (topicSize DESC, topicMax DESC,
+    // topicTieHash ASC). The topic-tie hash is a property of the topic
+    // itself, so two topics with the same (size, max) order stably and
+    // — critically — do not interleave their members.
+    const topicOrder = [...Array(clusters.length).keys()].sort((a, b) => {
+      if (topicSize[a] !== topicSize[b]) return topicSize[b] - topicSize[a];
+      if (topicMax[a] !== topicMax[b]) return topicMax[b] - topicMax[a];
+      return topicTieHash[a] < topicTieHash[b] ? -1 : topicTieHash[a] > topicTieHash[b] ? 1 : 0;
     });
+
+    // Concatenate: for each topic in topicOrder, emit its members in
+    // their intra-topic order.
+    const order = [];
+    for (const t of topicOrder) {
+      for (const i of membersOf[t]) order.push(i);
+    }
 
     return {
       reps: order.map((i) => top[i]),

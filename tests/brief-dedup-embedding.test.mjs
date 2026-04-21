@@ -811,6 +811,57 @@ describe('groupTopicsPostDedup — size-first total ordering', () => {
   // `titleHashHex is the final deterministic tiebreak` test was removed —
   // the permutation-invariance test below exercises the same invariant
   // against a larger fixture and would catch any tiebreak drift.
+
+  it('same-size same-topicMax topics KEEP MEMBERS CONTIGUOUS (regression)', () => {
+    // Regression guard for the round-2 bug: a global sort key that
+    // tied on (topicSize, topicMax) fell through to per-rep repScore,
+    // interleaving A/B members (output was [a0,b0,a1,b1] instead of
+    // a contiguous block). Two-phase sort fixes this.
+    //
+    // Topic A: score 90, 80 (size 2, max 90)
+    // Topic B: score 90, 70 (size 2, max 90) — same size and max
+    const reps = [];
+    const emb = new Map();
+    const dim = 6;
+    [90, 80].forEach((s, i) => {
+      const r = topicRep(`A-${i}`, s, `a${i}`);
+      reps.push(r);
+      emb.set(r.hash, basisVec(dim, 0, (i + 1) * 0.01));
+    });
+    [90, 70].forEach((s, i) => {
+      const r = topicRep(`B-${i}`, s, `b${i}`);
+      reps.push(r);
+      emb.set(r.hash, basisVec(dim, 1, (i + 1) * 0.01));
+    });
+
+    const { reps: ordered, error } = groupTopicsPostDedup(
+      reps,
+      DEFAULT_TOPIC_CFG,
+      emb,
+    );
+    assert.equal(error, null);
+
+    // The two A reps must appear as a contiguous pair, and the two B
+    // reps must appear as a contiguous pair. Which topic leads is
+    // determined by the deterministic topic-level tiebreak hash, but
+    // their members MUST NOT interleave.
+    const hashes = ordered.map((r) => r.hash);
+    const firstAIdx = hashes.indexOf('a0');
+    const firstBIdx = hashes.indexOf('b0');
+    const lastAIdx = Math.max(hashes.indexOf('a0'), hashes.indexOf('a1'));
+    const lastBIdx = Math.max(hashes.indexOf('b0'), hashes.indexOf('b1'));
+    const aIdxs = [hashes.indexOf('a0'), hashes.indexOf('a1')].sort((x, y) => x - y);
+    const bIdxs = [hashes.indexOf('b0'), hashes.indexOf('b1')].sort((x, y) => x - y);
+    assert.equal(aIdxs[1] - aIdxs[0], 1, `A members must be adjacent; got ${JSON.stringify(hashes)}`);
+    assert.equal(bIdxs[1] - bIdxs[0], 1, `B members must be adjacent; got ${JSON.stringify(hashes)}`);
+    // And within each topic, higher score first.
+    assert.ok(hashes.indexOf('a0') < hashes.indexOf('a1'), 'A-90 precedes A-80');
+    assert.ok(hashes.indexOf('b0') < hashes.indexOf('b1'), 'B-90 precedes B-70');
+    void firstAIdx;
+    void firstBIdx;
+    void lastAIdx;
+    void lastBIdx;
+  });
 });
 
 describe('groupTopicsPostDedup — kill switch & edge cases', () => {
@@ -1029,6 +1080,35 @@ describe('groupTopicsPostDedup — runs on sliced input, not pre-slice', () => {
     assert.equal(error, null);
     assert.equal(out.length, 30);
     assert.ok(topicCount <= 30);
+  });
+});
+
+describe('readOrchestratorConfig — DIGEST_DEDUP_MODE typo falls back to Jaccard', () => {
+  it('an unrecognised mode value (typo) resolves to jaccard, not embed', async () => {
+    const { readOrchestratorConfig } = await import('../scripts/lib/brief-dedup.mjs');
+    // Classic operator scenario: panicking during an embed outage, types
+    // the kill switch as `jacard`. The SAFE default is jaccard, not embed.
+    const cfg = readOrchestratorConfig({ DIGEST_DEDUP_MODE: 'jacard' });
+    assert.equal(cfg.mode, 'jaccard');
+    assert.equal(cfg.invalidModeRaw, 'jacard');
+  });
+
+  it('any garbage value also falls back to jaccard', async () => {
+    const { readOrchestratorConfig } = await import('../scripts/lib/brief-dedup.mjs');
+    for (const raw of ['xyz', 'EMBED_ENABLED', '1', 'true']) {
+      const cfg = readOrchestratorConfig({ DIGEST_DEDUP_MODE: raw });
+      assert.equal(cfg.mode, 'jaccard', `raw=${JSON.stringify(raw)}`);
+      assert.equal(cfg.invalidModeRaw, raw.toLowerCase());
+    }
+  });
+
+  it('unset / empty value still resolves to the embed default (normal prod path)', async () => {
+    const { readOrchestratorConfig } = await import('../scripts/lib/brief-dedup.mjs');
+    for (const raw of [undefined, '']) {
+      const cfg = readOrchestratorConfig({ DIGEST_DEDUP_MODE: raw });
+      assert.equal(cfg.mode, 'embed');
+      assert.equal(cfg.invalidModeRaw, null);
+    }
   });
 });
 
