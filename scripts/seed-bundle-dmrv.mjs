@@ -240,4 +240,36 @@ await runBundle('dmrv', [
     intervalMs:   HOUR,
     timeoutMs:    30_000,
   },
-], { maxBundleMs: 27 * 60_000 }); // 27min budget for 27-dataset bundle
+  {
+    label:        'GBIF Biodiversity',
+    script:       'seed-gbif-biodiversity.mjs',
+    seedMetaKey:  'seed-meta:dmrv:gbif-biodiversity',
+    canonicalKey: 'dmrv:gbif-biodiversity:v1',
+    intervalMs:   6 * HOUR,
+    timeoutMs:    45_000,
+  },
+  {
+    label:        'OBIS Marine',
+    script:       'seed-obis-marine.mjs',
+    seedMetaKey:  'seed-meta:dmrv:obis-marine',
+    canonicalKey: 'dmrv:obis-marine:v1',
+    intervalMs:   6 * HOUR,
+    timeoutMs:    45_000,
+  },
+  {
+    label:        'OpenTopoData',
+    script:       'seed-opentopodata.mjs',
+    seedMetaKey:  'seed-meta:dmrv:opentopodata',
+    canonicalKey: 'dmrv:opentopodata:v1',
+    intervalMs:   DAY,
+    timeoutMs:    30_000,
+  },
+  {
+    label:        '7Timer Forecast',
+    script:       'seed-7timer-forecast.mjs',
+    seedMetaKey:  'seed-meta:dmrv:7timer-forecast',
+    canonicalKey: 'dmrv:7timer-forecast:v1',
+    intervalMs:   3 * HOUR,
+    timeoutMs:    45_000,
+  },
+], { maxBundleMs: 31 * 60_000 }); // 31min budget for 31-dataset bundle

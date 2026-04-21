@@ -35,6 +35,10 @@ const OPTIONAL_DATASETS = [
   ['rainviewer', 'seed-meta:dmrv:rainviewer', 10],
   ['purpleair', 'seed-meta:dmrv:purpleair', 30],
   ['currentuv', 'seed-meta:dmrv:currentuv', 60],
+  ['gbif-biodiversity', 'seed-meta:dmrv:gbif-biodiversity', 360],
+  ['obis-marine', 'seed-meta:dmrv:obis-marine', 360],
+  ['opentopodata', 'seed-meta:dmrv:opentopodata', 1440],
+  ['7timer-forecast', 'seed-meta:dmrv:7timer-forecast', 180],
 ];
 
 function datasetStatus(meta, intervalMin, now) {

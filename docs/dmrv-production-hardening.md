@@ -48,6 +48,10 @@ These are useful but can be key-limited, region-limited, or more volatile:
 15. rainviewer
 16. purpleair
 17. currentuv
+18. gbif-biodiversity
+19. obis-marine
+20. opentopodata
+21. 7timer-forecast
 
 ## Containerized smoke tests run
 

@@ -33,6 +33,30 @@ This run integrated/confirmed all high-value dMRV-relevant APIs from that catalo
 - cache key: `dmrv:currentuv:v1`
 - endpoint: `GET /api/dmrv/currentuv`
 
+5. GBIF API (no auth)
+- free-api-catalog entry: GBIF API
+- dMeter seeder: `scripts/seed-gbif-biodiversity.mjs`
+- cache key: `dmrv:gbif-biodiversity:v1`
+- endpoint: `GET /api/dmrv/gbif-biodiversity`
+
+6. OBIS API (no auth)
+- free-api-catalog entry: OBIS API
+- dMeter seeder: `scripts/seed-obis-marine.mjs`
+- cache key: `dmrv:obis-marine:v1`
+- endpoint: `GET /api/dmrv/obis-marine`
+
+7. Open Topo Data (no auth)
+- free-api-catalog entry: Open Topo Data
+- dMeter seeder: `scripts/seed-opentopodata.mjs`
+- cache key: `dmrv:opentopodata:v1`
+- endpoint: `GET /api/dmrv/opentopodata`
+
+8. 7Timer (no auth)
+- free-api-catalog entry: 7Timer
+- dMeter seeder: `scripts/seed-7timer-forecast.mjs`
+- cache key: `dmrv:7timer-forecast:v1`
+- endpoint: `GET /api/dmrv/7timer-forecast`
+
 ## Already integrated before this pass (confirmed)
 
 - OpenAQ (air quality) -> `seed-health-air-quality.mjs` + `OPENAQ_API_KEY`

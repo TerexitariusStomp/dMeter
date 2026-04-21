@@ -100,6 +100,10 @@ const SEED_DOMAINS = {
   'dmrv:rainviewer':          { key: 'seed-meta:dmrv:rainviewer',          intervalMin: 10 },
   'dmrv:purpleair':           { key: 'seed-meta:dmrv:purpleair',           intervalMin: 30 },
   'dmrv:currentuv':           { key: 'seed-meta:dmrv:currentuv',           intervalMin: 60 },
+  'dmrv:gbif-biodiversity':   { key: 'seed-meta:dmrv:gbif-biodiversity',   intervalMin: 360 },
+  'dmrv:obis-marine':         { key: 'seed-meta:dmrv:obis-marine',         intervalMin: 360 },
+  'dmrv:opentopodata':        { key: 'seed-meta:dmrv:opentopodata',        intervalMin: 1440 },
+  'dmrv:7timer-forecast':     { key: 'seed-meta:dmrv:7timer-forecast',     intervalMin: 180 },
   'sanctions:pressure':       { key: 'seed-meta:sanctions:pressure',       intervalMin: 360 },
   'health:air-quality':       { key: 'seed-meta:health:air-quality',       intervalMin: 60 },  // hourly cron (shared seeder writes health + climate keys)
   'economic:grocery-basket':  { key: 'seed-meta:economic:grocery-basket',  intervalMin: 5040 }, // weekly seed; intervalMin = maxStaleMin / 2

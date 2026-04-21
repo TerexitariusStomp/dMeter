@@ -70,6 +70,10 @@ const BOOTSTRAP_CACHE_KEYS = {
   dmrvRainviewer:      'dmrv:rainviewer:v1',
   dmrvPurpleair:       'dmrv:purpleair:v1',
   dmrvCurrentuv:       'dmrv:currentuv:v1',
+  dmrvGbifBiodiversity: 'dmrv:gbif-biodiversity:v1',
+  dmrvObisMarine:       'dmrv:obis-marine:v1',
+  dmrvOpentopodata:     'dmrv:opentopodata:v1',
+  dmrv7timerForecast:   'dmrv:7timer-forecast:v1',
   techReadiness:    'economic:worldbank-techreadiness:v1',
   progressData:     'economic:worldbank-progress:v1',
   renewableEnergy:  'economic:worldbank-renewable:v1',
@@ -195,6 +199,7 @@ const SLOW_KEYS = new Set([
   'dmrvOpenCharge', 'dmrvLuchtmeetnet', 'dmrvEnergyCharts', 'dmrvCopernicusAtmos',
   'dmrvPurpleair',
   'dmrvCurrentuv',
+  'dmrvGbifBiodiversity', 'dmrvObisMarine', 'dmrvOpentopodata',
 ]);
 const FAST_KEYS = new Set([
   'earthquakes', 'outages', 'serviceStatuses', 'ddosAttacks', 'trafficAnomalies', 'macroSignals', 'chokepoints',
@@ -204,7 +209,7 @@ const FAST_KEYS = new Set([
   // dMRV near-real-time datasets
   'dmrvEmscEarthquakes', 'dmrvFloodMonitoring', 'dmrvGridStatus', 'dmrvUsgsWater',
   'dmrvOpenSky', 'dmrvGdacs', 'dmrvUsgsQuakes',
-  'dmrvAviationweather', 'dmrvRainviewer',
+  'dmrvAviationweather', 'dmrvRainviewer', 'dmrv7timerForecast',
 ]);
 
 // No public/s-maxage: CF (in front of api.worldmonitor.app) ignores Vary: Origin and would
