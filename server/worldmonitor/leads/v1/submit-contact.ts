@@ -116,7 +116,6 @@ export async function submitContact(
     token: req.turnstileToken || '',
     ip,
     logPrefix: '[contact]',
-    missingSecretPolicy: 'allow-in-development',
   });
   if (!turnstileOk) {
     throw new ApiError(403, 'Bot verification failed', '');

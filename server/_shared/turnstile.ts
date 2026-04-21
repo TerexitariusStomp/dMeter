@@ -22,7 +22,10 @@ export async function verifyTurnstile({
   token,
   ip,
   logPrefix = '[turnstile]',
-  missingSecretPolicy = 'allow',
+  // Default: dev = allow (missing secret is expected locally), prod = deny.
+  // Callers that need the opposite (deliberately allow missing-secret in prod)
+  // can still pass 'allow' explicitly.
+  missingSecretPolicy = 'allow-in-development',
 }: VerifyTurnstileArgs): Promise<boolean> {
   const secret = process.env.TURNSTILE_SECRET_KEY;
   if (!secret) {

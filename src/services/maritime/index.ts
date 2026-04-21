@@ -27,14 +27,24 @@ const SEVERITY_REVERSE: Record<string, 'low' | 'elevated' | 'high'> = {
   AIS_DISRUPTION_SEVERITY_HIGH: 'high',
 };
 
-function toDisruptionEvent(proto: ProtoDisruption): AisDisruptionEvent {
+/**
+ * Convert a proto disruption to the app shape. Returns null when either enum
+ * is UNSPECIFIED / unknown — the legacy silent fallbacks mislabeled unknown
+ * values as `gap_spike` / `low`, which would have polluted the dashboard the
+ * first time the proto adds a new enum value the client doesn't know about.
+ * Filtering at the mapping boundary is safer than shipping wrong data.
+ */
+function toDisruptionEvent(proto: ProtoDisruption): AisDisruptionEvent | null {
+  const type = DISRUPTION_TYPE_REVERSE[proto.type];
+  const severity = SEVERITY_REVERSE[proto.severity];
+  if (!type || !severity) return null;
   return {
     id: proto.id,
     name: proto.name,
-    type: DISRUPTION_TYPE_REVERSE[proto.type] || 'gap_spike',
+    type,
     lat: proto.location?.latitude ?? 0,
     lon: proto.location?.longitude ?? 0,
-    severity: SEVERITY_REVERSE[proto.severity] || 'low',
+    severity,
     changePct: proto.changePct,
     windowHours: proto.windowHours,
     darkShips: proto.darkShips,
@@ -167,7 +177,9 @@ async function fetchSnapshotPayload(includeCandidates: boolean, signal?: AbortSi
       vessels: snapshot.status?.vessels ?? 0,
       messages: snapshot.status?.messages ?? 0,
     },
-    disruptions: snapshot.disruptions.map(toDisruptionEvent),
+    disruptions: snapshot.disruptions
+      .map(toDisruptionEvent)
+      .filter((e): e is AisDisruptionEvent => e !== null),
     density: snapshot.densityZones.map(toDensityZone),
     candidateReports: snapshot.candidateReports.map(toLegacyCandidateReport),
   };

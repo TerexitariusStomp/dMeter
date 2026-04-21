@@ -121,7 +121,7 @@ async function sendConfirmationEmail(email: string, referralCode: string): Promi
                     <div style="font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 1px;">Users</div>
                   </td>
                   <td style="text-align: center; padding: 16px 8px; width: 33%; border-left: 1px solid #1a1a1a; border-right: 1px solid #1a1a1a;">
-                    <div style="font-size: 22px; font-weight: 800; color: #4ade80;">435+</div>
+                    <div style="font-size: 22px; font-weight: 800; color: #4ade80;">500+</div>
                     <div style="font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 1px;">Sources</div>
                   </td>
                   <td style="text-align: center; padding: 16px 8px; width: 33%;">
