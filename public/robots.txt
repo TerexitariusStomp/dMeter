@@ -1,3 +1,10 @@
-# https://www.robotstxt.org/robotstxt.html
+# World Monitor - protect API routes from crawlers
 User-agent: *
-Disallow:
+Allow: /
+Allow: /api/story
+Allow: /api/og-story
+Disallow: /api/
+Disallow: /tests/
+
+Sitemap: https://www.worldmonitor.app/sitemap.xml
+Sitemap: https://www.worldmonitor.app/blog/sitemap-index.xml
