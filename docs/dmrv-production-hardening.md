@@ -57,6 +57,9 @@ These are useful but can be key-limited, region-limited, or more volatile:
 24. adresse-geocode
 25. api-status-check
 26. nasa-open
+27. noaa-nws-alerts
+28. nasa-power
+29. open-notify-iss
 
 ## Containerized smoke tests run
 

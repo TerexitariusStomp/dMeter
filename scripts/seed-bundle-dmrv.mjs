@@ -312,4 +312,28 @@ await runBundle('dmrv', [
     intervalMs:   6 * HOUR,
     timeoutMs:    30_000,
   },
-], { maxBundleMs: 36 * 60_000 }); // 36min budget for 36-dataset bundle
+  {
+    label:        'NOAA NWS Alerts',
+    script:       'seed-noaa-nws-alerts.mjs',
+    seedMetaKey:  'seed-meta:dmrv:noaa-nws-alerts',
+    canonicalKey: 'dmrv:noaa-nws-alerts:v1',
+    intervalMs:   15 * MIN,
+    timeoutMs:    30_000,
+  },
+  {
+    label:        'NASA POWER',
+    script:       'seed-nasa-power.mjs',
+    seedMetaKey:  'seed-meta:dmrv:nasa-power',
+    canonicalKey: 'dmrv:nasa-power:v1',
+    intervalMs:   6 * HOUR,
+    timeoutMs:    40_000,
+  },
+  {
+    label:        'Open Notify ISS',
+    script:       'seed-open-notify-iss.mjs',
+    seedMetaKey:  'seed-meta:dmrv:open-notify-iss',
+    canonicalKey: 'dmrv:open-notify-iss:v1',
+    intervalMs:   5 * MIN,
+    timeoutMs:    20_000,
+  },
+], { maxBundleMs: 39 * 60_000 }); // 39min budget for 39-dataset bundle

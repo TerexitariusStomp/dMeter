@@ -44,6 +44,9 @@ const OPTIONAL_DATASETS = [
   ['adresse-geocode', 'seed-meta:dmrv:adresse-geocode', 1440],
   ['api-status-check', 'seed-meta:dmrv:api-status-check', 30],
   ['nasa-open', 'seed-meta:dmrv:nasa-open', 360],
+  ['noaa-nws-alerts', 'seed-meta:dmrv:noaa-nws-alerts', 15],
+  ['nasa-power', 'seed-meta:dmrv:nasa-power', 360],
+  ['open-notify-iss', 'seed-meta:dmrv:open-notify-iss', 5],
 ];
 
 function datasetStatus(meta, intervalMin, now) {

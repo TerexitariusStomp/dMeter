@@ -79,6 +79,9 @@ const BOOTSTRAP_CACHE_KEYS = {
   dmrvAdresseGeocode:   'dmrv:adresse-geocode:v1',
   dmrvApiStatusCheck:   'dmrv:api-status-check:v1',
   dmrvNasaOpen:         'dmrv:nasa-open:v1',
+  dmrvNoaaNwsAlerts:    'dmrv:noaa-nws-alerts:v1',
+  dmrvNasaPower:        'dmrv:nasa-power:v1',
+  dmrvOpenNotifyIss:    'dmrv:open-notify-iss:v1',
   techReadiness:    'economic:worldbank-techreadiness:v1',
   progressData:     'economic:worldbank-progress:v1',
   renewableEnergy:  'economic:worldbank-renewable:v1',
@@ -207,6 +210,7 @@ const SLOW_KEYS = new Set([
   'dmrvGbifBiodiversity', 'dmrvObisMarine', 'dmrvOpentopodata',
   'dmrvAdresseGeocode',
   'dmrvNasaOpen',
+  'dmrvNasaPower',
 ]);
 const FAST_KEYS = new Set([
   'earthquakes', 'outages', 'serviceStatuses', 'ddosAttacks', 'trafficAnomalies', 'macroSignals', 'chokepoints',
@@ -219,6 +223,7 @@ const FAST_KEYS = new Set([
   'dmrvAviationweather', 'dmrvRainviewer', 'dmrv7timerForecast',
   'dmrvMetnoForecast', 'dmrvAareRiver',
   'dmrvApiStatusCheck',
+  'dmrvNoaaNwsAlerts', 'dmrvOpenNotifyIss',
 ]);
 
 // No public/s-maxage: CF (in front of api.worldmonitor.app) ignores Vary: Origin and would
