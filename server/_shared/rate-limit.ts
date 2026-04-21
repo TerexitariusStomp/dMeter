@@ -82,7 +82,7 @@ const ENDPOINT_RATE_POLICIES: Record<string, EndpointRatePolicy> = {
   '/api/intelligence/v1/classify-event': { limit: 600, window: '60 s' },
   // Legacy /api/sanctions-entity-search rate limit was 30/min per IP. Preserve
   // that budget now that LookupSanctionEntity proxies OpenSanctions live.
-  '/api/sanctions/v1/lookup-entity': { limit: 30, window: '60 s' },
+  '/api/sanctions/v1/lookup-sanction-entity': { limit: 30, window: '60 s' },
   // Lead capture: preserve the 3/hr and 5/hr budgets from legacy api/contact.js
   // and api/register-interest.js. Lower limits than normal IP rate limit since
   // these hit Convex + Resend per request.
