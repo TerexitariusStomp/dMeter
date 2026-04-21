@@ -212,8 +212,13 @@ for (const [idx, entry] of manifest.exceptions.entries()) {
 
 // --- Classify each api/ source file ---
 
-// Sebuf gateway pattern: api/<kebab-domain>/v<N>/[rpc].(ts|js)
-const GATEWAY_RE = /^api\/([a-z][a-z0-9-]*)\/v(\d+)\/\[rpc\]\.(ts|tsx|js|mjs|cjs)$/;
+// Sebuf gateway pattern — two accepted forms:
+//   1. api/<kebab-domain>/v<N>/[rpc].ts (standard, domain-first)
+//   2. api/v<N>/<kebab-domain>/[rpc].ts (version-first, for partner-URL
+//      preservation where the external contract already uses that layout —
+//      e.g. /api/v2/shipping/*).
+// Both map to src/generated/server/worldmonitor/<snake_domain>/v<N>/.
+const GATEWAY_RE = /^api\/(?:([a-z][a-z0-9-]*)\/v(\d+)|v(\d+)\/([a-z][a-z0-9-]*))\/\[rpc\]\.(ts|tsx|js|mjs|cjs)$/;
 
 function kebabToSnake(s) {
   return s.replace(/-/g, '_');
@@ -229,7 +234,9 @@ for (const absolute of candidateFiles) {
 
   const gatewayMatch = rel.match(GATEWAY_RE);
   if (gatewayMatch) {
-    const [, domain, version] = gatewayMatch;
+    // Group 1+2 = standard form (domain, version); 3+4 = version-first form (version, domain).
+    const domain = gatewayMatch[1] ?? gatewayMatch[4];
+    const version = gatewayMatch[2] ?? gatewayMatch[3];
     const snakeDomain = kebabToSnake(domain);
     const expectedServer = join(
       GEN_SERVER_DIR,

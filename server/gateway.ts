@@ -249,6 +249,13 @@ const RPC_CACHE_TIER: Record<string, CacheTier> = {
   '/api/intelligence/v1/get-regional-brief': 'slow',
   '/api/resilience/v1/get-resilience-score': 'slow',
   '/api/resilience/v1/get-resilience-ranking': 'slow',
+
+  // Partner-facing shipping/v2. route-intelligence is premium-gated; gateway
+  // short-circuits to slow-browser. Entry required by tests/route-cache-tier.test.mjs.
+  '/api/v2/shipping/route-intelligence': 'slow-browser',
+  // GET /webhooks lists caller's webhooks — premium-gated; short-circuited to
+  // slow-browser. Entry required by tests/route-cache-tier.test.mjs.
+  '/api/v2/shipping/webhooks': 'slow-browser',
 };
 
 import { PREMIUM_RPC_PATHS } from '../src/shared/premium-paths';

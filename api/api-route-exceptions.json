@@ -238,6 +238,13 @@
       "removal_issue": null
     },
     {
+      "path": "api/internal/brief-why-matters.ts",
+      "category": "internal-helper",
+      "reason": "Internal brief-pipeline helper — auth'd by RELAY_SHARED_SECRET (Railway cron only), not a user-facing API. Generated on merge of #3248 from main without a manifest entry; filed here to keep the lint green.",
+      "owner": "@SebastienMelki",
+      "removal_issue": null
+    },
+    {
       "path": "api/data/city-coords.ts",
       "category": "internal-helper",
       "reason": "Static city-coordinates payload served from the deploy artifact. Returns a fixed reference table, not a queryable service.",
@@ -317,16 +324,16 @@
     },
 
     {
-      "path": "api/v2/shipping/route-intelligence.ts",
+      "path": "api/v2/shipping/webhooks/[subscriberId].ts",
       "category": "migration-pending",
-      "reason": "Partner-facing endpoint. Migrating to shipping/v2.GetRouteIntelligence in commit 8 of #3207; webhook payload shape preserved exactly.",
+      "reason": "Partner-facing path-parameter endpoint (GET status by subscriber id). Cannot migrate to sebuf yet — no path-param support in the annotation layer. Paired with the typed ShippingV2Service on the same base URL; tracked for eventual migration once sebuf path params are available.",
       "owner": "@SebastienMelki",
       "removal_issue": "#3207"
     },
     {
-      "path": "api/v2/shipping/webhooks.ts",
+      "path": "api/v2/shipping/webhooks/[subscriberId]/[action].ts",
       "category": "migration-pending",
-      "reason": "Partner-facing. Migrating to shipping/v2.RegisterWebhook + ListWebhooks in commit 8 of #3207; HMAC signing preserved.",
+      "reason": "Partner-facing path-parameter endpoints (POST rotate-secret, POST reactivate). Cannot migrate to sebuf yet — no path-param support. Paired with the typed ShippingV2Service; tracked for eventual migration once sebuf path params are available.",
       "owner": "@SebastienMelki",
       "removal_issue": "#3207"
     },

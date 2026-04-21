@@ -197,6 +197,7 @@ function sebufApiPlugin(): Plugin {
       resilienceServerMod, resilienceHandlerMod,
       leadsServerMod, leadsHandlerMod,
       scenarioServerMod, scenarioHandlerMod,
+      shippingV2ServerMod, shippingV2HandlerMod,
     ] = await Promise.all([
         import('./server/router'),
         import('./server/cors'),
@@ -251,6 +252,8 @@ function sebufApiPlugin(): Plugin {
         import('./server/worldmonitor/leads/v1/handler'),
         import('./src/generated/server/worldmonitor/scenario/v1/service_server'),
         import('./server/worldmonitor/scenario/v1/handler'),
+        import('./src/generated/server/worldmonitor/shipping/v2/service_server'),
+        import('./server/worldmonitor/shipping/v2/handler'),
       ]);
 
     const serverOptions = { onError: errorMod.mapErrorToResponse };
@@ -280,6 +283,7 @@ function sebufApiPlugin(): Plugin {
       ...resilienceServerMod.createResilienceServiceRoutes(resilienceHandlerMod.resilienceHandler, serverOptions),
       ...leadsServerMod.createLeadsServiceRoutes(leadsHandlerMod.leadsHandler, serverOptions),
       ...scenarioServerMod.createScenarioServiceRoutes(scenarioHandlerMod.scenarioHandler, serverOptions),
+      ...shippingV2ServerMod.createShippingV2ServiceRoutes(shippingV2HandlerMod.shippingV2Handler, serverOptions),
     ];
     cachedCorsMod = corsMod;
     return routerMod.createRouter(allRoutes);
@@ -296,8 +300,12 @@ function sebufApiPlugin(): Plugin {
       });
 
       server.middlewares.use(async (req, res, next) => {
-        // Only intercept sebuf routes: /api/{domain}/v1/* (domain may contain hyphens)
-        if (!req.url || !/^\/api\/[a-z-]+\/v1\//.test(req.url)) {
+        // Intercept sebuf routes in two forms:
+        //  - standard /api/{domain}/v{N}/* (domain-first, e.g. /api/market/v1/...)
+        //  - partner-URL-preservation /api/v{N}/{domain}/* (version-first, e.g.
+        //    /api/v2/shipping/...). Only the second form applies when the
+        //    external contract already uses a reversed layout.
+        if (!req.url || !/^\/api\/(?:[a-z][a-z0-9-]*\/v\d+|v\d+\/[a-z][a-z0-9-]*)\//.test(req.url)) {
           return next();
         }
 

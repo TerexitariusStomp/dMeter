@@ -31,4 +31,6 @@ export const PREMIUM_RPC_PATHS = new Set<string>([
   '/api/trade/v1/get-tariff-trends',
   '/api/scenario/v1/run-scenario',
   '/api/scenario/v1/get-scenario-status',
+  '/api/v2/shipping/route-intelligence',
+  '/api/v2/shipping/webhooks',
 ]);
