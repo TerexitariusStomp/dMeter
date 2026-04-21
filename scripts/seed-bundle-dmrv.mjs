@@ -207,4 +207,37 @@ await runBundle('dmrv', [
     intervalMs:   HOUR,
     timeoutMs:    60_000,
   },
-], { maxBundleMs: 22 * 60_000 }); // 22min budget for 23-dataset bundle
+
+  {
+    label:        'AviationWeather',
+    script:       'seed-aviationweather.mjs',
+    seedMetaKey:  'seed-meta:dmrv:aviationweather',
+    canonicalKey: 'dmrv:aviationweather:v1',
+    intervalMs:   10 * MIN,
+    timeoutMs:    30_000,
+  },
+  {
+    label:        'RainViewer',
+    script:       'seed-rainviewer.mjs',
+    seedMetaKey:  'seed-meta:dmrv:rainviewer',
+    canonicalKey: 'dmrv:rainviewer:v1',
+    intervalMs:   10 * MIN,
+    timeoutMs:    30_000,
+  },
+  {
+    label:        'PurpleAir',
+    script:       'seed-purpleair.mjs',
+    seedMetaKey:  'seed-meta:dmrv:purpleair',
+    canonicalKey: 'dmrv:purpleair:v1',
+    intervalMs:   30 * MIN,
+    timeoutMs:    45_000,
+  },
+  {
+    label:        'CurrentUV',
+    script:       'seed-currentuv.mjs',
+    seedMetaKey:  'seed-meta:dmrv:currentuv',
+    canonicalKey: 'dmrv:currentuv:v1',
+    intervalMs:   HOUR,
+    timeoutMs:    30_000,
+  },
+], { maxBundleMs: 27 * 60_000 }); // 27min budget for 27-dataset bundle

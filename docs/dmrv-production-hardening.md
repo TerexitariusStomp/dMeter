@@ -44,6 +44,10 @@ These are useful but can be key-limited, region-limited, or more volatile:
 11. luchtmeetnet
 12. energy-charts
 13. copernicus-atmos
+14. aviationweather
+15. rainviewer
+16. purpleair
+17. currentuv
 
 ## Containerized smoke tests run
 

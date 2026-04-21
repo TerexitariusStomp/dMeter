@@ -31,6 +31,10 @@ const OPTIONAL_DATASETS = [
   ['luchtmeetnet', 'seed-meta:dmrv:luchtmeetnet', 30],
   ['energy-charts', 'seed-meta:dmrv:energy-charts', 15],
   ['copernicus-atmos', 'seed-meta:dmrv:copernicus-atmos', 60],
+  ['aviationweather', 'seed-meta:dmrv:aviationweather', 10],
+  ['rainviewer', 'seed-meta:dmrv:rainviewer', 10],
+  ['purpleair', 'seed-meta:dmrv:purpleair', 30],
+  ['currentuv', 'seed-meta:dmrv:currentuv', 60],
 ];
 
 function datasetStatus(meta, intervalMin, now) {

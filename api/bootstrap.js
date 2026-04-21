@@ -66,6 +66,10 @@ const BOOTSTRAP_CACHE_KEYS = {
   dmrvEnergyCharts:    'dmrv:energy-charts:v1',
   dmrvUsgsQuakes:      'dmrv:usgs-quakes:v1',
   dmrvCopernicusAtmos: 'dmrv:copernicus-atmos:v1',
+  dmrvAviationweather: 'dmrv:aviationweather:v1',
+  dmrvRainviewer:      'dmrv:rainviewer:v1',
+  dmrvPurpleair:       'dmrv:purpleair:v1',
+  dmrvCurrentuv:       'dmrv:currentuv:v1',
   techReadiness:    'economic:worldbank-techreadiness:v1',
   progressData:     'economic:worldbank-progress:v1',
   renewableEnergy:  'economic:worldbank-renewable:v1',
@@ -189,6 +193,8 @@ const SLOW_KEYS = new Set([
   'dmrvOpenMeteo', 'dmrvUkCarbon', 'dmrvDanishEnergi', 'dmrvGruenstrom',
   'dmrvNoaaNgdc', 'dmrvUvIndex', 'dmrvPm25Lass', 'dmrvOpenfema',
   'dmrvOpenCharge', 'dmrvLuchtmeetnet', 'dmrvEnergyCharts', 'dmrvCopernicusAtmos',
+  'dmrvPurpleair',
+  'dmrvCurrentuv',
 ]);
 const FAST_KEYS = new Set([
   'earthquakes', 'outages', 'serviceStatuses', 'ddosAttacks', 'trafficAnomalies', 'macroSignals', 'chokepoints',
@@ -198,6 +204,7 @@ const FAST_KEYS = new Set([
   // dMRV near-real-time datasets
   'dmrvEmscEarthquakes', 'dmrvFloodMonitoring', 'dmrvGridStatus', 'dmrvUsgsWater',
   'dmrvOpenSky', 'dmrvGdacs', 'dmrvUsgsQuakes',
+  'dmrvAviationweather', 'dmrvRainviewer',
 ]);
 
 // No public/s-maxage: CF (in front of api.worldmonitor.app) ignores Vary: Origin and would
