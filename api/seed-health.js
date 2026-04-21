@@ -135,6 +135,8 @@ const SEED_DOMAINS = {
   'dmrv:overpass-osm':           { key: 'seed-meta:dmrv:overpass-osm',           intervalMin: 360 },
   'dmrv:nominatim-geocode':      { key: 'seed-meta:dmrv:nominatim-geocode',      intervalMin: 1440 },
   'dmrv:wttr-weather':           { key: 'seed-meta:dmrv:wttr-weather',           intervalMin: 60 },
+  'dmrv:hko-weather':            { key: 'seed-meta:dmrv:hko-weather',            intervalMin: 15 },
+  'dmrv:sg-weather':             { key: 'seed-meta:dmrv:sg-weather',             intervalMin: 10 },
   'sanctions:pressure':       { key: 'seed-meta:sanctions:pressure',       intervalMin: 360 },
   'health:air-quality':       { key: 'seed-meta:health:air-quality',       intervalMin: 60 },  // hourly cron (shared seeder writes health + climate keys)
   'economic:grocery-basket':  { key: 'seed-meta:economic:grocery-basket',  intervalMin: 5040 }, // weekly seed; intervalMin = maxStaleMin / 2

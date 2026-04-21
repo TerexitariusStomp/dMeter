@@ -83,6 +83,8 @@ These are useful but can be key-limited, region-limited, or more volatile:
 50. overpass-osm
 51. nominatim-geocode
 52. wttr-weather
+53. hko-weather
+54. sg-weather
 
 ## Containerized smoke tests run
 

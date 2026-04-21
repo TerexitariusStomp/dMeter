@@ -520,4 +520,20 @@ await runBundle('dmrv', [
     intervalMs:   HOUR,
     timeoutMs:    30_000,
   },
-], { maxBundleMs: 63 * 60_000 }); // 63min budget for 62-dataset bundle
+  {
+    label:        'HKO Weather',
+    script:       'seed-hko-weather.mjs',
+    seedMetaKey:  'seed-meta:dmrv:hko-weather',
+    canonicalKey: 'dmrv:hko-weather:v1',
+    intervalMs:   15 * MIN,
+    timeoutMs:    25_000,
+  },
+  {
+    label:        'SG Weather',
+    script:       'seed-sg-weather.mjs',
+    seedMetaKey:  'seed-meta:dmrv:sg-weather',
+    canonicalKey: 'dmrv:sg-weather:v1',
+    intervalMs:   10 * MIN,
+    timeoutMs:    25_000,
+  },
+], { maxBundleMs: 65 * 60_000 }); // 65min budget for 64-dataset bundle

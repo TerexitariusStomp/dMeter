@@ -70,6 +70,8 @@ const OPTIONAL_DATASETS = [
   ['overpass-osm', 'seed-meta:dmrv:overpass-osm', 360],
   ['nominatim-geocode', 'seed-meta:dmrv:nominatim-geocode', 1440],
   ['wttr-weather', 'seed-meta:dmrv:wttr-weather', 60],
+  ['hko-weather', 'seed-meta:dmrv:hko-weather', 15],
+  ['sg-weather', 'seed-meta:dmrv:sg-weather', 10],
 ];
 
 function datasetStatus(meta, intervalMin, now) {

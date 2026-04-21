@@ -185,5 +185,7 @@ Additional free-api-catalog entries integrated in this wave:
 - OpenStreetMap Overpass -> `scripts/seed-overpass-osm.mjs` -> `dmrv:overpass-osm:v1`
 - Nominatim -> `scripts/seed-nominatim-geocode.mjs` -> `dmrv:nominatim-geocode:v1`
 - wttr.in -> `scripts/seed-wttr-weather.mjs` -> `dmrv:wttr-weather:v1`
+- Hong Kong Observatory Open Data -> `scripts/seed-hko-weather.mjs` -> `dmrv:hko-weather:v1`
+- Singapore data.gov.sg realtime weather -> `scripts/seed-sg-weather.mjs` -> `dmrv:sg-weather:v1`
 
 The integrated set is optimized for real-time dMRV usefulness, operational reliability, and free/no-auth-first coverage.

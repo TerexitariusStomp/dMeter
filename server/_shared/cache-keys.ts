@@ -218,6 +218,8 @@ export const BOOTSTRAP_CACHE_KEYS: Record<string, string> = {
   dmrvOverpassOsm:         'dmrv:overpass-osm:v1',
   dmrvNominatimGeocode:    'dmrv:nominatim-geocode:v1',
   dmrvWttrWeather:         'dmrv:wttr-weather:v1',
+  dmrvHkoWeather:          'dmrv:hko-weather:v1',
+  dmrvSgWeather:           'dmrv:sg-weather:v1',
   techReadiness:    'economic:worldbank-techreadiness:v1',
   progressData:     'economic:worldbank-progress:v1',
   renewableEnergy:  'economic:worldbank-renewable:v1',
@@ -303,7 +305,7 @@ export const BOOTSTRAP_TIERS: Record<string, 'slow' | 'fast'> = {
   theaterPosture: 'fast', naturalEvents: 'slow',
   // dMRV tiers — real-time feeds fast, background/reference feeds slow
   dmrvEmscEarthquakes: 'fast', dmrvFloodMonitoring: 'fast', dmrvGridStatus: 'fast', dmrvUsgsWater: 'fast',
-  dmrvOpenSky: 'fast', dmrvGdacs: 'fast', dmrvUsgsQuakes: 'fast', dmrvAviationweather: 'fast', dmrvRainviewer: 'fast', dmrv7timerForecast: 'fast', dmrvMetnoForecast: 'fast', dmrvAareRiver: 'fast', dmrvApiStatusCheck: 'fast', dmrvNoaaNwsAlerts: 'fast', dmrvOpenNotifyIss: 'fast', dmrvNoaaNwsForecast: 'fast', dmrvGlobalFloodApi: 'fast', dmrvOpenMeteoAirQuality: 'fast', dmrvOpenMeteoMarine: 'fast', dmrvSpotteron: 'fast', dmrvEbird: 'fast', dmrvObservationOrg: 'fast', dmrvGuardiansofearth: 'fast', dmrvInaturalist: 'fast', dmrvNaturespots: 'fast', dmrvWttrWeather: 'fast',
+  dmrvOpenSky: 'fast', dmrvGdacs: 'fast', dmrvUsgsQuakes: 'fast', dmrvAviationweather: 'fast', dmrvRainviewer: 'fast', dmrv7timerForecast: 'fast', dmrvMetnoForecast: 'fast', dmrvAareRiver: 'fast', dmrvApiStatusCheck: 'fast', dmrvNoaaNwsAlerts: 'fast', dmrvOpenNotifyIss: 'fast', dmrvNoaaNwsForecast: 'fast', dmrvGlobalFloodApi: 'fast', dmrvOpenMeteoAirQuality: 'fast', dmrvOpenMeteoMarine: 'fast', dmrvSpotteron: 'fast', dmrvEbird: 'fast', dmrvObservationOrg: 'fast', dmrvGuardiansofearth: 'fast', dmrvInaturalist: 'fast', dmrvNaturespots: 'fast', dmrvWttrWeather: 'fast', dmrvHkoWeather: 'fast', dmrvSgWeather: 'fast',
   dmrvSensorCommunity: 'slow', dmrvOpenSenseMap: 'slow', dmrvNoaaBuoys: 'slow', dmrvGreynoise: 'slow',
   dmrvOpenMeteo: 'slow', dmrvUkCarbon: 'slow', dmrvDanishEnergi: 'slow', dmrvGruenstrom: 'slow',
   dmrvNoaaNgdc: 'slow', dmrvUvIndex: 'slow', dmrvPm25Lass: 'slow', dmrvOpenfema: 'slow',
