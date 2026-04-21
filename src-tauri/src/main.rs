@@ -27,7 +27,7 @@ const MENU_HELP_GITHUB_ID: &str = "help.github";
 #[cfg(feature = "devtools")]
 const MENU_HELP_DEVTOOLS_ID: &str = "help.devtools";
 const TRUSTED_WINDOWS: [&str; 3] = ["main", "settings", "live-channels"];
-const SUPPORTED_SECRET_KEYS: [&str; 28] = [
+const SUPPORTED_SECRET_KEYS: [&str; 43] = [
     "GROQ_API_KEY",
     "OPENROUTER_API_KEY",
     "TAVILY_API_KEYS",
@@ -56,6 +56,21 @@ const SUPPORTED_SECRET_KEYS: [&str; 28] = [
     "WTO_API_KEY",
     "AVIATIONSTACK_API",
     "ICAO_API_KEY",
+    "ALPHA_VANTAGE_API_KEY",
+    "GIE_API_KEY",
+    "AGSI_API_KEY",
+    "ENTSO_E_TOKEN",
+    "ENTSOE_API_KEY",
+    "COMTRADE_API_KEYS",
+    "OPENAQ_API_KEY",
+    "WAQI_API_KEY",
+    "AQICN_API_KEY",
+    "DATAVERSE_API_KEY",
+    "FIRE_MAPS_API_KEY",
+    "WINDY_WEBCAMS_API_KEY",
+    "WINDY_POINT_FORECAST_API_KEY",
+    "WINDY_MAP_FORECAST_API_KEY",
+    "WINDY_PLUGINS_API_KEY",
 ];
 
 struct LocalApiState {

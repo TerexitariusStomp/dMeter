@@ -261,7 +261,7 @@ export async function main() {
   const yesterday = new Date(Date.now() - 24 * 3600 * 1000);
   const dateStr = isoDate(today);
 
-  const entsoToken = process.env.ENTSO_E_TOKEN;
+  const entsoToken = process.env.ENTSO_E_TOKEN || process.env.ENTSOE_API_KEY;
   const eiaKey = process.env.EIA_API_KEY;
 
   let entsoResults = [];
@@ -270,7 +270,7 @@ export async function main() {
   try {
     // ENTSO-E (EU day-ahead prices)
     if (!entsoToken) {
-      console.warn('[electricity] ENTSO_E_TOKEN not set — skipping ENTSO-E');
+      console.warn('[electricity] ENTSO_E_TOKEN/ENTSOE_API_KEY not set — skipping ENTSO-E');
     } else {
       entsoResults = await fetchAllEntsoE(entsoToken, today, yesterday);
       console.log(`[electricity] ENTSO-E: ${entsoResults.length} regions`);

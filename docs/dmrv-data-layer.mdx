@@ -204,6 +204,10 @@ services:
 
 Each seeder has an internal freshness gate via `seed-meta:dmrv:*` Redis keys — it skips re-fetching if the data is still fresh, so running the bundle every 15 minutes is safe.
 
+Operational readiness endpoint:
+- `GET /api/dmrv/ready` (coverage-based gate with REQUIRED vs OPTIONAL feeds)
+- Policy and smoke-test notes: `docs/dmrv-production-hardening.md`
+
 ---
 
 ## Environment Variables
