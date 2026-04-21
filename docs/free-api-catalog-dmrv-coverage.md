@@ -188,6 +188,10 @@ Additional free-api-catalog entries integrated in this wave:
 - Hong Kong Observatory Open Data -> `scripts/seed-hko-weather.mjs` -> `dmrv:hko-weather:v1`
 - Singapore data.gov.sg realtime weather -> `scripts/seed-sg-weather.mjs` -> `dmrv:sg-weather:v1`
 - Deutscher Wetterdienst (DWD) API -> `scripts/seed-dwd-weather.mjs` -> `dmrv:dwd-weather:v1`
+- Surftruths buoy API -> `scripts/seed-surftruths-buoys.mjs` -> `dmrv:surftruths-buoys:v1`
+- Surftruths tide stations API -> `scripts/seed-surftruths-tide-stations.mjs` -> `dmrv:surftruths-tide-stations:v1`
+- Surftruths GFS locations API -> `scripts/seed-surftruths-gfs-locations.mjs` -> `dmrv:surftruths-gfs-locations:v1`
+- WebsiteCarbon data API (bytes/green model endpoint) -> `scripts/seed-websitecarbon-data.mjs` -> `dmrv:websitecarbon-data:v1`
 
 Additional local-source integration:
 - Intentional Community Unified API (`/root/workspace/intentional-community-api`) -> `scripts/seed-intentional-communities.mjs` -> `dmrv:intentional-communities:v1`

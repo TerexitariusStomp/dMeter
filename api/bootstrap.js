@@ -109,6 +109,10 @@ const BOOTSTRAP_CACHE_KEYS = {
   dmrvSgWeather:           'dmrv:sg-weather:v1',
   dmrvDwdWeather:          'dmrv:dwd-weather:v1',
   dmrvIntentionalCommunities: 'dmrv:intentional-communities:v1',
+  dmrvSurftruthsBuoys:      'dmrv:surftruths-buoys:v1',
+  dmrvSurftruthsTideStations:'dmrv:surftruths-tide-stations:v1',
+  dmrvSurftruthsGfsLocations:'dmrv:surftruths-gfs-locations:v1',
+  dmrvWebsitecarbonData:     'dmrv:websitecarbon-data:v1',
   techReadiness:    'economic:worldbank-techreadiness:v1',
   progressData:     'economic:worldbank-progress:v1',
   renewableEnergy:  'economic:worldbank-renewable:v1',
@@ -242,7 +246,8 @@ const SLOW_KEYS = new Set([
   'dmrvWormsMarineSpecies',
   'dmrvTleSatellites',
   'dmrvRestorEco', 'dmrvSilviEarth', 'dmrvXenoCanto', 'dmrvNaturemapr', 'dmrvPlantnet', 'dmrvCitsci', 'dmrvReeflifesurvey',
-  'dmrvOverpassOsm', 'dmrvNominatimGeocode',
+  'dmrvOverpassOsm', 'dmrvNominatimGeocode', 'dmrvIntentionalCommunities',
+  'dmrvWebsitecarbonData', 'dmrvSurftruthsTideStations',
 ]);
 const FAST_KEYS = new Set([
   'earthquakes', 'outages', 'serviceStatuses', 'ddosAttacks', 'trafficAnomalies', 'macroSignals', 'chokepoints',
@@ -259,7 +264,8 @@ const FAST_KEYS = new Set([
   'dmrvOpenMeteoAirQuality', 'dmrvOpenMeteoMarine',
   'dmrvSpotteron', 'dmrvEbird', 'dmrvObservationOrg', 'dmrvGuardiansofearth', 'dmrvInaturalist', 'dmrvNaturespots',
   'dmrvWttrWeather',
-  'dmrvHkoWeather', 'dmrvSgWeather', 'dmrvDwdWeather', 'dmrvIntentionalCommunities',
+  'dmrvHkoWeather', 'dmrvSgWeather', 'dmrvDwdWeather',
+  'dmrvSurftruthsBuoys', 'dmrvSurftruthsGfsLocations',
 ]);
 
 // No public/s-maxage: CF (in front of api.worldmonitor.app) ignores Vary: Origin and would

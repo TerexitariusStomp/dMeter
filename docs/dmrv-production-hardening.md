@@ -87,6 +87,10 @@ These are useful but can be key-limited, region-limited, or more volatile:
 54. sg-weather
 55. dwd-weather
 56. intentional-communities
+57. surftruths-buoys
+58. surftruths-tide-stations
+59. surftruths-gfs-locations
+60. websitecarbon-data
 
 ## Containerized smoke tests run
 

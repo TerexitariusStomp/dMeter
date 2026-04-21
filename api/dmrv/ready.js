@@ -74,6 +74,10 @@ const OPTIONAL_DATASETS = [
   ['sg-weather', 'seed-meta:dmrv:sg-weather', 10],
   ['dwd-weather', 'seed-meta:dmrv:dwd-weather', 30],
   ['intentional-communities', 'seed-meta:dmrv:intentional-communities', 360],
+  ['surftruths-buoys', 'seed-meta:dmrv:surftruths-buoys', 60],
+  ['surftruths-tide-stations', 'seed-meta:dmrv:surftruths-tide-stations', 1440],
+  ['surftruths-gfs-locations', 'seed-meta:dmrv:surftruths-gfs-locations', 360],
+  ['websitecarbon-data', 'seed-meta:dmrv:websitecarbon-data', 1440],
 ];
 
 function datasetStatus(meta, intervalMin, now) {

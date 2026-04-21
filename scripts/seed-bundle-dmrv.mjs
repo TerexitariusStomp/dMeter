@@ -552,4 +552,36 @@ await runBundle('dmrv', [
     intervalMs:   6 * HOUR,
     timeoutMs:    35_000,
   },
-], { maxBundleMs: 67 * 60_000 }); // 67min budget for 66-dataset bundle
+  {
+    label:        'Surftruths Buoys',
+    script:       'seed-surftruths-buoys.mjs',
+    seedMetaKey:  'seed-meta:dmrv:surftruths-buoys',
+    canonicalKey: 'dmrv:surftruths-buoys:v1',
+    intervalMs:   HOUR,
+    timeoutMs:    30_000,
+  },
+  {
+    label:        'Surftruths Tide Stations',
+    script:       'seed-surftruths-tide-stations.mjs',
+    seedMetaKey:  'seed-meta:dmrv:surftruths-tide-stations',
+    canonicalKey: 'dmrv:surftruths-tide-stations:v1',
+    intervalMs:   DAY,
+    timeoutMs:    35_000,
+  },
+  {
+    label:        'Surftruths GFS Locations',
+    script:       'seed-surftruths-gfs-locations.mjs',
+    seedMetaKey:  'seed-meta:dmrv:surftruths-gfs-locations',
+    canonicalKey: 'dmrv:surftruths-gfs-locations:v1',
+    intervalMs:   6 * HOUR,
+    timeoutMs:    30_000,
+  },
+  {
+    label:        'WebsiteCarbon Data',
+    script:       'seed-websitecarbon-data.mjs',
+    seedMetaKey:  'seed-meta:dmrv:websitecarbon-data',
+    canonicalKey: 'dmrv:websitecarbon-data:v1',
+    intervalMs:   DAY,
+    timeoutMs:    30_000,
+  },
+], { maxBundleMs: 72 * 60_000 }); // 72min budget for 70-dataset bundle
