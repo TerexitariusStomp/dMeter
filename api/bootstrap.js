@@ -42,6 +42,30 @@ const BOOTSTRAP_CACHE_KEYS = {
   crossSourceSignals: 'intelligence:cross-source-signals:v1',
   wildfires:        'wildfire:fires:v1',
   cyberThreats:     'cyber:threats-bootstrap:v2',
+  // dMRV layer — decentralized Monitoring, Reporting & Verification
+  dmrvSensorCommunity: 'dmrv:sensor-community:v1',
+  dmrvOpenSenseMap:    'dmrv:opensensemap:v1',
+  dmrvEmscEarthquakes: 'dmrv:emsc-earthquakes:v1',
+  dmrvNoaaBuoys:       'dmrv:noaa-buoys:v1',
+  dmrvFloodMonitoring: 'dmrv:flood-monitoring:v1',
+  dmrvUsgsWater:       'dmrv:usgs-water:v1',
+  dmrvGreynoise:       'dmrv:greynoise:v1',
+  dmrvGridStatus:      'dmrv:grid-status:v1',
+  dmrvOpenMeteo:       'dmrv:open-meteo:v1',
+  dmrvUkCarbon:        'dmrv:uk-carbon:v1',
+  dmrvDanishEnergi:    'dmrv:danish-energi:v1',
+  dmrvGruenstrom:      'dmrv:gruenstrom:v1',
+  dmrvOpenSky:         'dmrv:opensky:v1',
+  dmrvNoaaNgdc:        'dmrv:noaa-ngdc:v1',
+  dmrvUvIndex:         'dmrv:uv-index:v1',
+  dmrvPm25Lass:        'dmrv:pm25-lass:v1',
+  dmrvOpenfema:        'dmrv:openfema:v1',
+  dmrvOpenCharge:      'dmrv:open-charge:v1',
+  dmrvLuchtmeetnet:    'dmrv:luchtmeetnet:v1',
+  dmrvGdacs:           'dmrv:gdacs:v1',
+  dmrvEnergyCharts:    'dmrv:energy-charts:v1',
+  dmrvUsgsQuakes:      'dmrv:usgs-quakes:v1',
+  dmrvCopernicusAtmos: 'dmrv:copernicus-atmos:v1',
   techReadiness:    'economic:worldbank-techreadiness:v1',
   progressData:     'economic:worldbank-progress:v1',
   renewableEnergy:  'economic:worldbank-renewable:v1',
@@ -158,12 +182,20 @@ const SLOW_KEYS = new Set([
   'energyCrisisPolicies',
   'aaiiSentiment',
   'breadthHistory',
+  // dMRV slower-refresh datasets
+  'dmrvSensorCommunity', 'dmrvOpenSenseMap', 'dmrvNoaaBuoys', 'dmrvGreynoise',
+  'dmrvOpenMeteo', 'dmrvUkCarbon', 'dmrvDanishEnergi', 'dmrvGruenstrom',
+  'dmrvNoaaNgdc', 'dmrvUvIndex', 'dmrvPm25Lass', 'dmrvOpenfema',
+  'dmrvOpenCharge', 'dmrvLuchtmeetnet', 'dmrvEnergyCharts', 'dmrvCopernicusAtmos',
 ]);
 const FAST_KEYS = new Set([
   'earthquakes', 'outages', 'serviceStatuses', 'ddosAttacks', 'trafficAnomalies', 'macroSignals', 'chokepoints',
   'marketQuotes', 'commodityQuotes', 'positiveGeoEvents', 'riskScores', 'flightDelays','insights', 'predictions',
   'iranEvents', 'temporalAnomalies', 'weatherAlerts', 'spending', 'theaterPosture', 'gdeltIntel',
   'correlationCards', 'forecasts', 'shippingRates', 'shippingStress', 'socialVelocity', 'wsbTickers',
+  // dMRV near-real-time datasets
+  'dmrvEmscEarthquakes', 'dmrvFloodMonitoring', 'dmrvGridStatus', 'dmrvUsgsWater',
+  'dmrvOpenSky', 'dmrvGdacs', 'dmrvUsgsQuakes',
 ]);
 
 // No public/s-maxage: CF (in front of api.worldmonitor.app) ignores Vary: Origin and would

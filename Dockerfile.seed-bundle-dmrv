@@ -1,0 +1,35 @@
+# =============================================================================
+# Seed Bundle: dMRV (15-min cron, standalone)
+# =============================================================================
+# Runs scripts/seed-bundle-dmrv.mjs which spawns all dMRV seeders via
+# _bundle-runner.mjs. Covers the full decentralised Monitoring, Reporting &
+# Verification data layer:
+#
+#   - Sensor.Community  (15k+ global IoT PM2.5/temp sensors)
+#   - openSenseMap      (citizen IoT network)
+#   - EMSC              (European seismology, augments USGS)
+#   - NOAA Buoys        (ocean/atmosphere real-time observations)
+#   - Flood Monitoring  (UK EA flood warnings + DFO global archive)
+#   - USGS Water        (US stream gauges — streamflow, water quality)
+#   - GreyNoise         (mass-scanner cyber intelligence)
+#   - Grid Status       (US energy grid real-time demand by ISO)
+#
+# Deploy as Railway cron: every 15 minutes.
+# Env vars needed:
+#   UPSTASH_REDIS_REST_URL    (required)
+#   UPSTASH_REDIS_REST_TOKEN  (required)
+#   GREYNOISE_API_KEY         (optional — community tier, improves coverage)
+#   GRIDSTATUS_API_KEY        (optional — falls back to EIA open data)
+# =============================================================================
+
+FROM node:22-alpine
+
+WORKDIR /app
+
+# Ship the full scripts/ tree for robustness (avoids broken local imports).
+COPY scripts/ ./scripts/
+COPY shared/ ./shared/
+
+ENV NODE_OPTIONS="--max-old-space-size=1024 --dns-result-order=ipv4first"
+
+CMD ["node", "scripts/seed-bundle-dmrv.mjs"]

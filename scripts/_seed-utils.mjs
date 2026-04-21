@@ -774,7 +774,26 @@ export function parseYahooChart(data, symbol) {
   return { symbol, name: symbol, display: symbol, price, change: +change.toFixed(2), sparkline };
 }
 
-export async function runSeed(domain, resource, canonicalKey, fetchFn, opts = {}) {
+export async function runSeed(domainOrOpts, resource, canonicalKey, fetchFn, opts = {}) {
+  // Support new object-form call: runSeed({ canonicalKey, metaKey, cacheTtl, fetch() {...} })
+  if (domainOrOpts !== null && typeof domainOrOpts === 'object' && !Array.isArray(domainOrOpts)) {
+    const o = domainOrOpts;
+    const _domain   = o.domain   ?? 'dmrv';
+    const _resource = o.resource ?? (o.canonicalKey ?? 'unknown').replace(/^dmrv:/, '').replace(/:v\d+$/, '');
+    const _key      = o.canonicalKey ?? o.key;
+    const _fetchFn  = o.fetch   ?? o.fetchFn;
+    const _opts     = {
+      ttlSeconds:   o.cacheTtl ?? o.ttlSeconds,
+      validateFn:   o.validate  ?? o.validateFn,
+      lockTtlMs:    o.lockTtlMs,
+      extraKeys:    o.extraKeys,
+      afterPublish: o.afterPublish,
+    };
+    // Strip undefined keys
+    Object.keys(_opts).forEach(k => _opts[k] === undefined && delete _opts[k]);
+    return runSeed(_domain, _resource, _key, _fetchFn, _opts);
+  }
+  const domain = domainOrOpts;
   const {
     validateFn,
     ttlSeconds,

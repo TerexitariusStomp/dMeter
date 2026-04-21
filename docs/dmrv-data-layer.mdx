@@ -1,0 +1,216 @@
+---
+title: "dMRV Data Layer"
+description: "Decentralized Monitoring, Reporting & Verification (dMRV) data sources — IoT sensor networks, citizen science, hydrological monitoring, and cross-modal environmental verification."
+---
+
+## Overview
+
+World Monitor integrates a full dMRV (decentralized Monitoring, Reporting, and Verification) layer that fuses three complementary modalities:
+
+| Modality | Purpose | Examples |
+|---|---|---|
+| **Satellite EO** | Baseline mapping, change detection, fire/deforestation | Sentinel-2, FIRMS (VIIRS) |
+| **IoT Networks** | Ground-truth air quality, temperature, pressure | Sensor.Community, openSenseMap |
+| **Citizen Science** | Field observations, species, land cover | GLOBE Observer (future) |
+
+All sources are **free and open** (no licensing fees for open use), and are interoperable via standard REST/GeoJSON APIs.
+
+---
+
+## dMRV Sources
+
+### IoT Environmental Sensor Networks
+
+<details>
+<summary><strong>Sensor.Community</strong></summary>
+
+- **API**: `https://data.sensor.community/static/v2/data.json`
+- **Coverage**: 15,000+ global DIY sensors (PM2.5, PM10, temperature, humidity, pressure, noise)
+- **Update frequency**: ~5 min upstream; seeded every 30 min
+- **Redis key**: `dmrv:sensor-community:v1`
+- **Edge endpoint**: `GET /api/dmrv/sensor-community`
+- **Notes**: No API key required. Community-operated hardware (SDS011, BME280 etc.) with global distribution biased towards Europe and East Asia.
+
+</details>
+
+<details>
+<summary><strong>openSenseMap (senseBox)</strong></summary>
+
+- **API**: `https://api.opensensemap.org/boxes?full=true&exposure=outdoor`
+- **Coverage**: Global citizen IoT stations (outdoor exposure filter); PM2.5, CO2, temperature, noise, UV
+- **Update frequency**: Variable per box; seeded every 30 min
+- **Redis key**: `dmrv:opensensemap:v1`
+- **Edge endpoint**: `GET /api/dmrv/opensensemap`
+- **Notes**: Open-source senseBox hardware + software, operated by Uni Münster. Apache 2.0.
+
+</details>
+
+---
+
+### Seismology (Augmenting USGS)
+
+<details>
+<summary><strong>EMSC European-Mediterranean Seismological Centre</strong></summary>
+
+- **API**: FDSNWS: `https://www.seismicportal.eu/fdsnws/event/1/query`
+- **Coverage**: European, Mediterranean, Central Asian events — complements USGS (US-centric)
+- **Parameters**: M2.5+, 7-day window, GeoJSON output
+- **Update frequency**: Seeded every 10 min
+- **Redis key**: `dmrv:emsc-earthquakes:v1`
+- **Edge endpoint**: `GET /api/dmrv/emsc-earthquakes`
+- **Notes**: No API key required. EMSC covers events often missed by USGS in MENA, Eastern Europe, Caucasus.
+
+</details>
+
+---
+
+### Ocean & Atmosphere
+
+<details>
+<summary><strong>NOAA NDBC Ocean Buoys</strong></summary>
+
+- **API**: `https://www.ndbc.noaa.gov/data/latest_obs/latest_obs.txt`
+- **Coverage**: 500+ NDBC stations globally; wave height, water/air temperature, wind, pressure
+- **Update frequency**: Hourly (buoys report hourly)
+- **Redis key**: `dmrv:noaa-buoys:v1`
+- **Edge endpoint**: `GET /api/dmrv/noaa-buoys`
+- **Notes**: No API key required. Essential for ocean-state MRV (sea level, SST anomaly ground truth).
+
+</details>
+
+---
+
+### Hydrological Monitoring
+
+<details>
+<summary><strong>USGS Water Resources (Streamflow & Water Quality)</strong></summary>
+
+- **API**: `https://waterservices.usgs.gov/nwis/iv/`
+- **Coverage**: ~2,000 active US stream gauges; discharge (ft³/s), gage height, water temperature, conductance, turbidity
+- **Update frequency**: 15 min (gauge reporting interval)
+- **Redis key**: `dmrv:usgs-water:v1`
+- **Edge endpoint**: `GET /api/dmrv/usgs-water`
+- **Notes**: No API key. Critical for flood/drought MRV and water quality event detection.
+
+</details>
+
+---
+
+### Flood Intelligence
+
+<details>
+<summary><strong>Flood Monitoring (UK EA + DFO Global)</strong></summary>
+
+- **Sources**:
+  - UK Environment Agency Flood Monitoring API (`environment.data.gov.uk/flood-monitoring`) — no key
+  - Dartmouth Flood Observatory (DFO) global active flood archive — no key
+- **Coverage**: UK flood warnings (severity 1–4) + global active/recent flood events
+- **Update frequency**: Every 15 min
+- **Redis key**: `dmrv:flood-monitoring:v1`
+- **Edge endpoint**: `GET /api/dmrv/flood-monitoring`
+
+</details>
+
+---
+
+### Cybersecurity Intelligence
+
+<details>
+<summary><strong>GreyNoise Mass-Scanner Intelligence</strong></summary>
+
+- **API**: `https://api.greynoise.io/v2/meta/metadata` (Community tier — optional key)
+- **Coverage**: Mass-scanner IP intelligence, background internet noise stats, top attacking ASNs/ports/tags
+- **Update frequency**: Hourly
+- **Redis key**: `dmrv:greynoise:v1`
+- **Edge endpoint**: `GET /api/dmrv/greynoise`
+- **Notes**: Without `GREYNOISE_API_KEY`, falls back to OTX IPv4 indicators. With key, provides GNQL trend stats (top tags, destination ports, countries, ASNs). Complements existing FeodoTracker/URLhaus/OTX/AbuseIPDB cyber threat layer.
+
+</details>
+
+---
+
+### Energy Grid
+
+<details>
+<summary><strong>US Energy Grid Status (GridStatus.io / EIA Gridwatch)</strong></summary>
+
+- **APIs**:
+  - GridStatus.io: `https://api.gridstatus.io/v1` (free key: `GRIDSTATUS_API_KEY`)
+  - EIA Gridwatch fallback: `https://www.eia.gov/electricity/930/data.json` (no key)
+- **Coverage**: 7 US ISOs (CAISO, ERCOT, ISONE, MISO, NYISO, PJM, SPP) — real-time demand, generation mix, marginal fuel
+- **Update frequency**: Every 5 min
+- **Redis key**: `dmrv:grid-status:v1`
+- **Edge endpoint**: `GET /api/dmrv/grid-status`
+
+</details>
+
+---
+
+### Additional dMRV Sources (Integrated)
+
+The dMRV bundle also ingests the following free public feeds and publishes them under `dmrv:*` keys for bootstrap hydration and health checks:
+
+- `dmrv:open-meteo:v1` — Open-Meteo multi-city weather snapshots
+- `dmrv:uk-carbon:v1` — UK national grid carbon intensity
+- `dmrv:danish-energi:v1` — Denmark grid mix and intensity
+- `dmrv:gruenstrom:v1` — Germany green-power intensity
+- `dmrv:opensky:v1` — OpenSky flight-state telemetry
+- `dmrv:noaa-ngdc:v1` — NOAA geophysical hazard catalogs
+- `dmrv:uv-index:v1` — UV index observations
+- `dmrv:pm25-lass:v1` — LASS PM2.5 citizen sensors
+- `dmrv:openfema:v1` — FEMA open incident/disaster records
+- `dmrv:open-charge:v1` — Open Charge Map EV charging infrastructure
+- `dmrv:luchtmeetnet:v1` — Dutch air-quality network
+- `dmrv:gdacs:v1` — GDACS global disaster alerts
+- `dmrv:energy-charts:v1` — EU generation-mix snapshots
+- `dmrv:usgs-quakes:v1` — USGS earthquake feed
+- `dmrv:copernicus-atmos:v1` — Copernicus atmospheric composition signals
+
+---
+
+## FIRMS Fire Detection — Global Coverage Expansion
+
+The existing NASA FIRMS seed (`wildfire:fires:v1`) was expanded from 9 conflict-zone bounding boxes to **28 global biome regions**, covering:
+
+- Amazon / Cerrado / Chaco (South America)
+- West / Central / Southern / East Africa (savanna fire seasons)
+- Indonesia / Southeast Asia (peat fire zones)
+- Australia East + West
+- Western Canada + USA + Alaska (boreal/temperate)
+- Mediterranean Europe
+- Siberia West + East
+- India Northwest
+
+This enables full carbon MRV / deforestation monitoring globally.
+
+---
+
+## Deployment
+
+Add the dMRV Railway cron service:
+
+```yaml
+# railway.toml (or Railway dashboard)
+services:
+  seed-bundle-dmrv:
+    dockerfile: Dockerfile.seed-bundle-dmrv
+    cron: "*/15 * * * *"   # every 15 minutes
+    env:
+      UPSTASH_REDIS_REST_URL: ${UPSTASH_REDIS_REST_URL}
+      UPSTASH_REDIS_REST_TOKEN: ${UPSTASH_REDIS_REST_TOKEN}
+      GREYNOISE_API_KEY: ${GREYNOISE_API_KEY}      # optional
+      GRIDSTATUS_API_KEY: ${GRIDSTATUS_API_KEY}    # optional (falls back to EIA)
+```
+
+Each seeder has an internal freshness gate via `seed-meta:dmrv:*` Redis keys — it skips re-fetching if the data is still fresh, so running the bundle every 15 minutes is safe.
+
+---
+
+## Environment Variables
+
+| Variable | Required | Source |
+|---|---|---|
+| `UPSTASH_REDIS_REST_URL` | Yes | Upstash dashboard |
+| `UPSTASH_REDIS_REST_TOKEN` | Yes | Upstash dashboard |
+| `GREYNOISE_API_KEY` | No | [greynoise.io](https://greynoise.io) — free community tier |
+| `GRIDSTATUS_API_KEY` | No | [gridstatus.io](https://gridstatus.io) — free tier; falls back to EIA open data |
