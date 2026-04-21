@@ -39,6 +39,10 @@ const OPTIONAL_DATASETS = [
   ['obis-marine', 'seed-meta:dmrv:obis-marine', 360],
   ['opentopodata', 'seed-meta:dmrv:opentopodata', 1440],
   ['7timer-forecast', 'seed-meta:dmrv:7timer-forecast', 180],
+  ['metno-forecast', 'seed-meta:dmrv:metno-forecast', 60],
+  ['aare-river', 'seed-meta:dmrv:aare-river', 30],
+  ['adresse-geocode', 'seed-meta:dmrv:adresse-geocode', 1440],
+  ['api-status-check', 'seed-meta:dmrv:api-status-check', 30],
 ];
 
 function datasetStatus(meta, intervalMin, now) {

@@ -52,6 +52,10 @@ These are useful but can be key-limited, region-limited, or more volatile:
 19. obis-marine
 20. opentopodata
 21. 7timer-forecast
+22. metno-forecast
+23. aare-river
+24. adresse-geocode
+25. api-status-check
 
 ## Containerized smoke tests run
 

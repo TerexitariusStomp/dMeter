@@ -57,6 +57,30 @@ This run integrated/confirmed all high-value dMRV-relevant APIs from that catalo
 - cache key: `dmrv:7timer-forecast:v1`
 - endpoint: `GET /api/dmrv/7timer-forecast`
 
+9. Meteorologisk institutt API (api.met.no, no key)
+- free-api-catalog entry: Meteorologisk Institutt
+- dMeter seeder: `scripts/seed-metno-forecast.mjs`
+- cache key: `dmrv:metno-forecast:v1`
+- endpoint: `GET /api/dmrv/metno-forecast`
+
+10. Aare.guru API (no auth)
+- free-api-catalog entry: Aare.guru API
+- dMeter seeder: `scripts/seed-aare-river.mjs`
+- cache key: `dmrv:aare-river:v1`
+- endpoint: `GET /api/dmrv/aare-river`
+
+11. adresse.data.gouv.fr (no auth)
+- free-api-catalog entry: adresse.data.gouv.fr
+- dMeter seeder: `scripts/seed-adresse-geocode.mjs`
+- cache key: `dmrv:adresse-geocode:v1`
+- endpoint: `GET /api/dmrv/adresse-geocode`
+
+12. API Status Check (no auth)
+- free-api-catalog entry: API Status Check
+- dMeter seeder: `scripts/seed-api-status-check.mjs`
+- cache key: `dmrv:api-status-check:v1`
+- endpoint: `GET /api/dmrv/api-status-check`
+
 ## Already integrated before this pass (confirmed)
 
 - OpenAQ (air quality) -> `seed-health-air-quality.mjs` + `OPENAQ_API_KEY`

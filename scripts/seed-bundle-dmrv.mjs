@@ -272,4 +272,36 @@ await runBundle('dmrv', [
     intervalMs:   3 * HOUR,
     timeoutMs:    45_000,
   },
-], { maxBundleMs: 31 * 60_000 }); // 31min budget for 31-dataset bundle
+  {
+    label:        'MetNo Forecast',
+    script:       'seed-metno-forecast.mjs',
+    seedMetaKey:  'seed-meta:dmrv:metno-forecast',
+    canonicalKey: 'dmrv:metno-forecast:v1',
+    intervalMs:   HOUR,
+    timeoutMs:    30_000,
+  },
+  {
+    label:        'Aare River',
+    script:       'seed-aare-river.mjs',
+    seedMetaKey:  'seed-meta:dmrv:aare-river',
+    canonicalKey: 'dmrv:aare-river:v1',
+    intervalMs:   30 * MIN,
+    timeoutMs:    20_000,
+  },
+  {
+    label:        'Adresse Geocode',
+    script:       'seed-adresse-geocode.mjs',
+    seedMetaKey:  'seed-meta:dmrv:adresse-geocode',
+    canonicalKey: 'dmrv:adresse-geocode:v1',
+    intervalMs:   DAY,
+    timeoutMs:    20_000,
+  },
+  {
+    label:        'API Status Check',
+    script:       'seed-api-status-check.mjs',
+    seedMetaKey:  'seed-meta:dmrv:api-status-check',
+    canonicalKey: 'dmrv:api-status-check:v1',
+    intervalMs:   30 * MIN,
+    timeoutMs:    20_000,
+  },
+], { maxBundleMs: 35 * 60_000 }); // 35min budget for 35-dataset bundle
