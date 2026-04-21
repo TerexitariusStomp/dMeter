@@ -105,6 +105,14 @@ describe('ScenarioService handlers', () => {
       const res = await runScenario(proCtx(), { scenarioId: 'taiwan-strait-full-closure', iso2: '' });
       assert.match(res.jobId, /^scenario:\d{13}:[a-z0-9]{8}$/);
       assert.equal(res.status, 'pending');
+      // statusUrl preserved from the legacy v1 contract — server-computed,
+      // URL-encoded jobId, safe for callers to follow directly. Locked in
+      // because sebuf's 200-only convention breaks the 202/202-body pairing
+      // from the pre-migration contract, and statusUrl is the safe alternative.
+      assert.equal(
+        res.statusUrl,
+        `/api/scenario/v1/get-scenario-status?jobId=${encodeURIComponent(res.jobId)}`,
+      );
       const pushCall = calls.find((c) => String(c.body).includes('RPUSH'));
       assert.ok(pushCall, 'RPUSH pipeline must be dispatched');
       const pushed = JSON.parse(pushCall.body);

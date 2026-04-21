@@ -60,9 +60,18 @@ Enqueues a job. Returns the assigned `jobId` the caller must poll.
 ```json
 {
   "jobId": "scenario:1713456789012:a1b2c3d4",
-  "status": "pending"
+  "status": "pending",
+  "statusUrl": "/api/scenario/v1/get-scenario-status?jobId=scenario%3A1713456789012%3Aa1b2c3d4"
 }
 ```
+
+- `statusUrl` — server-computed convenience URL. Callers that don't want to hardcode the status path can follow this directly (it URL-encodes the `jobId`).
+
+<Warning>
+**Wire-contract change (v1 → v1)** — the pre-sebuf-migration endpoint returned `202 Accepted` on successful enqueue; the migrated endpoint returns `200 OK`. No per-RPC status-code configuration is available in sebuf's HTTP annotations today, and introducing a `/v2` for a single status-code shift was judged heavier than the break itself.
+
+If your integration branches on `response.status === 202`, switch to branching on response body shape (`response.body.status === "pending"` indicates enqueue success). `statusUrl` is preserved exactly as before and is a safe signal to key off.
+</Warning>
 
 **Errors**:
 

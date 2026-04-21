@@ -67,5 +67,13 @@ export async function runScenario(
     throw new ApiError(502, 'Failed to enqueue scenario job', '');
   }
 
-  return { jobId, status: 'pending' };
+  // statusUrl is a server-computed convenience URL preserved from the legacy
+  // /api/scenario/v1/run contract so external callers can keep polling via the
+  // response body rather than hardcoding the status path. See the proto comment
+  // on RunScenarioResponse for why this matters on a v1 → v1 migration.
+  return {
+    jobId,
+    status: 'pending',
+    statusUrl: `/api/scenario/v1/get-scenario-status?jobId=${encodeURIComponent(jobId)}`,
+  };
 }

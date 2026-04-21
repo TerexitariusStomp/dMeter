@@ -10,6 +10,7 @@ export interface RunScenarioRequest {
 export interface RunScenarioResponse {
   jobId: string;
   status: string;
+  statusUrl: string;
 }
 
 export interface GetScenarioStatusRequest {
