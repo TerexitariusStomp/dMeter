@@ -47,6 +47,9 @@ const OPTIONAL_DATASETS = [
   ['noaa-nws-alerts', 'seed-meta:dmrv:noaa-nws-alerts', 15],
   ['nasa-power', 'seed-meta:dmrv:nasa-power', 360],
   ['open-notify-iss', 'seed-meta:dmrv:open-notify-iss', 5],
+  ['open-elevation', 'seed-meta:dmrv:open-elevation', 1440],
+  ['noaa-nws-forecast', 'seed-meta:dmrv:noaa-nws-forecast', 30],
+  ['global-flood-api', 'seed-meta:dmrv:global-flood-api', 60],
 ];
 
 function datasetStatus(meta, intervalMin, now) {

@@ -336,4 +336,28 @@ await runBundle('dmrv', [
     intervalMs:   5 * MIN,
     timeoutMs:    20_000,
   },
-], { maxBundleMs: 39 * 60_000 }); // 39min budget for 39-dataset bundle
+  {
+    label:        'Open Elevation',
+    script:       'seed-open-elevation.mjs',
+    seedMetaKey:  'seed-meta:dmrv:open-elevation',
+    canonicalKey: 'dmrv:open-elevation:v1',
+    intervalMs:   DAY,
+    timeoutMs:    20_000,
+  },
+  {
+    label:        'NOAA NWS Forecast',
+    script:       'seed-noaa-nws-forecast.mjs',
+    seedMetaKey:  'seed-meta:dmrv:noaa-nws-forecast',
+    canonicalKey: 'dmrv:noaa-nws-forecast:v1',
+    intervalMs:   30 * MIN,
+    timeoutMs:    45_000,
+  },
+  {
+    label:        'Global Flood API',
+    script:       'seed-global-flood-api.mjs',
+    seedMetaKey:  'seed-meta:dmrv:global-flood-api',
+    canonicalKey: 'dmrv:global-flood-api:v1',
+    intervalMs:   HOUR,
+    timeoutMs:    30_000,
+  },
+], { maxBundleMs: 42 * 60_000 }); // 42min budget for 42-dataset bundle

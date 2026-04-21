@@ -105,6 +105,24 @@ This run integrated/confirmed all high-value dMRV-relevant APIs from that catalo
 - cache key: `dmrv:open-notify-iss:v1`
 - endpoint: `GET /api/dmrv/open-notify-iss`
 
+17. Open-Elevation API (no auth)
+- free-api-catalog entry: Open-Elevation API
+- dMeter seeder: `scripts/seed-open-elevation.mjs`
+- cache key: `dmrv:open-elevation:v1`
+- endpoint: `GET /api/dmrv/open-elevation`
+
+18. NOAA NWS API Forecast (no auth)
+- free-api-catalog entry: NOAA NWS API / National Weather Service
+- dMeter seeder: `scripts/seed-noaa-nws-forecast.mjs`
+- cache key: `dmrv:noaa-nws-forecast:v1`
+- endpoint: `GET /api/dmrv/noaa-nws-forecast`
+
+19. Global Flood API (no auth)
+- free-api-catalog entry: Global Flood API
+- dMeter seeder: `scripts/seed-global-flood-api.mjs`
+- cache key: `dmrv:global-flood-api:v1`
+- endpoint: `GET /api/dmrv/global-flood-api`
+
 ## Already integrated before this pass (confirmed)
 
 - OpenAQ (air quality) -> `seed-health-air-quality.mjs` + `OPENAQ_API_KEY`
@@ -120,7 +138,7 @@ This run integrated/confirmed all high-value dMRV-relevant APIs from that catalo
 
 ## dMRV control-plane updates applied
 
-- Bundle expanded to 30 datasets:
+- Bundle expanded to 33 datasets:
   - `scripts/seed-bundle-dmrv.mjs`
 - Bootstrap/cache/health parity updated:
   - `api/bootstrap.js`

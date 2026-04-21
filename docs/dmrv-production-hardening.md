@@ -60,6 +60,9 @@ These are useful but can be key-limited, region-limited, or more volatile:
 27. noaa-nws-alerts
 28. nasa-power
 29. open-notify-iss
+30. open-elevation
+31. noaa-nws-forecast
+32. global-flood-api
 
 ## Containerized smoke tests run
 

@@ -82,6 +82,9 @@ const BOOTSTRAP_CACHE_KEYS = {
   dmrvNoaaNwsAlerts:    'dmrv:noaa-nws-alerts:v1',
   dmrvNasaPower:        'dmrv:nasa-power:v1',
   dmrvOpenNotifyIss:    'dmrv:open-notify-iss:v1',
+  dmrvOpenElevation:    'dmrv:open-elevation:v1',
+  dmrvNoaaNwsForecast:  'dmrv:noaa-nws-forecast:v1',
+  dmrvGlobalFloodApi:   'dmrv:global-flood-api:v1',
   techReadiness:    'economic:worldbank-techreadiness:v1',
   progressData:     'economic:worldbank-progress:v1',
   renewableEnergy:  'economic:worldbank-renewable:v1',
@@ -211,6 +214,7 @@ const SLOW_KEYS = new Set([
   'dmrvAdresseGeocode',
   'dmrvNasaOpen',
   'dmrvNasaPower',
+  'dmrvOpenElevation',
 ]);
 const FAST_KEYS = new Set([
   'earthquakes', 'outages', 'serviceStatuses', 'ddosAttacks', 'trafficAnomalies', 'macroSignals', 'chokepoints',
@@ -223,7 +227,7 @@ const FAST_KEYS = new Set([
   'dmrvAviationweather', 'dmrvRainviewer', 'dmrv7timerForecast',
   'dmrvMetnoForecast', 'dmrvAareRiver',
   'dmrvApiStatusCheck',
-  'dmrvNoaaNwsAlerts', 'dmrvOpenNotifyIss',
+  'dmrvNoaaNwsAlerts', 'dmrvOpenNotifyIss', 'dmrvNoaaNwsForecast', 'dmrvGlobalFloodApi',
 ]);
 
 // No public/s-maxage: CF (in front of api.worldmonitor.app) ignores Vary: Origin and would
