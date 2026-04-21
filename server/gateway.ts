@@ -218,6 +218,8 @@ const RPC_CACHE_TIER: Record<string, CacheTier> = {
   '/api/supply-chain/v1/get-country-chokepoint-index': 'slow-browser',
   '/api/supply-chain/v1/get-bypass-options': 'slow-browser',
   '/api/supply-chain/v1/get-country-cost-shock': 'slow-browser',
+  '/api/supply-chain/v1/get-country-products': 'slow-browser',
+  '/api/supply-chain/v1/get-multi-sector-cost-shock': 'slow-browser',
   '/api/supply-chain/v1/get-sector-dependency': 'slow-browser',
   '/api/supply-chain/v1/get-route-explorer-lane': 'slow-browser',
   '/api/supply-chain/v1/get-route-impact': 'slow-browser',
