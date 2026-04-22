@@ -9,6 +9,18 @@ The **scenarios** API is a PRO-only, job-queued surface on top of the WorldMonit
 This service is proto-backed — see `proto/worldmonitor/scenario/v1/service.proto`. Auto-generated reference will replace this page once the scenario service is included in the published OpenAPI bundle.
 </Info>
 
+<Note>
+**Legacy v1 URL aliases** — the sebuf migration (#3207) renamed the three v1 endpoints to align with the proto RPC names. The old URLs are preserved as thin aliases so existing integrations keep working:
+
+| Legacy URL | Canonical URL |
+|---|---|
+| `POST /api/scenario/v1/run` | `POST /api/scenario/v1/run-scenario` |
+| `GET /api/scenario/v1/status` | `GET /api/scenario/v1/get-scenario-status` |
+| `GET /api/scenario/v1/templates` | `GET /api/scenario/v1/list-scenario-templates` |
+
+Prefer the canonical URLs in new code — the aliases will retire at the next v1→v2 break (tracked in [#3282](https://github.com/koala73/worldmonitor/issues/3282)).
+</Note>
+
 ## List templates
 
 ### `GET /api/scenario/v1/list-scenario-templates`

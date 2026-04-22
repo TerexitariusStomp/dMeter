@@ -299,6 +299,18 @@ function sebufApiPlugin(): Plugin {
         }
       });
 
+      // Legacy v1 URL aliases → new sebuf RPC paths (mirror of the alias files
+      // in api/scenario/v1/ + api/supply-chain/v1/). Vercel serves the alias
+      // files directly; vite dev has no file-based routing for api/, so we
+      // rewrite the pathname here before the router lookup.
+      const V1_ALIASES: Record<string, string> = {
+        '/api/scenario/v1/run': '/api/scenario/v1/run-scenario',
+        '/api/scenario/v1/status': '/api/scenario/v1/get-scenario-status',
+        '/api/scenario/v1/templates': '/api/scenario/v1/list-scenario-templates',
+        '/api/supply-chain/v1/country-products': '/api/supply-chain/v1/get-country-products',
+        '/api/supply-chain/v1/multi-sector-cost-shock': '/api/supply-chain/v1/get-multi-sector-cost-shock',
+      };
+
       server.middlewares.use(async (req, res, next) => {
         // Intercept sebuf routes in two forms:
         //  - standard /api/{domain}/v{N}/* (domain-first, e.g. /api/market/v1/...)
@@ -307,6 +319,13 @@ function sebufApiPlugin(): Plugin {
         //    external contract already uses a reversed layout.
         if (!req.url || !/^\/api\/(?:[a-z][a-z0-9-]*\/v\d+|v\d+\/[a-z][a-z0-9-]*)\//.test(req.url)) {
           return next();
+        }
+
+        // Rewrite documented v1 URL → new sebuf path if this is an alias.
+        const [pathOnly, queryOnly] = req.url.split('?', 2);
+        const aliasTarget = pathOnly ? V1_ALIASES[pathOnly] : undefined;
+        if (aliasTarget) {
+          req.url = queryOnly ? `${aliasTarget}?${queryOnly}` : aliasTarget;
         }
 
         try {

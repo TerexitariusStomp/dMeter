@@ -324,6 +324,42 @@
     },
 
     {
+      "path": "api/scenario/v1/run.ts",
+      "category": "deferred",
+      "reason": "URL-compat alias for POST /api/scenario/v1/run-scenario. Thin gateway wrapper that rewrites the documented pre-#3207 v1 URL to the canonical sebuf RPC path. Not a new endpoint — preserves the partner-documented wire contract. Retires at the next v1→v2 break.",
+      "owner": "@SebastienMelki",
+      "removal_issue": "#3282"
+    },
+    {
+      "path": "api/scenario/v1/status.ts",
+      "category": "deferred",
+      "reason": "URL-compat alias for GET /api/scenario/v1/get-scenario-status. See api/scenario/v1/run.ts for the same rationale.",
+      "owner": "@SebastienMelki",
+      "removal_issue": "#3282"
+    },
+    {
+      "path": "api/scenario/v1/templates.ts",
+      "category": "deferred",
+      "reason": "URL-compat alias for GET /api/scenario/v1/list-scenario-templates. See api/scenario/v1/run.ts for the same rationale.",
+      "owner": "@SebastienMelki",
+      "removal_issue": "#3282"
+    },
+    {
+      "path": "api/supply-chain/v1/country-products.ts",
+      "category": "deferred",
+      "reason": "URL-compat alias for GET /api/supply-chain/v1/get-country-products. See api/scenario/v1/run.ts for the same rationale.",
+      "owner": "@SebastienMelki",
+      "removal_issue": "#3282"
+    },
+    {
+      "path": "api/supply-chain/v1/multi-sector-cost-shock.ts",
+      "category": "deferred",
+      "reason": "URL-compat alias for GET /api/supply-chain/v1/get-multi-sector-cost-shock. See api/scenario/v1/run.ts for the same rationale.",
+      "owner": "@SebastienMelki",
+      "removal_issue": "#3282"
+    },
+
+    {
       "path": "api/v2/shipping/webhooks/[subscriberId].ts",
       "category": "migration-pending",
       "reason": "Partner-facing path-parameter endpoint (GET status by subscriber id). Cannot migrate to sebuf yet — no path-param support in the annotation layer. Paired with the typed ShippingV2Service on the same base URL; tracked for eventual migration once sebuf path params are available.",
