@@ -8,6 +8,8 @@ import {
   ValidationError,
 } from '../../../../src/generated/server/worldmonitor/shipping/v2/service_server';
 
+// @ts-expect-error — JS module, no declaration file
+import { validateApiKey } from '../../../../api/_api-key.js';
 import { isCallerPremium } from '../../../_shared/premium-check';
 import { runRedisPipeline } from '../../../_shared/redis';
 import {
@@ -26,6 +28,21 @@ export async function registerWebhook(
   ctx: ServerContext,
   req: RegisterWebhookRequest,
 ): Promise<RegisterWebhookResponse> {
+  // Webhooks are per-tenant keyed on callerFingerprint(), which hashes the
+  // API key. Without forceKey, a Clerk-authenticated pro caller reaches this
+  // handler with no API key, callerFingerprint() falls back to 'anon', and
+  // every such caller collapses into a shared 'anon' owner bucket — letting
+  // one Clerk-session holder enumerate/overwrite other tenants' webhooks.
+  // Matches the legacy `api/v2/shipping/webhooks/[subscriberId]{,/[action]}.ts`
+  // gate and the documented "X-WorldMonitor-Key required" contract in
+  // docs/api-shipping-v2.mdx.
+  const apiKeyResult = validateApiKey(ctx.request, { forceKey: true }) as {
+    valid: boolean; required: boolean; error?: string;
+  };
+  if (apiKeyResult.required && !apiKeyResult.valid) {
+    throw new ApiError(401, apiKeyResult.error ?? 'API key required', '');
+  }
+
   const isPro = await isCallerPremium(ctx.request);
   if (!isPro) {
     throw new ApiError(403, 'PRO subscription required', '');

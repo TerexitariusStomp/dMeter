@@ -6,6 +6,8 @@ import type {
 } from '../../../../src/generated/server/worldmonitor/shipping/v2/service_server';
 import { ApiError } from '../../../../src/generated/server/worldmonitor/shipping/v2/service_server';
 
+// @ts-expect-error — JS module, no declaration file
+import { validateApiKey } from '../../../../api/_api-key.js';
 import { isCallerPremium } from '../../../_shared/premium-check';
 import { runRedisPipeline } from '../../../_shared/redis';
 import {
@@ -19,6 +21,18 @@ export async function listWebhooks(
   ctx: ServerContext,
   _req: ListWebhooksRequest,
 ): Promise<ListWebhooksResponse> {
+  // Without forceKey, Clerk-authenticated pro callers reach this handler with
+  // no API key, callerFingerprint() returns the 'anon' fallback, and the
+  // ownerTag !== ownerHash defense-in-depth below collapses because both
+  // sides equal 'anon' — exposing every 'anon'-bucket tenant's webhooks to
+  // every Clerk-session holder. See registerWebhook for full rationale.
+  const apiKeyResult = validateApiKey(ctx.request, { forceKey: true }) as {
+    valid: boolean; required: boolean; error?: string;
+  };
+  if (apiKeyResult.required && !apiKeyResult.valid) {
+    throw new ApiError(401, apiKeyResult.error ?? 'API key required', '');
+  }
+
   const isPro = await isCallerPremium(ctx.request);
   if (!isPro) {
     throw new ApiError(403, 'PRO subscription required', '');

@@ -24,6 +24,7 @@ All notable changes to World Monitor are documented here. Subscribe via [RSS](/c
 ### Security
 
 - **CDN cache bypass closed**: `CDN-Cache-Control` header now only emitted for trusted origins (worldmonitor.app, Vercel previews, Tauri). No-origin server-side requests always invoke the edge function so `validateApiKey` runs, preventing a cached 200 from being served to external scrapers.
+- **Shipping v2 webhook tenant isolation (#3242)**: `POST /api/v2/shipping/webhooks` and `GET /api/v2/shipping/webhooks` now enforce `validateApiKey(req, { forceKey: true })`, matching the sibling `[subscriberId]{,/[action]}` routes. Without this gate, a Clerk-authenticated pro user with no API key would collapse into a shared `'anon'` fingerprint bucket and see/overwrite webhooks owned by other `'anon'`-bucket tenants.
 
 ### Fixed
 

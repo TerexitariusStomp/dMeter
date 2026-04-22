@@ -146,14 +146,17 @@ describe('ShippingV2Service handlers', () => {
       return calls;
     }
 
-    it('rejects non-PRO callers with 403', async () => {
+    it('rejects callers without an API key with 401 (tenant-isolation gate)', async () => {
+      // Without this gate, Clerk-authenticated pro callers with no X-WorldMonitor-Key
+      // collapse into a shared 'anon' fingerprint bucket and can see each other's
+      // webhooks. Must fire before any premium check.
       await assert.rejects(
         () => registerWebhook(makeCtx(), {
           callbackUrl: 'https://hooks.example.com/wm',
           chokepointIds: [],
           alertThreshold: 50,
         }),
-        (err) => err instanceof ApiError && err.statusCode === 403,
+        (err) => err instanceof ApiError && err.statusCode === 401,
       );
     });
 
@@ -268,10 +271,13 @@ describe('ShippingV2Service handlers', () => {
   });
 
   describe('listWebhooks', () => {
-    it('rejects non-PRO callers with 403', async () => {
+    it('rejects callers without an API key with 401 (tenant-isolation gate)', async () => {
+      // Mirror of registerWebhook: the defense-in-depth ownerTag check collapses
+      // when callers fall through to 'anon', so we reject unauthenticated callers
+      // before hitting Redis.
       await assert.rejects(
         () => listWebhooks(makeCtx(), {}),
-        (err) => err instanceof ApiError && err.statusCode === 403,
+        (err) => err instanceof ApiError && err.statusCode === 401,
       );
     });
 
