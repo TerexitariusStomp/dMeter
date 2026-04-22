@@ -147,6 +147,16 @@ describe('seed-portwatch-port-activity.mjs exports', () => {
     assert.match(src, /cacheWrittenAt:\s*Date\.now\(\)/);
   });
 
+  it('redisMgetJson failure degrades to cold-path (does not abort the seed)', () => {
+    // PR #3299 review P1: a transient Upstash outage at run-start used to
+    // abort the seed before any ArcGIS data was fetched — regression from
+    // the prior behaviour where Redis was only required at write-time.
+    // The MGET call is now wrapped in .catch that returns all-null so
+    // every country falls through to the expensive-fetch path.
+    assert.match(src, /redisMgetJson\(prevKeys\)\.catch\(/);
+    assert.match(src, /new Array\(prevKeys\.length\)\.fill\(null\)/);
+  });
+
   it('registers SIGTERM + SIGINT + aborts shutdownController', () => {
     assert.match(src, /process\.on\('SIGTERM'/);
     assert.match(src, /process\.on\('SIGINT'/);

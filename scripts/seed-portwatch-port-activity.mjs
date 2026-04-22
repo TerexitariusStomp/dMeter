@@ -408,7 +408,16 @@ export async function fetchAll(progress, { signal } = {}) {
   if (progress) progress.stage = 'cache-lookup';
   const cacheT0 = Date.now();
   const prevKeys = eligibleIso3.map((iso3) => `${KEY_PREFIX}${iso3ToIso2.get(iso3)}`);
-  const prevPayloads = await redisMgetJson(prevKeys);
+  // A transient Upstash outage at run-start must NOT abort the seed before
+  // any ArcGIS data is fetched — that's a regression from the previous
+  // behaviour where Redis was only required at the final write. On MGET
+  // failure, degrade to cold-path: treat every country as a cache miss
+  // and re-fetch. The write at run-end will retry its own Redis calls
+  // and fail loudly if Redis is genuinely down then too. PR #3299 review P1.
+  const prevPayloads = await redisMgetJson(prevKeys).catch((err) => {
+    console.warn(`  [port-activity] cache MGET failed (${err?.message || err}) — treating all countries as cache miss`);
+    return new Array(prevKeys.length).fill(null);
+  });
   console.log(`  [port-activity] Loaded ${prevPayloads.filter(Boolean).length}/${prevKeys.length} cached payloads (${((Date.now() - cacheT0) / 1000).toFixed(1)}s)`);
 
   // Preflight: maxDate check for every eligible country in parallel.
