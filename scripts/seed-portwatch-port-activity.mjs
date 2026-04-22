@@ -201,6 +201,17 @@ async function paginateWindowInto(portAccumMap, iso3, where, windowKind, { signa
   } while (body.exceededTransferLimit);
 }
 
+// Parse a "YYYY-MM-DD" string (from ArcGIS outStatistics max(date)) into an
+// epoch-ms anchor used as the upper bound of the last30 window. Uses the
+// END of the day (23:59:59.999 UTC) so rows dated exactly maxDate still
+// satisfy `date <= anchor`. Returns null on parse failure; callers fall
+// back to `Date.now()` when anchor is null.
+function parseMaxDateToAnchor(maxDateStr) {
+  if (!maxDateStr || typeof maxDateStr !== 'string') return null;
+  const ts = Date.parse(maxDateStr + 'T23:59:59.999Z');
+  return Number.isFinite(ts) ? ts : null;
+}
+
 // Fetch ONE country's activity rows, streaming into per-port accumulators.
 // Splits into TWO parallel windowed queries:
 //   - Q1 (last30): WHERE ISO3='X' AND date > cutoff30
@@ -208,15 +219,22 @@ async function paginateWindowInto(portAccumMap, iso3, where, windowKind, { signa
 // Each returns ~half the rows a single 60-day query would. Heavy countries
 // (USA/CHN/etc.) drop from ~90s → ~30s because max(Q1,Q2) < Q1+Q2.
 //
+// The window ANCHOR is upstream max(date), not `Date.now()`. This makes the
+// aggregate stable across cron runs whenever upstream hasn't advanced —
+// which is essential for the H-path cache (see fetchAll). Without the
+// anchor, rolling `now - 30d` windows shift every day even when upstream
+// is frozen, so `tankerCalls30d` would drift day-over-day and cache reuse
+// would serve stale aggregates. PR #3299 review P1.
+//
 // `last7` aggregation was removed: ArcGIS's Daily_Ports_Data max date lags
 // ~10 days behind real-time, so the last-7-day window was always empty and
 // anomalySignal always false. Not a feature regression — it was already dead.
 //
 // Returns Map<portId, PortAccum>. Memory per country is O(unique ports) ≈ <200.
-async function fetchCountryAccum(iso3, { signal } = {}) {
-  const now = Date.now();
-  const cutoff30 = now - 30 * 86400000;
-  const cutoff60 = now - 60 * 86400000;
+async function fetchCountryAccum(iso3, { signal, anchorEpochMs } = {}) {
+  const anchor = anchorEpochMs ?? Date.now();
+  const cutoff30 = anchor - 30 * 86400000;
+  const cutoff60 = anchor - 60 * 86400000;
 
   const portAccumMap = new Map();
 
@@ -452,9 +470,14 @@ export async function fetchAll(progress, { signal } = {}) {
     const batchIdx = Math.floor(i / CONCURRENCY) + 1;
     if (progress) progress.batchIdx = batchIdx;
 
-    const promises = batch.map(({ iso3 }) => {
+    const promises = batch.map(({ iso3, upstreamMaxDate }) => {
+      // Anchor the rolling windows to upstream max(date) so the aggregate
+      // is stable day-over-day when upstream is frozen (required for cache
+      // reuse to be semantically correct — see PR #3299 review P1).
+      // Falls back to Date.now() when preflight returned null.
+      const anchorEpochMs = parseMaxDateToAnchor(upstreamMaxDate);
       const p = withPerCountryTimeout(
-        (childSignal) => fetchCountryAccum(iso3, { signal: childSignal }),
+        (childSignal) => fetchCountryAccum(iso3, { signal: childSignal, anchorEpochMs }),
         iso3,
       );
       // Eager error flush so a SIGTERM mid-batch captures rejections that

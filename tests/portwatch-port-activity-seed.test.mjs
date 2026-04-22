@@ -182,14 +182,28 @@ describe('seed-portwatch-port-activity.mjs exports', () => {
     assert.match(src, /MAX_PORTS_PER_COUNTRY\s*=\s*50/);
   });
 
-  it('window cutoffs hardcoded to 30d + 60d (covers last30 + prev30, no more)', () => {
+  it('window cutoffs hardcoded to 30d + 60d anchored to upstream maxDate', () => {
     // HISTORY_DAYS constant was removed in the H+F refactor because the
-    // actual windows are hardcoded in fetchCountryAccum. 90d was tried
-    // first but prod log 2026-04-21 showed per-country pagination at 90d
-    // cannot fit 174 countries in the 540s section budget. 60d is the
+    // actual windows are hardcoded in fetchCountryAccum. 60d is the
     // minimum that still covers trendDelta (prev30 = days 30-60).
-    assert.match(src, /now - 30 \* 86400000/);
-    assert.match(src, /now - 60 \* 86400000/);
+    //
+    // PR #3299 review P1: windows are anchored to upstream max(date),
+    // not Date.now(), so the aggregate is STABLE day-over-day when
+    // upstream is frozen. Without this, rolling `now - 30d` shifts the
+    // window every day and the cache serves stale aggregates.
+    assert.match(src, /anchor - 30 \* 86400000/);
+    assert.match(src, /anchor - 60 \* 86400000/);
+    // And the anchor is derived from the preflight maxDate, not just Date.now:
+    assert.match(src, /function parseMaxDateToAnchor/);
+    assert.match(src, /const anchor = anchorEpochMs \?\? Date\.now\(\)/);
+  });
+
+  it('fetchCountryAccum receives anchorEpochMs at the call site', () => {
+    // The call site must thread the parsed maxDate anchor into
+    // fetchCountryAccum — otherwise the windows default to Date.now()
+    // and cache reuse serves stale data (defeats the H-path entirely).
+    assert.match(src, /parseMaxDateToAnchor\(upstreamMaxDate\)/);
+    assert.match(src, /fetchCountryAccum\(iso3,\s*\{\s*signal:\s*childSignal,\s*anchorEpochMs\s*\}\)/);
   });
 
   it('TTL is 259200 (3 days)', () => {
