@@ -219,6 +219,10 @@ export const BOOTSTRAP_CACHE_KEYS: Record<string, string> = {
   energyCrisisPolicies: 'energy:crisis-policies:v1',
   aaiiSentiment:        'market:aaii-sentiment:v1',
   breadthHistory:       'market:breadth-history:v1',
+  epicNaturalImagery:   'imagery:epic-natural:v1',
+  openMeteoWeather:     'weather:open-meteo:v1',
+  openAQAirQuality:     'environment:openaq:v1',
+  worldbankIndicators:  'economic:worldbank-indicators:v1',
   consumerPricesOverview:   'consumer-prices:overview:ae',
   consumerPricesCategories: 'consumer-prices:categories:ae:30d',
   consumerPricesMovers:     'consumer-prices:movers:ae:30d',
@@ -288,6 +292,10 @@ export const BOOTSTRAP_TIERS: Record<string, 'slow' | 'fast'> = {
   energyCrisisPolicies: 'slow',
   aaiiSentiment: 'slow',
   breadthHistory: 'slow',
-};
+  epicNaturalImagery: 'slow',
+  openMeteoWeather: 'fast',
+  openAQAirQuality: 'fast',
+  worldbankIndicators: 'slow',
+  consumerPricesOverview: 'slow',
 
 export const PORTWATCH_CHOKEPOINTS_REF_KEY = 'portwatch:chokepoints:ref:v1';
