@@ -219,6 +219,9 @@ export const BOOTSTRAP_CACHE_KEYS: Record<string, string> = {
   energyCrisisPolicies: 'energy:crisis-policies:v1',
   aaiiSentiment:        'market:aaii-sentiment:v1',
   breadthHistory:       'market:breadth-history:v1',
+  natcapMapData:        'environment:natcap-map-data-bootstrap:v1',
+  bcorpMapData:         'environment:bcorp-map-data-bootstrap:v1',
+  greenDestinations:    'tourism:green-destinations-bootstrap:v1',
   epicNaturalImagery:   'imagery:epic-natural:v1',
   openMeteoWeather:     'weather:open-meteo:v1',
   openAQAirQuality:     'environment:openaq:v1',
@@ -299,6 +302,9 @@ export const BOOTSTRAP_TIERS: Record<string, 'slow' | 'fast'> = {
   energyCrisisPolicies: 'slow',
   aaiiSentiment: 'slow',
   breadthHistory: 'slow',
+  natcapMapData: 'slow',
+  bcorpMapData: 'slow',
+  greenDestinations: 'slow',
   epicNaturalImagery: 'slow',
   openMeteoWeather: 'fast',
   openAQAirQuality: 'fast',
@@ -310,6 +316,6 @@ export const BOOTSTRAP_TIERS: Record<string, 'slow' | 'fast'> = {
   spaceWeatherForecasts: 'fast',
   aviationWeatherReports: 'fast',
   biodiversitySpeciesThreats: 'slow',
-  consumerPricesOverview: 'slow',
+};
 
 export const PORTWATCH_CHOKEPOINTS_REF_KEY = 'portwatch:chokepoints:ref:v1';

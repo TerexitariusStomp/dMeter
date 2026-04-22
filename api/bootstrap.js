@@ -67,6 +67,7 @@ const BOOTSTRAP_CACHE_KEYS = {
   spending:          'economic:spending:v1',
   techEvents:        'research:tech-events-bootstrap:v1',
   gdeltIntel:        'intelligence:gdelt-intel:v1',
+  greenDestinations: 'tourism:green-destinations-bootstrap:v1',
   correlationCards:   'correlation:cards-bootstrap:v1',
   forecasts:         'forecast:predictions:v2',
   securityAdvisories: 'intelligence:advisories-bootstrap:v1',
@@ -110,6 +111,8 @@ const BOOTSTRAP_CACHE_KEYS = {
   energyCrisisPolicies: 'energy:crisis-policies:v1',
   aaiiSentiment:        'market:aaii-sentiment:v1',
   breadthHistory:       'market:breadth-history:v1',
+  natcapMapData:        'environment:natcap-map-data-bootstrap:v1',
+  bcorpMapData:         'environment:bcorp-map-data-bootstrap:v1',
 };
 
 const SLOW_KEYS = new Set([
@@ -158,6 +161,9 @@ const SLOW_KEYS = new Set([
   'energyCrisisPolicies',
   'aaiiSentiment',
   'breadthHistory',
+  'natcapMapData',
+  'bcorpMapData',
+  'greenDestinations',
 ]);
 const FAST_KEYS = new Set([
   'earthquakes', 'outages', 'serviceStatuses', 'ddosAttacks', 'trafficAnomalies', 'macroSignals', 'chokepoints',
