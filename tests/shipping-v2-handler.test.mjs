@@ -207,13 +207,31 @@ describe('ShippingV2Service handlers', () => {
       );
     });
 
-    // alert_threshold 0..100 range is now enforced at the proto/wire layer
-    // by buf.validate (gte/lte on `optional int32 alert_threshold`).
-    // Direct handler invocation bypasses wire validation; the handler no
-    // longer carries a redundant runtime range check (was dead code after
-    // the previous `> 0 ? : 50` coercion). The wire path is exercised by
-    // the sebuf gateway integration; this unit test would only assert
-    // behaviour the handler intentionally delegates upstream.
+    // alert_threshold 0..100 range is enforced primarily by buf.validate at
+    // the wire layer. The handler re-enforces it so direct invocations
+    // (internal jobs, test harnesses, future transports) can't store out-of-
+    // range values — cheap invariant-at-the-boundary (#3287 review nit 1).
+    it('rejects alertThreshold > 100 with ValidationError', async () => {
+      await assert.rejects(
+        () => registerWebhook(proCtx(), {
+          callbackUrl: 'https://hooks.example.com/wm',
+          chokepointIds: [],
+          alertThreshold: 9999,
+        }),
+        (err) => err instanceof ValidationError && err.violations[0].field === 'alertThreshold',
+      );
+    });
+
+    it('rejects alertThreshold < 0 with ValidationError', async () => {
+      await assert.rejects(
+        () => registerWebhook(proCtx(), {
+          callbackUrl: 'https://hooks.example.com/wm',
+          chokepointIds: [],
+          alertThreshold: -1,
+        }),
+        (err) => err instanceof ValidationError && err.violations[0].field === 'alertThreshold',
+      );
+    });
 
     it('happy path returns wh_-prefixed subscriberId and 64-char hex secret; issues SET + SADD + EXPIRE pipeline with 30-day TTL', async () => {
       const calls = stubRedisOk();

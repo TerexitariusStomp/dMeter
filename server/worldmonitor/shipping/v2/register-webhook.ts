@@ -69,10 +69,15 @@ export async function registerWebhook(
   // alert_threshold is `optional int32` (#3242 followup #4) — undefined means
   // the partner omitted the field, so apply the legacy default of 50. An
   // explicit 0 is preserved (deliver every alert). The 0..100 range is
-  // enforced by buf.validate at the proto layer; the handler doesn't need
-  // a runtime branch (the previous `< 0` check was dead code after the
-  // `> 0 ? : 50` coercion).
+  // normally enforced by buf.validate at the wire layer, but we re-enforce
+  // it here so direct handler calls (internal jobs, test harnesses, future
+  // transports that bypass buf.validate) can't store out-of-range values.
   const alertThreshold = req.alertThreshold ?? 50;
+  if (alertThreshold < 0 || alertThreshold > 100) {
+    throw new ValidationError([
+      { field: 'alertThreshold', description: 'alertThreshold must be between 0 and 100' },
+    ]);
+  }
 
   const ownerTag = await callerFingerprint(ctx.request);
   const newSubscriberId = generateSubscriberId();
