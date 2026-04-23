@@ -102,6 +102,25 @@ const BOOTSTRAP_KEYS = {
   ddosAttacks:         'cf:radar:ddos:v1',
   economicStress:      'economic:stress-index:v1',
   trafficAnomalies:    'cf:radar:traffic-anomalies:v1',
+  insights:            'news:insights:v1',
+  predictions:         'prediction:markets-bootstrap:v1',
+  bcorpMapData:        'environment:bcorp-map-data-bootstrap:v1',
+  bonsucroRegistry:    'environment:bonsucro-registry-bootstrap:v1',
+  earthcheckMembers:   'tourism:earthcheck-members-bootstrap:v1',
+  greenDestinations:   'tourism:green-destinations-bootstrap:v1',
+  gstcCertifiedDestinations: 'tourism:gstc-certified-destinations-bootstrap:v1',
+  natcapMapData:       'environment:natcap-map-data-bootstrap:v1',
+  epicNaturalImagery:  'imagery:epic-natural:v1',
+  openMeteoWeather:    'weather:open-meteo:v1',
+  openAQAirQuality:    'environment:openaq:v1',
+  worldbankIndicators: 'economic:worldbank-indicators:v1',
+  aviationWeatherReports: 'aviation:weather-reports:v1',
+  biodiversitySpeciesThreats: 'biodiversity:species-threats:v1',
+  maritimeAISPositions: 'maritime:ais-positions:v1',
+  nasaFireDetections:  'environment:fire-detections:nasa:v1',
+  spaceOrbitalObjects: 'space:orbital-objects:v1',
+  spaceWeatherForecasts: 'space:weather-forecasts:v1',
+  wellCertifiedProjects: 'buildings:well-certified-projects-bootstrap:v1',
 };
 
 const STANDALONE_KEYS = {
@@ -373,6 +392,23 @@ const SEED_META = {
   economicStress:       { key: 'seed-meta:economic:stress-index',            maxStaleMin: 180 }, // computed in seed-economy afterPublish; cron ~1h; 180min = 3x interval
   marketImplications:   { key: 'seed-meta:intelligence:market-implications', maxStaleMin: 120 }, // LLM-generated in seed-forecasts; cron ~1h; 120min = 2x interval
   trafficAnomalies:     { key: 'seed-meta:cf:radar:traffic-anomalies',       maxStaleMin: 60 }, // written by seed-internet-outages afterPublish; outages cron ~15min; 60 = 4x interval
+  bcorpMapData:         { key: 'seed-meta:environment:bcorp-map-data',         maxStaleMin: 720 }, // 6h cache; 720min = 12h = 2x expected cron interval
+  bonsucroRegistry:     { key: 'seed-meta:environment:bonsucro-registry',      maxStaleMin: 720 }, // 6h cache
+  earthcheckMembers:    { key: 'seed-meta:tourism:earthcheck-members',         maxStaleMin: 720 }, // 6h cache
+  greenDestinations:    { key: 'seed-meta:tourism:green-destinations',         maxStaleMin: 720 }, // 6h cache
+  gstcCertifiedDestinations: { key: 'seed-meta:tourism:gstc-certified-destinations', maxStaleMin: 2880 }, // 24h cache; 2880min = 48h = 2x interval
+  natcapMapData:        { key: 'seed-meta:environment:natcap-map-data',        maxStaleMin: 720 }, // 6h cache
+  epicNaturalImagery:   { key: 'seed-meta:imagery:epic-natural',               maxStaleMin: 2880 }, // daily seed; 2880min = 48h = 2x interval
+  openMeteoWeather:     { key: 'seed-meta:weather:open-meteo',                 maxStaleMin: 180 }, // hourly cache; 180min = 3h = 3x interval
+  openAQAirQuality:     { key: 'seed-meta:environment:openaq',                 maxStaleMin: 360 }, // 2h cache; 360min = 6h = 3x interval
+  worldbankIndicators:  { key: 'seed-meta:economic:worldbank-indicators',      maxStaleMin: 2880 }, // daily seed; 2880min = 48h = 2x interval
+  aviationWeatherReports: { key: 'seed-meta:aviation:weather-reports',         maxStaleMin: 30 }, // 10min cache; 30min = 3x interval
+  biodiversitySpeciesThreats: { key: 'seed-meta:biodiversity:species-threats', maxStaleMin: 2880 }, // daily seed
+  maritimeAISPositions: { key: 'seed-meta:maritime:ais-positions',             maxStaleMin: 90 }, // 30min cache; 90min = 3x interval
+  nasaFireDetections:   { key: 'seed-meta:environment:fire-detections:nasa',   maxStaleMin: 180 }, // hourly cache
+  spaceOrbitalObjects:  { key: 'seed-meta:space:orbital-objects',              maxStaleMin: 180 }, // hourly cache
+  spaceWeatherForecasts: { key: 'seed-meta:space:weather-forecasts',           maxStaleMin: 180 }, // hourly cache
+  wellCertifiedProjects: { key: 'seed-meta:buildings:well-certified-projects',    maxStaleMin: 720 }, // 6h cache
   chokepointExposure:   { key: 'seed-meta:supply_chain:chokepoint-exposure', maxStaleMin: 2880 }, // daily cron; 2880min = 48h = 2x interval
   recoveryFiscalSpace:     { key: 'seed-meta:resilience:recovery:fiscal-space',     maxStaleMin: 86400 }, // monthly cron; 86400min = 60d = 2x interval
   recoveryReserveAdequacy: { key: 'seed-meta:resilience:recovery:reserve-adequacy', maxStaleMin: 86400 }, // monthly cron; 86400min = 60d = 2x interval

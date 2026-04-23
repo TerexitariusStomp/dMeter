@@ -54,11 +54,11 @@ async function fetchGreenDestinations() {
 }
 
 function validate(data) {
-  return Array.isArray(data?.destinations) && data.destinations.length > 0;
+  return Array.isArray(data) && data.length > 0;
 }
 
 function declareRecords(data) {
-  return Array.isArray(data?.destinations) ? data.destinations.length : 0;
+  return Array.isArray(data) ? data.length : 0;
 }
 
 runSeed('tourism', 'green-destinations', CANONICAL_KEY, fetchGreenDestinations, {

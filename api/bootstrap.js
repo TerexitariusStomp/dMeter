@@ -68,6 +68,8 @@ const BOOTSTRAP_CACHE_KEYS = {
   techEvents:        'research:tech-events-bootstrap:v1',
   gdeltIntel:        'intelligence:gdelt-intel:v1',
   greenDestinations: 'tourism:green-destinations-bootstrap:v1',
+  gstcCertifiedDestinations: 'tourism:gstc-certified-destinations-bootstrap:v1',
+  earthcheckMembers: 'tourism:earthcheck-members-bootstrap:v1',
   correlationCards:   'correlation:cards-bootstrap:v1',
   forecasts:         'forecast:predictions:v2',
   securityAdvisories: 'intelligence:advisories-bootstrap:v1',
@@ -113,9 +115,22 @@ const BOOTSTRAP_CACHE_KEYS = {
   breadthHistory:       'market:breadth-history:v1',
   natcapMapData:        'environment:natcap-map-data-bootstrap:v1',
   bcorpMapData:         'environment:bcorp-map-data-bootstrap:v1',
+  bonsucroRegistry:     'environment:bonsucro-registry-bootstrap:v1',
+  epicNaturalImagery:   'imagery:epic-natural:v1',
+  openMeteoWeather:     'weather:open-meteo:v1',
+  openAQAirQuality:     'environment:openaq:v1',
+  worldbankIndicators:  'economic:worldbank-indicators:v1',
+  aviationWeatherReports: 'aviation:weather-reports:v1',
+  biodiversitySpeciesThreats: 'biodiversity:species-threats:v1',
+  maritimeAISPositions: 'maritime:ais-positions:v1',
+  nasaFireDetections:   'environment:fire-detections:nasa:v1',
+  spaceOrbitalObjects:  'space:orbital-objects:v1',
+  spaceWeatherForecasts: 'space:weather-forecasts:v1',
+  wellCertifiedProjects: 'buildings:well-certified-projects-bootstrap:v1',
 };
 
 const SLOW_KEYS = new Set([
+  'gstcCertifiedDestinations',
   'bisPolicy', 'bisExchange', 'bisCredit',
   'bisDsr', 'bisPropertyResidential', 'bisPropertyCommercial',
   'imfMacro', 'imfGrowth', 'imfLabor', 'imfExternal', 'minerals', 'giving',
@@ -163,13 +178,21 @@ const SLOW_KEYS = new Set([
   'breadthHistory',
   'natcapMapData',
   'bcorpMapData',
+  'bonsucroRegistry',
   'greenDestinations',
+  'earthcheckMembers',
+  'biodiversitySpeciesThreats',
+  'epicNaturalImagery',
+  'worldbankIndicators',
+  'wellCertifiedProjects',
 ]);
 const FAST_KEYS = new Set([
   'earthquakes', 'outages', 'serviceStatuses', 'ddosAttacks', 'trafficAnomalies', 'macroSignals', 'chokepoints',
   'marketQuotes', 'commodityQuotes', 'positiveGeoEvents', 'riskScores', 'flightDelays','insights', 'predictions',
   'iranEvents', 'temporalAnomalies', 'weatherAlerts', 'spending', 'theaterPosture', 'gdeltIntel',
   'correlationCards', 'forecasts', 'shippingRates', 'shippingStress', 'socialVelocity', 'wsbTickers',
+  'openMeteoWeather', 'openAQAirQuality', 'aviationWeatherReports', 'maritimeAISPositions',
+  'nasaFireDetections', 'spaceOrbitalObjects', 'spaceWeatherForecasts',
 ]);
 
 // No public/s-maxage: CF (in front of api.worldmonitor.app) ignores Vary: Origin and would

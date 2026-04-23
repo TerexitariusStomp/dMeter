@@ -263,6 +263,12 @@ describe('Bootstrap key hydration coverage', () => {
       // fetch in CountryDeepDivePanel (housing cycle tile), not through the
       // getHydratedData session cache — fetched on-click per country.
       'bisDsr', 'bisPropertyResidential', 'bisPropertyCommercial',
+      'greenDestinations', 'gstcCertifiedDestinations',
+      'earthcheckMembers', 'natcapMapData', 'bcorpMapData', 'bonsucroRegistry',
+      'epicNaturalImagery', 'openMeteoWeather', 'openAQAirQuality',
+      'worldbankIndicators', 'aviationWeatherReports', 'biodiversitySpeciesThreats',
+      'maritimeAISPositions', 'nasaFireDetections', 'spaceOrbitalObjects', 'spaceWeatherForecasts',
+      'wellCertifiedProjects',
     ]);
     for (const key of keys) {
       if (PENDING_CONSUMERS.has(key)) continue;

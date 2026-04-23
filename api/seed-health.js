@@ -96,7 +96,25 @@ const SEED_DOMAINS = {
   'intelligence:regional-briefs': { key: 'seed-meta:intelligence:regional-briefs', intervalMin: 10080 }, // weekly cron; intervalMin = health.js maxStaleMin / 2 (20160 / 2)
   'economic:eurostat-house-prices': { key: 'seed-meta:economic:eurostat-house-prices', intervalMin: 36000 }, // weekly cron, annual data; intervalMin = health.js maxStaleMin / 2 (72000 / 2)
   'economic:eurostat-gov-debt-q':   { key: 'seed-meta:economic:eurostat-gov-debt-q',   intervalMin: 10080 }, // 2d cron, quarterly data; intervalMin = health.js maxStaleMin / 2 (20160 / 2)
-  'economic:eurostat-industrial-production': { key: 'seed-meta:economic:eurostat-industrial-production', intervalMin: 3600 }, // daily cron, monthly data; intervalMin = health.js maxStaleMin / 2 (7200 / 2)
+  'economic:eurostat-industrial-production': { key: 'seed-meta:economic:eurostat-industrial-production', intervalMin: 3600 }, // daily cron, monthly data; intervalMin = health.js maxStaleMin / 2 (7200 / 2),
+  'tourism:gstc-certified-destinations': { key: 'seed-meta:tourism:gstc-certified-destinations', intervalMin: 1440 }, // daily
+  'environment:bcorp-map-data': { key: 'seed-meta:environment:bcorp-map-data', intervalMin: 360 }, // 6h cache
+  'environment:bonsucro-registry': { key: 'seed-meta:environment:bonsucro-registry', intervalMin: 360 }, // 6h cache
+  'tourism:earthcheck-members': { key: 'seed-meta:tourism:earthcheck-members', intervalMin: 360 }, // 6h cache
+  'tourism:green-destinations': { key: 'seed-meta:tourism:green-destinations', intervalMin: 360 }, // 6h cache
+  'environment:natcap-map-data': { key: 'seed-meta:environment:natcap-map-data', intervalMin: 360 }, // 6h cache
+  'imagery:epic-natural': { key: 'seed-meta:imagery:epic-natural', intervalMin: 1440 }, // daily
+  'weather:open-meteo': { key: 'seed-meta:weather:open-meteo', intervalMin: 90 }, // hourly
+  'environment:openaq': { key: 'seed-meta:environment:openaq', intervalMin: 180 }, // 2h cache
+  'economic:worldbank-indicators': { key: 'seed-meta:economic:worldbank-indicators', intervalMin: 1440 }, // daily
+  'aviation:weather-reports': { key: 'seed-meta:aviation:weather-reports', intervalMin: 15 }, // 10min cache
+  'biodiversity:species-threats': { key: 'seed-meta:biodiversity:species-threats', intervalMin: 1440 }, // daily
+  'maritime:ais-positions': { key: 'seed-meta:maritime:ais-positions', intervalMin: 45 }, // 30min cache
+  'environment:fire-detections:nasa': { key: 'seed-meta:environment:fire-detections:nasa', intervalMin: 90 }, // hourly
+  'space:orbital-objects': { key: 'seed-meta:space:orbital-objects', intervalMin: 90 }, // hourly
+  'space:weather-forecasts': { key: 'seed-meta:space:weather-forecasts', intervalMin: 90 }, // hourly
+  'buildings:well-certified-projects': { key: 'seed-meta:buildings:well-certified-projects', intervalMin: 360 }, // 6h cache
+
 };
 
 async function getMetaBatch(keys) {
