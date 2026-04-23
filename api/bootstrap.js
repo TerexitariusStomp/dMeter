@@ -127,6 +127,9 @@ const BOOTSTRAP_CACHE_KEYS = {
   spaceOrbitalObjects:  'space:orbital-objects:v1',
   spaceWeatherForecasts: 'space:weather-forecasts:v1',
   wellCertifiedProjects: 'buildings:well-certified-projects-bootstrap:v1',
+  wwoofHosts: 'agriculture:wwoof-hosts-bootstrap:v1',
+  breeamMapData: 'buildings:breeam-map-bootstrap:v1',
+  sitesProjects: 'environment:sites-projects-bootstrap:v1',
 };
 
 const SLOW_KEYS = new Set([
@@ -185,6 +188,9 @@ const SLOW_KEYS = new Set([
   'epicNaturalImagery',
   'worldbankIndicators',
   'wellCertifiedProjects',
+  'wwoofHosts',
+  'breeamMapData',
+  'sitesProjects',
 ]);
 const FAST_KEYS = new Set([
   'earthquakes', 'outages', 'serviceStatuses', 'ddosAttacks', 'trafficAnomalies', 'macroSignals', 'chokepoints',

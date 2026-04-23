@@ -236,6 +236,8 @@ export const BOOTSTRAP_CACHE_KEYS: Record<string, string> = {
   aviationWeatherReports: 'aviation:weather-reports:v1',
   biodiversitySpeciesThreats: 'biodiversity:species-threats:v1',
   wellCertifiedProjects: 'buildings:well-certified-projects-bootstrap:v1',
+  wwoofHosts: 'agriculture:wwoof-hosts-bootstrap:v1',
+  breeamMapData: 'buildings:breeam-map-bootstrap:v1',
   consumerPricesOverview:   'consumer-prices:overview:ae',
   consumerPricesCategories: 'consumer-prices:categories:ae:30d',
   consumerPricesMovers:     'consumer-prices:movers:ae:30d',
@@ -322,6 +324,8 @@ export const BOOTSTRAP_TIERS: Record<string, 'slow' | 'fast'> = {
   aviationWeatherReports: 'fast',
   biodiversitySpeciesThreats: 'slow',
   wellCertifiedProjects: 'slow',
+  wwoofHosts: 'slow',
+  breeamMapData: 'slow',
 };
 
 export const PORTWATCH_CHOKEPOINTS_REF_KEY = 'portwatch:chokepoints:ref:v1';

@@ -114,6 +114,9 @@ const SEED_DOMAINS = {
   'space:orbital-objects': { key: 'seed-meta:space:orbital-objects', intervalMin: 90 }, // hourly
   'space:weather-forecasts': { key: 'seed-meta:space:weather-forecasts', intervalMin: 90 }, // hourly
   'buildings:well-certified-projects': { key: 'seed-meta:buildings:well-certified-projects', intervalMin: 360 }, // 6h cache
+  'agriculture:wwoof-hosts:v1': { key: 'seed-meta:agriculture:wwoof-hosts', intervalMin: 360 }, // 6h cache
+  'buildings:breeam-map': { key: 'seed-meta:buildings:breeam-map', intervalMin: 360 }, // 6h cache
+  'environment:sites-projects': { key: 'seed-meta:environment:sites-projects', intervalMin: 360 }, // 6h cache
 
 };
 

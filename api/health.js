@@ -121,6 +121,9 @@ const BOOTSTRAP_KEYS = {
   spaceOrbitalObjects: 'space:orbital-objects:v1',
   spaceWeatherForecasts: 'space:weather-forecasts:v1',
   wellCertifiedProjects: 'buildings:well-certified-projects-bootstrap:v1',
+  wwoofHosts: 'agriculture:wwoof-hosts-bootstrap:v1',
+  breeamMapData: 'buildings:breeam-map-bootstrap:v1',
+  sitesProjects: 'environment:sites-projects-bootstrap:v1',
 };
 
 const STANDALONE_KEYS = {
@@ -409,12 +412,15 @@ const SEED_META = {
   spaceOrbitalObjects:  { key: 'seed-meta:space:orbital-objects',              maxStaleMin: 180 }, // hourly cache
   spaceWeatherForecasts: { key: 'seed-meta:space:weather-forecasts',           maxStaleMin: 180 }, // hourly cache
   wellCertifiedProjects: { key: 'seed-meta:buildings:well-certified-projects',    maxStaleMin: 720 }, // 6h cache
+  wwoofHosts: { key: 'seed-meta:agriculture:wwoof-hosts',    maxStaleMin: 720 }, // 6h cache
+  breeamMapData: { key: 'seed-meta:buildings:breeam-map',    maxStaleMin: 720 }, // 6h cache
   chokepointExposure:   { key: 'seed-meta:supply_chain:chokepoint-exposure', maxStaleMin: 2880 }, // daily cron; 2880min = 48h = 2x interval
   recoveryFiscalSpace:     { key: 'seed-meta:resilience:recovery:fiscal-space',     maxStaleMin: 86400 }, // monthly cron; 86400min = 60d = 2x interval
   recoveryReserveAdequacy: { key: 'seed-meta:resilience:recovery:reserve-adequacy', maxStaleMin: 86400 }, // monthly cron; 86400min = 60d = 2x interval
   recoveryExternalDebt:    { key: 'seed-meta:resilience:recovery:external-debt',    maxStaleMin: 86400 }, // monthly cron; 86400min = 60d = 2x interval
   recoveryImportHhi:       { key: 'seed-meta:resilience:recovery:import-hhi',       maxStaleMin: 86400 }, // monthly cron; 86400min = 60d = 2x interval
   recoveryFuelStocks:      { key: 'seed-meta:resilience:recovery:fuel-stocks',      maxStaleMin: 86400 }, // monthly cron; 86400min = 60d = 2x interval
+  sitesProjects:      { key: 'seed-meta:environment:sites-projects',      maxStaleMin: 720 }, // 6h cache
 };
 
 // Standalone keys that are populated on-demand by RPC handlers (not seeds).

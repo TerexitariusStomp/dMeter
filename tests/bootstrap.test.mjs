@@ -268,7 +268,8 @@ describe('Bootstrap key hydration coverage', () => {
       'epicNaturalImagery', 'openMeteoWeather', 'openAQAirQuality',
       'worldbankIndicators', 'aviationWeatherReports', 'biodiversitySpeciesThreats',
       'maritimeAISPositions', 'nasaFireDetections', 'spaceOrbitalObjects', 'spaceWeatherForecasts',
-      'wellCertifiedProjects',
+      'wellCertifiedProjects', 'wwoofHosts',
+      'breeamMapData', 'sitesProjects',
     ]);
     for (const key of keys) {
       if (PENDING_CONSUMERS.has(key)) continue;
