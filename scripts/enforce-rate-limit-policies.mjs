@@ -16,6 +16,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { parse as parseYaml } from 'yaml';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const OPENAPI_DIR = join(ROOT, 'docs/api');
@@ -35,16 +36,19 @@ async function extractPolicyKeys() {
 }
 
 function extractRoutesFromOpenApi() {
+  // Parse the OpenAPI YAML rather than regex-scrape for top-level `paths:`
+  // keys — the earlier `/^\s{4}(\/api\/[^\s:]+):/gm` hard-coded 4-space
+  // indent, so any YAML formatter change (2-space indent, flow style, line
+  // folding) would silently drop routes and let policy-drift slip through
+  // (#3287 greptile nit 3).
   const routes = new Set();
   const files = readdirSync(OPENAPI_DIR).filter((f) => f.endsWith('.openapi.yaml'));
   for (const file of files) {
-    const yaml = readFileSync(join(OPENAPI_DIR, file), 'utf8');
-    // OpenAPI paths section — each route is a top-level key under `paths:`
-    // indented 4 spaces. Strip trailing colon.
-    const pathRe = /^\s{4}(\/api\/[^\s:]+):/gm;
-    let m;
-    while ((m = pathRe.exec(yaml)) !== null) {
-      routes.add(m[1]);
+    const doc = parseYaml(readFileSync(join(OPENAPI_DIR, file), 'utf8'));
+    const paths = doc?.paths;
+    if (!paths || typeof paths !== 'object') continue;
+    for (const route of Object.keys(paths)) {
+      if (route.startsWith('/api/')) routes.add(route);
     }
   }
   return routes;
