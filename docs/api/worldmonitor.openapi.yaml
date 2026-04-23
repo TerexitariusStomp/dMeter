@@ -73,8 +73,12 @@ paths:
                   in: query
                   description: IATA airport codes to query (e.g., ["IST", "ESB", "LHR"]).
                   required: false
+                  style: form
+                  explode: true
                   schema:
-                    type: string
+                    type: array
+                    items:
+                        type: string
             responses:
                 "200":
                     description: Successful response
@@ -152,8 +156,12 @@ paths:
                   in: query
                   description: IATA airport codes to aggregate carrier metrics from.
                   required: false
+                  style: form
+                  explode: true
                   schema:
-                    type: string
+                    type: array
+                    items:
+                        type: string
                 - name: min_flights
                   in: query
                   description: 'Minimum number of flights required to include a carrier (default: 1).'
@@ -432,8 +440,12 @@ paths:
                   in: query
                   description: Entities to filter by (airline names, airport codes, route strings).
                   required: false
+                  style: form
+                  explode: true
                   schema:
-                    type: string
+                    type: array
+                    items:
+                        type: string
                 - name: window_hours
                   in: query
                   description: Time window in hours to look back (1-168).
@@ -521,8 +533,12 @@ paths:
                   in: query
                   description: Airline IATA codes to filter by (e.g. ["BA", "AA"]).
                   required: false
+                  style: form
+                  explode: true
                   schema:
-                    type: string
+                    type: array
+                    items:
+                        type: string
                 - name: sort_by
                   in: query
                   description: 'Sort order: CHEAPEST, DURATION, DEPARTURE_TIME, or ARRIVAL_TIME.'
@@ -622,8 +638,12 @@ paths:
                   in: query
                   description: Airline IATA codes to filter by (e.g. ["BA", "AA"]).
                   required: false
+                  style: form
+                  explode: true
                   schema:
-                    type: string
+                    type: array
+                    items:
+                        type: string
                 - name: sort_by_price
                   in: query
                   description: Whether to sort results by price (lowest first).
@@ -1595,8 +1615,12 @@ paths:
                   in: query
                   description: Optional commodity filter. Empty returns all tracked commodities.
                   required: false
+                  style: form
+                  explode: true
                   schema:
-                    type: string
+                    type: array
+                    items:
+                        type: string
             responses:
                 "200":
                     description: Successful response
@@ -1656,8 +1680,12 @@ paths:
                     Energy source codes to query (e.g., "SUN", "WND", "COL").
                      Empty returns all tracked sources (SUN, WND, COL).
                   required: false
+                  style: form
+                  explode: true
                   schema:
-                    type: string
+                    type: array
+                    items:
+                        type: string
                 - name: years
                   in: query
                   description: Number of years of historical data. Default 20 if not set.
@@ -2763,8 +2791,12 @@ paths:
                 - name: keys
                   in: query
                   required: false
+                  style: form
+                  explode: true
                   schema:
-                    type: string
+                    type: array
+                    items:
+                        type: string
             responses:
                 "200":
                     description: Successful response
@@ -4022,8 +4054,12 @@ paths:
                   in: query
                   description: Ticker symbols to retrieve (e.g., ["AAPL", "^GSPC"]). Empty returns defaults.
                   required: false
+                  style: form
+                  explode: true
                   schema:
-                    type: string
+                    type: array
+                    items:
+                        type: string
             responses:
                 "200":
                     description: Successful response
@@ -4055,8 +4091,12 @@ paths:
                   in: query
                   description: Cryptocurrency IDs to retrieve (CoinGecko IDs). Empty returns defaults.
                   required: false
+                  style: form
+                  explode: true
                   schema:
-                    type: string
+                    type: array
+                    items:
+                        type: string
             responses:
                 "200":
                     description: Successful response
@@ -4088,8 +4128,12 @@ paths:
                   in: query
                   description: Commodity symbols to retrieve (Yahoo symbols). Empty returns defaults.
                   required: false
+                  style: form
+                  explode: true
                   schema:
-                    type: string
+                    type: array
+                    items:
+                        type: string
             responses:
                 "200":
                     description: Successful response
@@ -4154,8 +4198,12 @@ paths:
                   in: query
                   description: CoinGecko IDs to retrieve (e.g. "tether,usd-coin"). Empty returns defaults.
                   required: false
+                  style: form
+                  explode: true
                   schema:
-                    type: string
+                    type: array
+                    items:
+                        type: string
             responses:
                 "200":
                     description: Successful response
@@ -4313,8 +4361,12 @@ paths:
                 - name: symbols
                   in: query
                   required: false
+                  style: form
+                  explode: true
                   schema:
-                    type: string
+                    type: array
+                    items:
+                        type: string
                 - name: limit_per_symbol
                   in: query
                   required: false
@@ -4399,8 +4451,12 @@ paths:
                 - name: symbols
                   in: query
                   required: false
+                  style: form
+                  explode: true
                   schema:
-                    type: string
+                    type: array
+                    items:
+                        type: string
                 - name: eval_window_days
                   in: query
                   required: false
@@ -6778,8 +6834,12 @@ paths:
                   in: query
                   description: WTO member codes to filter by. Empty = all.
                   required: false
+                  style: form
+                  explode: true
                   schema:
-                    type: string
+                    type: array
+                    items:
+                        type: string
                 - name: limit
                   in: query
                   description: Max results to return (server caps at 100).
@@ -6916,8 +6976,12 @@ paths:
                   in: query
                   description: WTO member codes to filter by. Empty = all.
                   required: false
+                  style: form
+                  explode: true
                   schema:
-                    type: string
+                    type: array
+                    items:
+                        type: string
                 - name: measure_type
                   in: query
                   description: 'Filter by measure type: "SPS", "TBT", or empty for both.'
