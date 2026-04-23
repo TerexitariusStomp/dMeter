@@ -7,7 +7,7 @@ info:
         email: support@worldmonitor.app
     version: 1.0.0
 servers:
-    - url: https://worldmonitor.app
+    - url: https://api.worldmonitor.app
 paths:
     /api/aviation/v1/list-airport-delays:
         get:

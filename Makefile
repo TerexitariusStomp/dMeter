@@ -14,7 +14,7 @@ GO_INSTALL := $(GO_PROXY) $(GO_PRIVATE) go install
 
 # Required tool versions
 BUF_VERSION := v1.64.0
-SEBUF_VERSION := v0.7.0
+SEBUF_VERSION := v0.11.0
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
