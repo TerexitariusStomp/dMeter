@@ -63,30 +63,55 @@ async function loadPremiumPaths() {
 }
 
 function loadClientClassMap() {
+  // AST walk rather than regex — the earlier regex
+  //   /async (\w+)\s*\([^)]*\)\s*:\s*Promise<[^>]+>\s*\{\s*let path = "([^"]+)"/
+  // assumed (a) no nested `)` in arg types, (b) no nested `>` in the return
+  // type, (c) `let path = "..."` as the literal first statement. Any shift in
+  // the codegen template would silently drop methods and the lint would pass
+  // clean with missing coverage — the same silent-drift class this PR closed
+  // on the premium-paths side (#3287 greptile nit 2).
   const map = new Map();
   walk(GEN_CLIENT_DIR, (file) => {
     if (basename(file) !== 'service_client.ts') return;
     const src = readFileSync(file, 'utf8');
-    // Collect every class-open match first — current codegen emits one
-    // ServiceClient per file, but a template change could emit multiple and
-    // we'd silently drop all but the first if we only grabbed one match.
-    const classRe = /export class (\w+ServiceClient)\s*\{/g;
-    const classMatches = [...src.matchAll(classRe)];
-    if (classMatches.length === 0) return;
-    for (let i = 0; i < classMatches.length; i++) {
-      const m = classMatches[i];
-      const className = m[1];
-      const bodyStart = m.index + m[0].length;
-      const bodyEnd = i + 1 < classMatches.length ? classMatches[i + 1].index : src.length;
-      const body = src.slice(bodyStart, bodyEnd);
-      const methodRe = /async (\w+)\s*\([^)]*\)\s*:\s*Promise<[^>]+>\s*\{\s*let path = "([^"]+)"/g;
-      const methods = new Map();
-      let mm;
-      while ((mm = methodRe.exec(body)) !== null) {
-        methods.set(mm[1], mm[2]);
+    const ast = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true);
+
+    function visit(node) {
+      if (
+        ts.isClassDeclaration(node) &&
+        node.name &&
+        /ServiceClient$/.test(node.name.text) &&
+        node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
+      ) {
+        const methods = new Map();
+        for (const member of node.members) {
+          if (!ts.isMethodDeclaration(member)) continue;
+          if (!member.name || !ts.isIdentifier(member.name)) continue;
+          const methodName = member.name.text;
+          const body = member.body;
+          if (!body) continue;
+          // Look for the first `let path = "/api/..."` variable statement in
+          // the method body. Generated clients open each RPC method with it.
+          for (const stmt of body.statements) {
+            if (!ts.isVariableStatement(stmt)) continue;
+            const decl = stmt.declarationList.declarations[0];
+            if (
+              decl &&
+              ts.isIdentifier(decl.name) &&
+              decl.name.text === 'path' &&
+              decl.initializer &&
+              ts.isStringLiteral(decl.initializer)
+            ) {
+              methods.set(methodName, decl.initializer.text);
+              break;
+            }
+          }
+        }
+        map.set(node.name.text, methods);
       }
-      map.set(className, methods);
+      ts.forEachChild(node, visit);
     }
+    visit(ast);
   });
   if (map.size === 0) {
     throw new Error(`No ServiceClient classes parsed from ${GEN_CLIENT_DIR}`);
@@ -163,6 +188,13 @@ function checkFile(filePath, clientClassMap, premiumPaths) {
     const methods = clientClassMap.get(inst.className);
     const calledMethods = new Set();
 
+    // Scope-blind walk — matches any `<varName>.<method>()` anywhere in the
+    // file. If two constructions in different function scopes share the same
+    // variable name (e.g. both declare `const client = new XServiceClient()`
+    // in unrelated functions), their called-method sets merge and the lint
+    // errs on the side of caution (flags premium calls against both
+    // instances). No current src/ file hits this — keeping the walker
+    // simple until scope-aware binding is actually needed (#3287 nit 5).
     function findCalls(node) {
       if (
         ts.isCallExpression(node) &&

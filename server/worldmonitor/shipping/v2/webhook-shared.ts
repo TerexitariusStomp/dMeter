@@ -20,9 +20,8 @@ export const VALID_CHOKEPOINT_IDS = new Set(CHOKEPOINT_REGISTRY.map(c => c.id));
 //      so TLS still validates against the original hostname.
 //
 // As of the #3242 followup audit, no delivery worker for shipping/v2 webhooks
-// exists in this repo. Tracked separately — see the linked issue in
-// docs/api-shipping-v2.mdx. Anyone landing delivery code MUST import the
-// patterns + sets above and apply steps 1–3 before each send.
+// exists in this repo — tracked in issue #3288. Anyone landing delivery code
+// MUST import the patterns + sets above and apply steps 1–3 before each send.
 export const PRIVATE_HOSTNAME_PATTERNS = [
   /^localhost$/i,
   /^127\.\d+\.\d+\.\d+$/,
