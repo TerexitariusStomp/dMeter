@@ -378,9 +378,9 @@ async function fetchPagedResults(fetchPage, label) {
 }
 
 async function fetchWaqiStations(nowMs) {
-  const apiKey = trimString(process.env.WAQI_API_KEY);
+  const apiKey = trimString(process.env.WAQI_API_KEY || process.env.AQICN_API_KEY);
   if (!apiKey) {
-    console.log('  [AIR] WAQI_API_KEY missing; skipping WAQI supplement');
+    console.log('  [AIR] WAQI_API_KEY/AQICN_API_KEY missing; skipping WAQI supplement');
     return [];
   }
 

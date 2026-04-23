@@ -41,6 +41,20 @@ services:
       NASA_FIRMS_API_KEY: "${NASA_FIRMS_API_KEY:-}"
       CLOUDFLARE_API_TOKEN: "${CLOUDFLARE_API_TOKEN:-}"
       AVIATIONSTACK_API: "${AVIATIONSTACK_API:-}"
+      ALPHA_VANTAGE_API_KEY: "${ALPHA_VANTAGE_API_KEY:-}"
+      GIE_API_KEY: "${GIE_API_KEY:-}"
+      ENTSO_E_TOKEN: "${ENTSO_E_TOKEN:-${ENTSOE_API_KEY:-}}"
+      WTO_API_KEY: "${WTO_API_KEY:-}"
+      COMTRADE_API_KEYS: "${COMTRADE_API_KEYS:-}"
+      OTX_API_KEY: "${OTX_API_KEY:-}"
+      ABUSEIPDB_API_KEY: "${ABUSEIPDB_API_KEY:-}"
+      OPENAQ_API_KEY: "${OPENAQ_API_KEY:-}"
+      WAQI_API_KEY: "${WAQI_API_KEY:-${AQICN_API_KEY:-}}"
+      DATAVERSE_API_KEY: "${DATAVERSE_API_KEY:-}"
+      WINDY_WEBCAMS_API_KEY: "${WINDY_WEBCAMS_API_KEY:-}"
+      WINDY_POINT_FORECAST_API_KEY: "${WINDY_POINT_FORECAST_API_KEY:-}"
+      WINDY_MAP_FORECAST_API_KEY: "${WINDY_MAP_FORECAST_API_KEY:-}"
+      WINDY_PLUGINS_API_KEY: "${WINDY_PLUGINS_API_KEY:-}"
     # Docker secrets (recommended for API keys — keeps them out of docker inspect).
     # Create secrets/ dir with one file per key, then uncomment below.
     # See SELF_HOSTING.md or docker-compose.override.yml for details.

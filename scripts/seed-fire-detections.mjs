@@ -7,7 +7,8 @@ loadEnvFile(import.meta.url);
 const CANONICAL_KEY = 'wildfire:fires:v1';
 const FIRMS_SOURCES = ['VIIRS_SNPP_NRT', 'VIIRS_NOAA20_NRT', 'VIIRS_NOAA21_NRT'];
 
-const MONITORED_REGIONS = {
+// --- Conflict / strategic hotspots (existing) ---
+const CONFLICT_REGIONS = {
   'Ukraine': '22,44,40,53',
   'Russia': '20,50,180,82',
   'Iran': '44,25,63,40',
@@ -18,6 +19,42 @@ const MONITORED_REGIONS = {
   'Saudi Arabia': '34,16,56,32',
   'Turkey': '26,36,45,42',
 };
+
+// --- dMRV global wildfire / biomass burning regions ---
+// Covering all major fire-prone biomes for full MRV coverage.
+// Bounding boxes: w,s,e,n
+const DMRV_REGIONS = {
+  // South America (Amazon / Cerrado)
+  'Amazon-Brazil':         '-73,-15,-45,5',
+  'Cerrado-Brazil':        '-60,-25,-45,-10',
+  'Bolivia-Chaco':         '-70,-25,-55,-15',
+  // Africa (tropical savanna / fire season)
+  'West-Africa':           '-18,0,15,20',
+  'Central-Africa':        '10,-10,35,10',
+  'Southern-Africa':       '15,-35,40,-10',
+  'East-Africa':           '28,-12,42,5',
+  // Southeast Asia (peat fires / land clearing)
+  'Indonesia-Kalimantan':  '108,-5,120,5',
+  'Indonesia-Sumatra':     '95,-6,109,6',
+  'Southeast-Asia':        '95,5,140,25',
+  // Australia
+  'Australia-East':        '140,-40,155,-20',
+  'Australia-West':        '112,-35,140,-20',
+  // North America
+  'Western-Canada':        '-140,48,-100,65',
+  'Western-USA':           '-125,32,-100,49',
+  'Alaska':                '-170,55,-135,72',
+  // Southern Europe / Mediterranean
+  'Mediterranean-Europe':  '-10,34,40,48',
+  // Central Asia / Siberia
+  'Siberia-West':          '60,50,100,70',
+  'Siberia-East':          '100,50,160,70',
+  // India / South Asia
+  'India-Northwest':       '68,20,80,32',
+};
+
+// Combined: strategic + global biome coverage
+const MONITORED_REGIONS = { ...CONFLICT_REGIONS, ...DMRV_REGIONS };
 
 function mapConfidence(c) {
   switch ((c || '').toLowerCase()) {

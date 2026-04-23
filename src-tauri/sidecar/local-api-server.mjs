@@ -143,6 +143,12 @@ const ALLOWED_ENV_KEYS = new Set([
   'AISSTREAM_API_KEY', 'VITE_WS_RELAY_URL', 'FINNHUB_API_KEY', 'NASA_FIRMS_API_KEY',
   'OLLAMA_API_URL', 'OLLAMA_MODEL', 'WORLDMONITOR_API_KEY', 'WTO_API_KEY',
   'AVIATIONSTACK_API', 'ICAO_API_KEY', 'UCDP_ACCESS_TOKEN',
+  'ALPHA_VANTAGE_API_KEY', 'GIE_API_KEY', 'AGSI_API_KEY',
+  'ENTSO_E_TOKEN', 'ENTSOE_API_KEY', 'COMTRADE_API_KEYS',
+  'OPENAQ_API_KEY', 'WAQI_API_KEY', 'AQICN_API_KEY',
+  'DATAVERSE_API_KEY', 'FIRE_MAPS_API_KEY',
+  'WINDY_WEBCAMS_API_KEY', 'WINDY_POINT_FORECAST_API_KEY', 'WINDY_MAP_FORECAST_API_KEY', 'WINDY_PLUGINS_API_KEY',
+  'NASA_OPEN_API_KEY', 'NASA_API_KEY',
 ]);
 
 const CHROME_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
@@ -1000,6 +1006,43 @@ async function validateSecretAgainstProvider(key, rawValue, context = {}) {
 
     case 'WTO_API_KEY':
       return ok('WTO API key stored (live verification not available in sidecar)');
+
+    case 'ALPHA_VANTAGE_API_KEY':
+      return ok('Alpha Vantage key stored (validated at runtime by market seeders)');
+
+    case 'GIE_API_KEY':
+    case 'AGSI_API_KEY':
+      return ok('GIE/AGSI key stored (validated at runtime by gas storage seeders)');
+
+    case 'ENTSO_E_TOKEN':
+    case 'ENTSOE_API_KEY':
+      return ok('ENTSO-E token stored (validated at runtime by electricity seeder)');
+
+    case 'COMTRADE_API_KEYS':
+      return ok('Comtrade API key list stored (validated at runtime by trade seeders)');
+
+    case 'OPENAQ_API_KEY':
+      return ok('OpenAQ key stored (validated at runtime by air-quality seeder)');
+
+    case 'WAQI_API_KEY':
+    case 'AQICN_API_KEY':
+      return ok('WAQI/AQICN key stored (validated at runtime by air-quality seeder)');
+
+    case 'DATAVERSE_API_KEY':
+      return ok('Dataverse API token stored');
+
+    case 'FIRE_MAPS_API_KEY':
+      return ok('Fire maps key stored (mapped to FIRMS workflows where applicable)');
+
+    case 'WINDY_WEBCAMS_API_KEY':
+    case 'WINDY_POINT_FORECAST_API_KEY':
+    case 'WINDY_MAP_FORECAST_API_KEY':
+    case 'WINDY_PLUGINS_API_KEY':
+      return ok('Windy API key stored');
+
+    case 'NASA_OPEN_API_KEY':
+    case 'NASA_API_KEY':
+      return ok('NASA Open API key stored (DEMO_KEY fallback is supported)');
 
     case 'AVIATIONSTACK_API': {
       const response = await fetchWithTimeout(

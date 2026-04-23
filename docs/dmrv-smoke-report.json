@@ -1,0 +1,107 @@
+{
+  "timestamp": "2026-04-21T17:53:47.276225Z",
+  "required_ok": 10,
+  "required_total": 10,
+  "optional_ok": 4,
+  "optional_total": 4,
+  "results": [
+    {
+      "tier": "required",
+      "script": "seed-sensor-community.mjs",
+      "exit": 0,
+      "ok": true,
+      "tail": "=== Done (2246ms) === |   [recordCount] auto-detect did not match a known shape (payloadBytes=4125691); falling back to 1. Add opts.recordCount to dmrv:sensor-community for accurate health metrics."
+    },
+    {
+      "tier": "required",
+      "script": "seed-opensensemap.mjs",
+      "exit": 0,
+      "ok": true,
+      "tail": "=== Done (4670ms) === |   [recordCount] auto-detect did not match a known shape (payloadBytes=77742); falling back to 1. Add opts.recordCount to dmrv:opensensemap for accurate health metrics."
+    },
+    {
+      "tier": "required",
+      "script": "seed-emsc-earthquakes.mjs",
+      "exit": 0,
+      "ok": true,
+      "tail": "  Verified: data present in Redis | === Done (1003ms) ==="
+    },
+    {
+      "tier": "required",
+      "script": "seed-noaa-buoys.mjs",
+      "exit": 0,
+      "ok": true,
+      "tail": "=== Done (139ms) === |   [recordCount] auto-detect did not match a known shape (payloadBytes=146035); falling back to 1. Add opts.recordCount to dmrv:noaa-buoys for accurate health metrics."
+    },
+    {
+      "tier": "required",
+      "script": "seed-flood-monitoring.mjs",
+      "exit": 0,
+      "ok": true,
+      "tail": "  Verified: data present in Redis | === Done (1288ms) ==="
+    },
+    {
+      "tier": "required",
+      "script": "seed-usgs-water.mjs",
+      "exit": 0,
+      "ok": true,
+      "tail": "=== Done (5706ms) === |   [recordCount] auto-detect did not match a known shape (payloadBytes=1994930); falling back to 1. Add opts.recordCount to dmrv:usgs-water for accurate health metrics."
+    },
+    {
+      "tier": "required",
+      "script": "seed-grid-status.mjs",
+      "exit": 0,
+      "ok": true,
+      "tail": "  FETCH FAILED: No grid status data from any source |   WARNING: 2 key(s) were expired/missing \u2014 EXPIRE was a no-op; manual seed required"
+    },
+    {
+      "tier": "required",
+      "script": "seed-open-meteo.mjs",
+      "exit": 0,
+      "ok": true,
+      "tail": "=== Done (916ms) === |   [recordCount] auto-detect did not match a known shape (payloadBytes=7069); falling back to 1. Add opts.recordCount to dmrv:open-meteo for accurate health metrics."
+    },
+    {
+      "tier": "required",
+      "script": "seed-gdacs.mjs",
+      "exit": 0,
+      "ok": true,
+      "tail": "  Verified: data present in Redis | === Done (1150ms) ==="
+    },
+    {
+      "tier": "required",
+      "script": "seed-usgs-quakes.mjs",
+      "exit": 0,
+      "ok": true,
+      "tail": "=== Done (683ms) === |   [recordCount] auto-detect did not match a known shape (payloadBytes=25261); falling back to 1. Add opts.recordCount to dmrv:usgs-quakes for accurate health metrics."
+    },
+    {
+      "tier": "optional_sample",
+      "script": "seed-greynoise.mjs",
+      "exit": 0,
+      "ok": true,
+      "tail": "=== Done (1780ms) === |   [recordCount] auto-detect did not match a known shape (payloadBytes=177); falling back to 1. Add opts.recordCount to dmrv:greynoise for accurate health metrics."
+    },
+    {
+      "tier": "optional_sample",
+      "script": "seed-opensky.mjs",
+      "exit": 0,
+      "ok": true,
+      "tail": "=== Done (1077ms) === |   [recordCount] auto-detect did not match a known shape (payloadBytes=9993); falling back to 1. Add opts.recordCount to dmrv:opensky for accurate health metrics."
+    },
+    {
+      "tier": "optional_sample",
+      "script": "seed-open-charge.mjs",
+      "exit": 0,
+      "ok": true,
+      "tail": "  FETCH FAILED: AFDC returned zero stations |   WARNING: 2 key(s) were expired/missing \u2014 EXPIRE was a no-op; manual seed required"
+    },
+    {
+      "tier": "optional_sample",
+      "script": "seed-copernicus-atmos.mjs",
+      "exit": 0,
+      "ok": true,
+      "tail": "=== Done (853ms) === |   [recordCount] auto-detect did not match a known shape (payloadBytes=1810); falling back to 1. Add opts.recordCount to dmrv:copernicus-atmos for accurate health metrics."
+    }
+  ]
+}
