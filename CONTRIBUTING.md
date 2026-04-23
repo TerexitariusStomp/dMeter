@@ -234,7 +234,7 @@ make install-buf       # Install buf CLI (requires Go)
 make install-plugins   # Install sebuf protoc-gen plugins (requires Go)
 ```
 
-The pinned sebuf version is set by `SEBUF_VERSION` in the `Makefile` (currently **v0.11.0**). All three plugins — `protoc-gen-ts-client`, `protoc-gen-ts-server`, `protoc-gen-openapiv3` — must be installed from the same sebuf release. If you see codegen drift after pulling, rerun `make install-plugins` to resync.
+The pinned sebuf version is set by `SEBUF_VERSION` in the `Makefile` (currently **v0.11.1**). All three plugins — `protoc-gen-ts-client`, `protoc-gen-ts-server`, `protoc-gen-openapiv3` — must be installed from the same sebuf release. If you see codegen drift after pulling, rerun `make install-plugins` to resync.
 
 ### OpenAPI Output
 
