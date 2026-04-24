@@ -22,16 +22,9 @@ export const DEFAULT_PANELS: Record<string, PanelConfig> = {
 export const DEFAULT_MAP_LAYERS: MapLayers = {
   gpsJamming: false,
   satellites: false,
-
-
-  conflicts: false,
-  bases: false,
   cables: false,
   pipelines: false,
-  hotspots: false,
   ais: false,
-  nuclear: false,
-  irradiators: false,
   sanctions: false,
   weather: false,
   economic: false,
@@ -41,14 +34,11 @@ export const DEFAULT_MAP_LAYERS: MapLayers = {
   datacenters: false,
   protests: false,
   flights: false,
-  military: false,
   natural: false,
   spaceports: false,
   minerals: false,
   fires: false,
   // Data source layers
-  ucdpEvents: false,
-  displacement: false,
   climate: false,
   // Tech layers (disabled)
   startupHubs: false,
@@ -69,7 +59,6 @@ export const DEFAULT_MAP_LAYERS: MapLayers = {
   speciesRecovery: true,
   renewableInstallations: true,
   tradeRoutes: false,
-  iranAttacks: false,
   ciiChoropleth: false,
   resilienceScore: false,
   dayNight: false,
@@ -77,7 +66,6 @@ export const DEFAULT_MAP_LAYERS: MapLayers = {
   miningSites: false,
   processingPlants: false,
   commodityPorts: false,
-  webcams: false,
   diseaseOutbreaks: false,
 };
 
@@ -85,16 +73,9 @@ export const DEFAULT_MAP_LAYERS: MapLayers = {
 export const MOBILE_DEFAULT_MAP_LAYERS: MapLayers = {
   gpsJamming: false,
   satellites: false,
-
-
-  conflicts: false,
-  bases: false,
   cables: false,
   pipelines: false,
-  hotspots: false,
   ais: false,
-  nuclear: false,
-  irradiators: false,
   sanctions: false,
   weather: false,
   economic: false,
@@ -104,14 +85,11 @@ export const MOBILE_DEFAULT_MAP_LAYERS: MapLayers = {
   datacenters: false,
   protests: false,
   flights: false,
-  military: false,
   natural: false,
   spaceports: false,
   minerals: false,
   fires: false,
   // Data source layers
-  ucdpEvents: false,
-  displacement: false,
   climate: false,
   // Tech layers (disabled)
   startupHubs: false,
@@ -132,7 +110,6 @@ export const MOBILE_DEFAULT_MAP_LAYERS: MapLayers = {
   speciesRecovery: true,
   renewableInstallations: true,
   tradeRoutes: false,
-  iranAttacks: false,
   ciiChoropleth: false,
   resilienceScore: false,
   dayNight: false,
@@ -140,7 +117,6 @@ export const MOBILE_DEFAULT_MAP_LAYERS: MapLayers = {
   miningSites: false,
   processingPlants: false,
   commodityPorts: false,
-  webcams: false,
   diseaseOutbreaks: false,
 };
 

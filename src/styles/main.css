@@ -12459,7 +12459,7 @@ a.prediction-link:hover {
     display: none !important;
   }
 
-  /* Mobile: show "World Monitor" instead of "MONITOR" */
+  /* Mobile: show "dMeter" instead of "MONITOR" */
   .logo {
     display: none;
   }
@@ -23183,4 +23183,46 @@ body.map-width-resizing {
 
 .ecp-source-link:hover {
   text-decoration: underline;
+}
+/* dMeter: hide Sign In / Unlock Pro elements */
+.signin-button,
+.pro-badge,
+.panel-pro-badge,
+.widget-pro-badge,
+.layer-pro-badge,
+.panel-toggle-pro-badge,
+.auth-signin-btn,
+.bot-check-signin,
+.us-notif-signin,
+.panel-locked-desc,
+.latest-brief-empty-title,
+.upgrade-pro-desc,
+.panel-locked-cta,
+.resilience-widget__cta,
+.api-keys-gate-btn,
+.update-toast {
+  display: none !important;
+}
+
+/* ============================================================
+   dMeter — hide gating / sign-in / pro UI
+   ============================================================ */
+.auth-signin-btn,
+.bot-check-signin,
+.panel-locked-desc,
+.latest-brief-empty-title,
+.upgrade-pro-desc,
+.panel-locked-cta,
+.resilience-widget__cta,
+.api-keys-gate-btn,
+.update-toast,
+.pro-badge,
+.pro-badge-inline,
+.premium-badge,
+.unlock-panel-btn,
+.signin-button,
+.sign-in-prompt,
+.gate-overlay,
+.locked-panel-message {
+  display: none !important;
 }

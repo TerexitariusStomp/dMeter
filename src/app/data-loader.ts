@@ -83,12 +83,7 @@ import {
 import { getMarketWatchlistEntries } from '@/services/market-watchlist';
 import { fetchStockAnalysesForTargets, getStockAnalysisTargets, type StockAnalysisResult } from '@/services/stock-analysis';
 import { fetchInsiderTransactions } from '@/services/insider-transactions';
-import {
-  fetchStockBacktestsForTargets,
-  fetchStoredStockBacktests,
-  getMissingOrStaleStoredStockBacktests,
-  hasFreshStoredStockBacktests,
-} from '@/services/stock-backtest';
+
 import {
   fetchStockAnalysisHistory,
   getMissingOrStaleStockAnalysisSymbols,
@@ -138,7 +133,6 @@ import { ResearchServiceClient } from '@/generated/client/worldmonitor/research/
 import {
   MarketPanel,
   StockAnalysisPanel,
-  StockBacktestPanel,
   HeatmapPanel,
   CommoditiesPanel,
   CryptoPanel,
@@ -302,7 +296,6 @@ export class DataLoaderManager implements AppModule {
       void this.loadMarkets().then(async () => {
         if (hasPremiumAccess()) {
           await this.loadStockAnalysis();
-          await this.loadStockBacktest();
           await this.loadDailyMarketBrief(true);
         }
       });
@@ -448,7 +441,6 @@ export class DataLoaderManager implements AppModule {
         tasks.push({ name: 'stockAnalysis', task: runGuarded('stockAnalysis', () => this.loadStockAnalysis()) });
       }
       if (hasPremiumAccess() && shouldLoad('stock-backtest')) {
-        tasks.push({ name: 'stockBacktest', task: runGuarded('stockBacktest', () => this.loadStockBacktest()) });
       }
       if (hasPremiumAccess() && shouldLoad('daily-market-brief')) {
         tasks.push({ name: 'dailyMarketBrief', task: runGuarded('dailyMarketBrief', () => this.loadDailyMarketBrief()) });
@@ -1157,7 +1149,15 @@ export class DataLoaderManager implements AppModule {
       }
     }
 
-    this.ctx.allNews = collectedNews;
+    const warKeywords = ['war', 'invasion', 'airstrike', 'bombing', 'missile', 'casualties', 'killed', 'death toll', 'genocide', 'massacre', 'attack', 'military strike', 'conflict', 'fighting', 'battle', 'soldiers', 'troops', 'armed forces', 'defense ministry'];
+    const warCategories = new Set(['conflict', 'military', 'terrorism']);
+    const filteredNews = collectedNews.filter(item => {
+      const title = item.title?.toLowerCase() || '';
+      const hasWarKeyword = warKeywords.some(kw => title.includes(kw));
+      const hasWarCategory = item.threat?.category && warCategories.has(item.threat.category);
+      return !hasWarKeyword && !hasWarCategory;
+    });
+    this.ctx.allNews = filteredNews;
     this.ctx.initialLoadComplete = true;
     mountCommunityWidget();
 
@@ -1313,41 +1313,6 @@ export class DataLoaderManager implements AppModule {
     panel.renderAnalyses(snapshotsToReRender, historyForReRender, source);
   }
 
-  async loadStockBacktest(): Promise<void> {
-    const panel = this.ctx.panels['stock-backtest'] as StockBacktestPanel | undefined;
-    if (!panel) return;
-
-    try {
-      const targets = getStockAnalysisTargets();
-      const targetSymbols = targets.map((target) => target.symbol);
-      const stored = await fetchStoredStockBacktests(targets.length);
-      if (stored.length > 0) {
-        panel.renderBacktests(stored, 'cached');
-      }
-      if (hasFreshStoredStockBacktests(stored, targetSymbols)) {
-        return;
-      }
-
-      const staleSymbols = getMissingOrStaleStoredStockBacktests(stored, targetSymbols);
-      const staleTargets = targets.filter((target) => staleSymbols.includes(target.symbol));
-      const results = await fetchStockBacktestsForTargets(staleTargets);
-      if (results.length === 0) {
-        if (stored.length === 0) {
-          panel.showRetrying('Backtesting is waiting for eligible watchlist symbols.');
-        }
-        return;
-      }
-      panel.renderBacktests(results);
-    } catch (error) {
-      console.error('[StockBacktest] failed:', error);
-      const stored = await fetchStoredStockBacktests().catch(() => []);
-      if (stored.length > 0) {
-        panel.renderBacktests(stored, 'cached');
-        return;
-      }
-      panel.showError('Premium stock backtesting is temporarily unavailable.');
-    }
-  }
 
   async loadMarkets(): Promise<void> {
     try {

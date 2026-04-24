@@ -18,16 +18,13 @@ export * from '../entities';
 // Panel configuration for geopolitical analysis
 export const DEFAULT_PANELS: Record<string, PanelConfig> = {
   map: { name: 'Global Map', enabled: true, priority: 1 },
-  'live-news': { name: 'Live News', enabled: true, priority: 1 },
   intel: { name: 'Intel Feed', enabled: true, priority: 1 },
   'gdelt-intel': { name: 'Live Intelligence', enabled: true, priority: 1 },
   cii: { name: 'Country Instability', enabled: true, priority: 1 },
-  cascade: { name: 'Infrastructure Cascade', enabled: true, priority: 1 },
   'strategic-risk': { name: 'Strategic Risk Overview', enabled: true, priority: 1 },
   politics: { name: 'World News', enabled: true, priority: 1 },
   us: { name: 'United States', enabled: true, priority: 1 },
   europe: { name: 'Europe', enabled: true, priority: 1 },
-  middleeast: { name: 'Middle East', enabled: true, priority: 1 },
   africa: { name: 'Africa', enabled: true, priority: 1 },
   latam: { name: 'Latin America', enabled: true, priority: 1 },
   asia: { name: 'Asia-Pacific', enabled: true, priority: 1 },
@@ -57,17 +54,10 @@ export const DEFAULT_PANELS: Record<string, PanelConfig> = {
 export const DEFAULT_MAP_LAYERS: MapLayers = {
   gpsJamming: false,
   satellites: false,
-
-
-  conflicts: true,
-  bases: true,
   cables: false,
   pipelines: false,
-  hotspots: true,
   ais: false,
-  nuclear: true,
-  irradiators: false,
-  sanctions: true,
+  sanctions: false,
   weather: true,
   economic: false,
   waterways: true,
@@ -76,13 +66,10 @@ export const DEFAULT_MAP_LAYERS: MapLayers = {
   datacenters: false,
   protests: false,
   flights: false,
-  military: false,
   natural: false,
   spaceports: false,
   minerals: false,
   fires: false,
-  ucdpEvents: false,
-  displacement: false,
   climate: false,
   // Tech layers (disabled in full variant)
   startupHubs: false,
@@ -103,7 +90,6 @@ export const DEFAULT_MAP_LAYERS: MapLayers = {
   speciesRecovery: false,
   renewableInstallations: false,
   tradeRoutes: false,
-  iranAttacks: true,
   ciiChoropleth: false,
   resilienceScore: false,
   dayNight: false,
@@ -111,7 +97,6 @@ export const DEFAULT_MAP_LAYERS: MapLayers = {
   miningSites: false,
   processingPlants: false,
   commodityPorts: false,
-  webcams: false,
   diseaseOutbreaks: false,
 };
 
@@ -119,17 +104,10 @@ export const DEFAULT_MAP_LAYERS: MapLayers = {
 export const MOBILE_DEFAULT_MAP_LAYERS: MapLayers = {
   gpsJamming: false,
   satellites: false,
-
-
-  conflicts: true,
-  bases: false,
   cables: false,
   pipelines: false,
-  hotspots: true,
   ais: false,
-  nuclear: false,
-  irradiators: false,
-  sanctions: true,
+  sanctions: false,
   weather: true,
   economic: false,
   waterways: false,
@@ -138,13 +116,10 @@ export const MOBILE_DEFAULT_MAP_LAYERS: MapLayers = {
   datacenters: false,
   protests: false,
   flights: false,
-  military: false,
   natural: true,
   spaceports: false,
   minerals: false,
   fires: false,
-  ucdpEvents: false,
-  displacement: false,
   climate: false,
   // Tech layers (disabled in full variant)
   startupHubs: false,
@@ -165,7 +140,6 @@ export const MOBILE_DEFAULT_MAP_LAYERS: MapLayers = {
   speciesRecovery: false,
   renewableInstallations: false,
   tradeRoutes: false,
-  iranAttacks: true,
   ciiChoropleth: false,
   resilienceScore: false,
   dayNight: false,
@@ -173,13 +147,12 @@ export const MOBILE_DEFAULT_MAP_LAYERS: MapLayers = {
   miningSites: false,
   processingPlants: false,
   commodityPorts: false,
-  webcams: false,
   diseaseOutbreaks: false,
 };
 
 export const VARIANT_CONFIG: VariantConfig = {
   name: 'full',
-  description: 'Full geopolitical intelligence dashboard',
+  description: 'dMeter environmental monitoring dashboard',
   panels: DEFAULT_PANELS,
   mapLayers: DEFAULT_MAP_LAYERS,
   mobileMapLayers: MOBILE_DEFAULT_MAP_LAYERS,

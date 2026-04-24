@@ -191,7 +191,7 @@ export class ResilienceWidget {
 
   private renderLocked(gateReason: PanelGateReason): HTMLElement {
     const description = gateReason === PanelGateReason.ANONYMOUS
-      ? 'Sign in to unlock premium resilience scores.'
+      ? ''
       : 'Upgrade to Pro to unlock resilience scores.';
     const cta = gateReason === PanelGateReason.ANONYMOUS ? 'Sign In' : 'Upgrade to Pro';
 

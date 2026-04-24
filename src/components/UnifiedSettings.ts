@@ -756,7 +756,7 @@ export class UnifiedSettings {
       return `
         <div class="panel-locked-state">
           <div class="panel-locked-icon">${lockIcon}</div>
-          <div class="panel-locked-desc">Sign in to unlock API Keys</div>
+          <div class="panel-locked-desc"></div>
           <button class="panel-locked-cta api-keys-gate-btn">Sign In</button>
         </div>`;
     }

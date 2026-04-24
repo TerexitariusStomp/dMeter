@@ -628,6 +628,7 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         registerType: 'autoUpdate',
         injectRegister: false,
+        selfDestroying: true,
 
         includeAssets: [
           'favico/favicon.ico',

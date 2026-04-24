@@ -1,0 +1,424 @@
+     1|     1|// ── Story persistence tracking keys (E3) ─────────────────────────────────────
+     2|     2|// Hash: firstSeen, lastSeen, mentionCount, sourceCount, currentScore, peakScore, title, link, severity, lang
+     3|     3|export const STORY_TRACK_KEY_PREFIX = 'story:track:v1:';
+     4|     4|// Set: unique feed names that have mentioned this story
+     5|     5|export const STORY_SOURCES_KEY_PREFIX = 'story:sources:v1:';
+     6|     6|// Sorted set: single member "peak" with score = highest importanceScore seen
+     7|     7|export const STORY_PEAK_KEY_PREFIX = 'story:peak:v1:';
+     8|     8|// Sorted set: accumulator for digest mode notifications (score = pubDate epoch ms)
+     9|     9|export const DIGEST_ACCUMULATOR_KEY_PREFIX = 'digest:accumulator:v1:';
+    10|    10|// TTL for all story tracking keys (48 hours)
+    11|    11|export const STORY_TRACKING_TTL_S = 172800;
+    12|    12|
+    13|    13|/**
+    14|    14| * Story tracking keys — written by list-feed-digest.ts, read by digest cron (E2).
+    15|    15| * All keys use 32-char SHA-256 hex prefix of the normalised title as ${titleHash}.
+    16|    16| *
+    17|    17| *   story:track:v1:${titleHash}     Hash   firstSeen/lastSeen/title/link/severity/mentionCount/currentScore/lang
+    18|    18| *   story:sources:v1:${titleHash}   Set    feed IDs (SADD per appearance)
+    19|    19| *   story:peak:v1:${titleHash}      ZSet   single member "peak", score = highest importanceScore (ZADD GT)
+    20|    20| *   digest:accumulator:v1:${variant}:${lang} ZSet  member=titleHash, score=lastSeen_ms (updated every appearance)
+    21|    21| *
+    22|    22| * TTL for all: 172800s (48h), refreshed each digest cycle.
+    23|    23| * Shadow scoring key (written by notification-relay.cjs, which owns the live
+    24|    24| * value — the constant here is documentation only, not imported):
+    25|    25| *   shadow:score-log:v5            ZSet   score=epoch_ms, member=JSON{ts,importanceScore,severity,eventType,title,source,publishedAt,corroborationCount,variant}
+    26|    26| *   shadow:score-log:v3            ZSet   legacy (weight rebalance) — self-prunes via 7d ZREMRANGEBYSCORE
+    27|    27| *   shadow:score-log:v2            ZSet   legacy (stale-score fix) — self-prunes
+    28|    28| *   shadow:score-log:v1            ZSet   legacy (pre-PR #3069) — self-prunes
+    29|    29| */
+    30|    30|export const STORY_TRACK_KEY = (titleHash: string) => `story:track:v1:${titleHash}`;
+    31|    31|export const STORY_SOURCES_KEY = (titleHash: string) => `story:sources:v1:${titleHash}`;
+    32|    32|export const STORY_PEAK_KEY = (titleHash: string) => `story:peak:v1:${titleHash}`;
+    33|    33|export const DIGEST_ACCUMULATOR_KEY = (variant: string, lang = 'en') => `digest:accumulator:v1:${variant}:${lang}`;
+    34|    34|export const DIGEST_LAST_SENT_KEY = (userId: string, variant: string) => `digest:last-sent:v1:${userId}:${variant}`;
+    35|    35|// NOTE: notification-relay.cjs owns the live value (shadow:score-log:v5 since prompt upgrade).
+    36|    36|// This export is documentation/discoverability; changing it here does NOT affect the relay.
+    37|    37|// If you modify the key, also update scripts/notification-relay.cjs SHADOW_SCORE_LOG_KEY.
+    38|    38|export const SHADOW_SCORE_LOG_KEY = 'shadow:score-log:v5';
+    39|    39|export const STORY_TTL = 604800;           // 7 days — enough for sustained multi-day stories
+    40|    40|export const DIGEST_ACCUMULATOR_TTL = 172800; // 48h — lookback window for digest content
+    41|    41|
+    42|    42|/**
+    43|    43| * Shared Redis pointer keys for simulation artifacts.
+    44|    44| * Defined here so TypeScript handlers and seed scripts agree on the exact string.
+    45|    45| * The MJS seed script keeps its own copy (cannot import TS source directly).
+    46|    46| */
+    47|    47|export const SIMULATION_OUTCOME_LATEST_KEY = 'forecast:simulation-outcome:latest';
+    48|    48|export const SIMULATION_PACKAGE_LATEST_KEY = 'forecast:simulation-package:latest';
+    49|    49|export const REGULATORY_ACTIONS_KEY = 'regulatory:actions:v1';
+    50|    50|export const CLIMATE_ANOMALIES_KEY = 'climate:anomalies:v2';
+    51|    51|export const CLIMATE_AIR_QUALITY_KEY = 'climate:air-quality:v1';
+    52|    52|export const CLIMATE_ZONE_NORMALS_KEY = 'climate:zone-normals:v1';
+    53|    53|export const CLIMATE_CO2_MONITORING_KEY = 'climate:co2-monitoring:v1';
+    54|    54|export const CLIMATE_OCEAN_ICE_KEY = 'climate:ocean-ice:v1';
+    55|    55|export const CLIMATE_NEWS_KEY = 'climate:news-intelligence:v1';
+    56|    56|export const HEALTH_AIR_QUALITY_KEY = 'health:air-quality:v1';
+    57|    57|
+    58|    58|export const ENERGY_MIX_KEY_PREFIX = 'energy:mix:v1:';
+    59|    59|export const ENERGY_EXPOSURE_INDEX_KEY = 'energy:exposure:v1:index';
+    60|    60|export const GAS_STORAGE_KEY_PREFIX = 'energy:gas-storage:v1:';
+    61|    61|export const GAS_STORAGE_COUNTRIES_KEY = 'energy:gas-storage:v1:_countries';
+    62|    62|export const ELECTRICITY_KEY_PREFIX = 'energy:electricity:v1:';
+    63|    63|export const ELECTRICITY_INDEX_KEY = 'energy:electricity:v1:index';
+    64|    64|export const ENERGY_INTELLIGENCE_KEY = 'energy:intelligence:v1:feed';
+    65|    65|export const CHOKEPOINT_FLOWS_KEY = 'energy:chokepoint-flows:v1';
+    66|    66|export const ENERGY_SPINE_KEY_PREFIX = 'energy:spine:v1:';
+    67|    67|export const ENERGY_SPINE_COUNTRIES_KEY = 'energy:spine:v1:_countries';
+    68|    68|export const EMBER_ELECTRICITY_KEY_PREFIX = 'energy:ember:v1:';
+    69|    69|export const EMBER_ELECTRICITY_ALL_KEY = 'energy:ember:v1:_all';
+    70|    70|export const SPR_KEY = 'economic:spr:v1';
+    71|    71|export const SPR_POLICIES_KEY = 'energy:spr-policies:v1';
+    72|    72|export const REFINERY_INPUTS_KEY = 'economic:refinery-inputs:v1';
+    73|    73|
+    74|    74|/**
+    75|    75| * Per-country chokepoint exposure index. Request-varying — excluded from bootstrap.
+    76|    76| * Key: supply-chain:exposure:{iso2}:{hs2}:v1
+    77|    77| */
+    78|    78|export const CHOKEPOINT_EXPOSURE_KEY = (iso2: string, hs2: string) =>
+    79|    79|  `supply-chain:exposure:${iso2}:${hs2}:v1`;
+    80|    80|export const CHOKEPOINT_EXPOSURE_SEED_META_KEY = 'seed-meta:supply_chain:chokepoint-exposure';
+    81|    81|
+    82|    82|/**
+    83|    83| * Per-country + per-chokepoint cost shock cache.
+    84|    84| * NOT in bootstrap — request-varying, PRO-gated.
+    85|    85| */
+    86|    86|export const COST_SHOCK_KEY = (iso2: string, chokepointId: string) =>
+    87|    87|  `supply-chain:cost-shock:${iso2}:${chokepointId}:v1` as const;
+    88|    88|
+    89|    89|/**
+    90|    90| * Per-country + per-HS2 sector dependency cache.
+    91|    91| * NOT in bootstrap — request-varying, PRO-gated.
+    92|    92| */
+    93|    93|export const SECTOR_DEPENDENCY_KEY = (iso2: string, hs2: string) =>
+    94|    94|  `supply-chain:sector-dep:${iso2}:${hs2}:v1` as const;
+    95|    95|
+    96|    96|/**
+    97|    97| * Route Explorer lane cache — per (fromIso2, toIso2, hs2, cargoType).
+    98|    98| * NOT in bootstrap — request-varying, PRO-gated.
+    99|    99| */
+   100|   100|export const ROUTE_EXPLORER_LANE_KEY = (
+   101|   101|  fromIso2: string,
+   102|   102|  toIso2: string,
+   103|   103|  hs2: string,
+   104|   104|  cargoType: string,
+   105|   105|) => `supply-chain:route-explorer-lane:${fromIso2}:${toIso2}:${hs2}:${cargoType}:v1` as const;
+   106|   106|
+   107|   107|/**
+   108|   108| * Route impact cache — per (fromIso2, toIso2, hs2).
+   109|   109| * NOT in bootstrap — request-varying, PRO-gated. 24h Redis TTL.
+   110|   110| */
+   111|   111|export const ROUTE_IMPACT_KEY = (fromIso2: string, toIso2: string, hs2: string) =>
+   112|   112|  `supply-chain:route-impact:${fromIso2}:${toIso2}:${hs2}:v1` as const;
+   113|   113|
+   114|   114|/**
+   115|   115| * Shared chokepoint status cache key — written by get-chokepoint-status, read by bypass-options and cost-shock handlers.
+   116|   116| */
+   117|   117|export const CHOKEPOINT_STATUS_KEY = 'supply_chain:chokepoints:v4' as const;
+   118|   118|
+   119|   119|/**
+   120|   120| * Static cache keys for the bootstrap endpoint.
+   121|   121| * Only keys with NO request-varying suffixes are included.
+   122|   122| */
+   123|   123|export const BOOTSTRAP_CACHE_KEYS: Record<string, string> = {
+   124|   124|  earthquakes:      'seismology:earthquakes:v1',
+   125|   125|  outages:          'infra:outages:v1',
+   126|   126|  serviceStatuses:  'infra:service-statuses:v1',
+   127|   127|  ddosAttacks:      'cf:radar:ddos:v1',
+   128|   128|  trafficAnomalies: 'cf:radar:traffic-anomalies:v1',
+   129|   129|  sectors:          'market:sectors:v2',
+   130|   130|  etfFlows:         'market:etf-flows:v1',
+   131|   131|  macroSignals:     'economic:macro-signals:v1',
+   132|   132|  bisPolicy:        'economic:bis:policy:v1',
+   133|   133|  bisExchange:      'economic:bis:eer:v1',
+   134|   134|  bisCredit:        'economic:bis:credit:v1',
+   135|   135|  bisDsr:           'economic:bis:dsr:v1',
+   136|   136|  bisPropertyResidential: 'economic:bis:property-residential:v1',
+   137|   137|  bisPropertyCommercial:  'economic:bis:property-commercial:v1',
+   138|   138|  imfMacro:         'economic:imf:macro:v2',
+   139|   139|  imfGrowth:        'economic:imf:growth:v1',
+   140|   140|  imfLabor:         'economic:imf:labor:v1',
+   141|   141|  imfExternal:      'economic:imf:external:v1',
+   142|   142|  shippingRates:    'supply_chain:shipping:v2',
+   143|   143|  chokepoints:      'supply_chain:chokepoints:v4',
+   144|   144|  minerals:         'supply_chain:minerals:v2',
+   145|   145|  giving:           'giving:summary:v1',
+   146|   146|  climateAnomalies: 'climate:anomalies:v2',
+   147|   147|  climateDisasters: 'climate:disasters:v1',
+   148|   148|  co2Monitoring:    'climate:co2-monitoring:v1',
+   149|   149|  oceanIce:         'climate:ocean-ice:v1',
+   150|   150|  climateNews:      'climate:news-intelligence:v1',
+   151|   151|  radiationWatch:  'radiation:observations:v1',
+   152|   152|  thermalEscalation: 'thermal:escalation:v1',
+   153|   153|  crossSourceSignals: 'intelligence:cross-source-signals:v1',
+   154|   154|  wildfires:        'wildfire:fires:v1',
+   155|   155|  marketQuotes:     'market:stocks-bootstrap:v1',
+   156|   156|  commodityQuotes:  'market:commodities-bootstrap:v1',
+   157|   157|  cyberThreats:     'cyber:threats-bootstrap:v2',
+   158|   158|  // dMRV layer
+   159|   159|  dmrvSensorCommunity: 'dmrv:sensor-community:v1',
+   160|   160|  dmrvOpenSenseMap:    'dmrv:opensensemap:v1',
+   161|   161|  dmrvEmscEarthquakes: 'dmrv:emsc-earthquakes:v1',
+   162|   162|  dmrvNoaaBuoys:       'dmrv:noaa-buoys:v1',
+   163|   163|  dmrvFloodMonitoring: 'dmrv:flood-monitoring:v1',
+   164|   164|  dmrvUsgsWater:       'dmrv:usgs-water:v1',
+   165|   165|  dmrvGreynoise:       'dmrv:greynoise:v1',
+   166|   166|  dmrvGridStatus:      'dmrv:grid-status:v1',
+   167|   167|  dmrvOpenMeteo:       'dmrv:open-meteo:v1',
+   168|   168|  dmrvUkCarbon:        'dmrv:uk-carbon:v1',
+   169|   169|  dmrvDanishEnergi:    'dmrv:danish-energi:v1',
+   170|   170|  dmrvGruenstrom:      'dmrv:gruenstrom:v1',
+   171|   171|  dmrvOpenSky:         'dmrv:opensky:v1',
+   172|   172|  dmrvNoaaNgdc:        'dmrv:noaa-ngdc:v1',
+   173|   173|  dmrvUvIndex:         'dmrv:uv-index:v1',
+   174|   174|  dmrvPm25Lass:        'dmrv:pm25-lass:v1',
+   175|   175|  dmrvOpenfema:        'dmrv:openfema:v1',
+   176|   176|  dmrvOpenCharge:      'dmrv:open-charge:v1',
+   177|   177|  dmrvLuchtmeetnet:    'dmrv:luchtmeetnet:v1',
+   178|   178|  dmrvGdacs:           'dmrv:gdacs:v1',
+   179|   179|  dmrvEnergyCharts:    'dmrv:energy-charts:v1',
+   180|   180|  dmrvUsgsQuakes:      'dmrv:usgs-quakes:v1',
+   181|   181|  dmrvCopernicusAtmos: 'dmrv:copernicus-atmos:v1',
+   182|   182|  dmrvAviationweather: 'dmrv:aviationweather:v1',
+   183|   183|  dmrvRainviewer:      'dmrv:rainviewer:v1',
+   184|   184|  dmrvPurpleair:       'dmrv:purpleair:v1',
+   185|   185|  dmrvCurrentuv:       'dmrv:currentuv:v1',
+   186|   186|  dmrvGbifBiodiversity: 'dmrv:gbif-biodiversity:v1',
+   187|   187|  dmrvObisMarine:       'dmrv:obis-marine:v1',
+   188|   188|  dmrvOpentopodata:     'dmrv:opentopodata:v1',
+   189|   189|  dmrv7timerForecast:   'dmrv:7timer-forecast:v1',
+   190|   190|  dmrvMetnoForecast:    'dmrv:metno-forecast:v1',
+   191|   191|  dmrvAareRiver:        'dmrv:aare-river:v1',
+   192|   192|  dmrvAdresseGeocode:   'dmrv:adresse-geocode:v1',
+   193|   193|  dmrvApiStatusCheck:   'dmrv:api-status-check:v1',
+   194|   194|  dmrvNasaOpen:         'dmrv:nasa-open:v1',
+   195|   195|  dmrvNoaaNwsAlerts:    'dmrv:noaa-nws-alerts:v1',
+   196|   196|  dmrvNasaPower:        'dmrv:nasa-power:v1',
+   197|   197|  dmrvOpenNotifyIss:    'dmrv:open-notify-iss:v1',
+   198|   198|  dmrvOpenElevation:    'dmrv:open-elevation:v1',
+   199|   199|  dmrvNoaaNwsForecast:  'dmrv:noaa-nws-forecast:v1',
+   200|   200|  dmrvGlobalFloodApi:   'dmrv:global-flood-api:v1',
+   201|   201|  dmrvOpenMeteoAirQuality: 'dmrv:open-meteo-air-quality:v1',
+   202|   202|  dmrvOpenMeteoMarine:     'dmrv:open-meteo-marine:v1',
+   203|   203|  dmrvWormsMarineSpecies:  'dmrv:worms-marine-species:v1',
+   204|   204|  dmrvTleSatellites:       'dmrv:tle-satellites:v1',
+   205|   205|  dmrvRestorEco:           'dmrv:restor-eco:v1',
+   206|   206|  dmrvSilviEarth:          'dmrv:silvi-earth:v1',
+   207|   207|  dmrvXenoCanto:           'dmrv:xeno-canto:v1',
+   208|   208|  dmrvNaturemapr:          'dmrv:naturemapr:v1',
+   209|   209|  dmrvSpotteron:           'dmrv:spotteron:v1',
+   210|   210|  dmrvPlantnet:            'dmrv:plantnet:v1',
+   211|   211|  dmrvCitsci:              'dmrv:citsci:v1',
+   212|   212|  dmrvEbird:               'dmrv:ebird:v1',
+   213|   213|  dmrvObservationOrg:      'dmrv:observation-org:v1',
+   214|   214|  dmrvGuardiansofearth:    'dmrv:guardiansofearth:v1',
+   215|   215|  dmrvReeflifesurvey:      'dmrv:reeflifesurvey:v1',
+   216|   216|  dmrvInaturalist:         'dmrv:inaturalist:v1',
+   217|   217|  dmrvNaturespots:         'dmrv:naturespots:v1',
+   218|   218|  dmrvOverpassOsm:         'dmrv:overpass-osm:v1',
+   219|   219|  dmrvNominatimGeocode:    'dmrv:nominatim-geocode:v1',
+   220|   220|  dmrvWttrWeather:         'dmrv:wttr-weather:v1',
+   221|   221|  dmrvHkoWeather:          'dmrv:hko-weather:v1',
+   222|   222|  dmrvSgWeather:           'dmrv:sg-weather:v1',
+   223|   223|  dmrvDwdWeather:          'dmrv:dwd-weather:v1',
+   224|   224|  dmrvIntentionalCommunities: 'dmrv:intentional-communities:v1',
+   225|   225|  dmrvSurftruthsBuoys:      'dmrv:surftruths-buoys:v1',
+   226|   226|  dmrvSurftruthsTideStations:'dmrv:surftruths-tide-stations:v1',
+   227|   227|  dmrvSurftruthsGfsLocations:'dmrv:surftruths-gfs-locations:v1',
+   228|   228|  dmrvWebsitecarbonData:     'dmrv:websitecarbon-data:v1',
+   229|   229|  dmrvEarthEngine:           'dmrv:earth-engine:v1',
+   230|   230|  techReadiness:    'economic:worldbank-techreadiness:v1',
+   231|   231|  progressData:     'economic:worldbank-progress:v1',
+   232|   232|  renewableEnergy:  'economic:worldbank-renewable:v1',
+   233|   233|  positiveGeoEvents: 'positive_events:geo-bootstrap:v1',
+   234|   234|  theaterPosture:   'theater_posture:sebuf:stale:v1',
+   235|   235|  riskScores:       'risk:scores:sebuf:stale:v1',
+   236|   236|  naturalEvents:    'natural:events:v1',
+   237|   237|  flightDelays:     'aviation:delays-bootstrap:v1',
+   238|   238|  insights:         'news:insights:v1',
+   239|   239|  predictions:      'prediction:markets-bootstrap:v1',
+   240|   240|  cryptoQuotes:     'market:crypto:v1',
+   241|   241|  gulfQuotes:       'market:gulf-quotes:v1',
+   242|   242|  stablecoinMarkets: 'market:stablecoins:v1',
+   243|   243|  unrestEvents:     'unrest:events:v1',
+   244|   244|  iranEvents:       'conflict:iran-events:v1',
+   245|   245|  ucdpEvents:       'conflict:ucdp-events:v1',
+   246|   246|  temporalAnomalies: 'temporal:anomalies:v1',
+   247|   247|  weatherAlerts:    'weather:alerts:v1',
+   248|   248|  spending:         'economic:spending:v1',
+   249|   249|  techEvents:       'research:tech-events-bootstrap:v1',
+   250|   250|  gdeltIntel:       'intelligence:gdelt-intel:v1',
+   251|   251|  correlationCards: 'correlation:cards-bootstrap:v1',
+   252|   252|  securityAdvisories: 'intelligence:advisories-bootstrap:v1',
+   253|   253|  forecasts:          'forecast:predictions:v2',
+   254|   254|  customsRevenue:     'trade:customs-revenue:v1',
+   255|   255|  sanctionsPressure: 'sanctions:pressure:v1',
+   256|   256|  groceryBasket:     'economic:grocery-basket:v1',
+   257|   257|  bigmac:            'economic:bigmac:v1',
+   258|   258|  fuelPrices:        'economic:fuel-prices:v1',
+   259|   259|  cryptoSectors:    'market:crypto-sectors:v1',
+   260|   260|  defiTokens:       'market:defi-tokens:v1',
+   261|   261|  aiTokens:         'market:ai-tokens:v1',
+   262|   262|  otherTokens:      'market:other-tokens:v1',
+   263|   263|  nationalDebt:     'economic:national-debt:v1',
+   264|   264|  marketImplications: 'intelligence:market-implications:v1',
+   265|   265|  fearGreedIndex:   'market:fear-greed:v1',
+   266|   266|  hyperliquidFlow:  'market:hyperliquid:flow:v1',
+   267|   267|  crudeInventories: 'economic:crude-inventories:v1',
+   268|   268|  natGasStorage:    'economic:nat-gas-storage:v1',
+   269|   269|  ecbFxRates:       'economic:ecb-fx-rates:v1',
+   270|   270|  euGasStorage:     'economic:eu-gas-storage:v1',
+   271|   271|  eurostatCountryData: 'economic:eurostat-country-data:v1',
+   272|   272|  eurostatHousePrices: 'economic:eurostat:house-prices:v1',
+   273|   273|  eurostatGovDebtQ:    'economic:eurostat:gov-debt-q:v1',
+   274|   274|  eurostatIndProd:     'economic:eurostat:industrial-production:v1',
+   275|   275|  euFsi:            'economic:fsi-eu:v1',
+   276|   276|  shippingStress:   'supply_chain:shipping_stress:v1',
+   277|   277|  socialVelocity:   'intelligence:social:reddit:v1',
+   278|   278|  wsbTickers:       'intelligence:wsb-tickers:v1',
+   279|   279|  pizzint:          'intelligence:pizzint:seed:v1',
+   280|   280|  diseaseOutbreaks: 'health:disease-outbreaks:v1',
+   281|   281|  censorshipDomainCategories: 'intelligence:censorship-domain-categories:v1',
+   282|   282|  economicStress:   'economic:stress-index:v1',
+   283|   283|  faoFoodPriceIndex: 'economic:fao-ffpi:v1',
+   284|   284|  electricityPrices:   'energy:electricity:v1:index',
+   285|   285|  jodiOil:             'energy:jodi-oil:v1:_countries',
+   286|   286|  chokepointBaselines: 'energy:chokepoint-baselines:v1',
+   287|   287|  portwatchChokepointsRef: 'portwatch:chokepoints:ref:v1',
+   288|   288|  portwatchPortActivity: 'supply_chain:portwatch-ports:v1:_countries',
+   289|   289|  oilStocksAnalysis:    'energy:oil-stocks-analysis:v1',
+   290|   290|  lngVulnerability:     'energy:lng-vulnerability:v1',
+   291|   291|  sprPolicies:          'energy:spr-policies:v1',
+   292|   292|  energyCrisisPolicies: 'energy:crisis-policies:v1',
+   293|   293|  aaiiSentiment:        'market:aaii-sentiment:v1',
+   294|   294|  breadthHistory:       'market:breadth-history:v1',
+   295|   295|  natcapMapData:        'environment:natcap-map-data-bootstrap:v1',
+   296|   296|  bcorpMapData:         'environment:bcorp-map-data-bootstrap:v1',
+   297|   297|  bonsucroRegistry:     'environment:bonsucro-registry-bootstrap:v1',
+   298|   298|  greenDestinations:    'tourism:green-destinations-bootstrap:v1',
+   299|   299|  gstcCertifiedDestinations: 'tourism:gstc-certified-destinations-bootstrap:v1',
+   300|   300|  earthcheckMembers:    'tourism:earthcheck-members-bootstrap:v1',
+   301|   301|  epicNaturalImagery:   'imagery:epic-natural:v1',
+   302|   302|  openMeteoWeather:     'weather:open-meteo:v1',
+   303|   303|  openAQAirQuality:     'environment:openaq:v1',
+   304|   304|  worldbankIndicators:  'economic:worldbank-indicators:v1',
+   305|   305|  maritimeAISPositions: 'maritime:ais-positions:v1',
+   306|   306|  nasaFireDetections:   'environment:fire-detections:nasa:v1',
+   307|   307|  spaceOrbitalObjects: 'space:orbital-objects:v1',
+   308|   308|  spaceWeatherForecasts: 'space:weather-forecasts:v1',
+   309|   309|  aviationWeatherReports: 'aviation:weather-reports:v1',
+   310|   310|  biodiversitySpeciesThreats: 'biodiversity:species-threats:v1',
+   311|   311|  wellCertifiedProjects: 'buildings:well-certified-projects-bootstrap:v1',
+   312|   312|  wwoofHosts: 'agriculture:wwoof-hosts-bootstrap:v1',
+   313|   313|  breeamMapData: 'buildings:breeam-map-bootstrap:v1',
+   314|   314|  consumerPricesOverview:   'consumer-prices:overview:ae',
+   315|   315|  consumerPricesCategories: 'consumer-prices:categories:ae:30d',
+   316|   316|  consumerPricesMovers:     'consumer-prices:movers:ae:30d',
+   317|   317|  consumerPricesSpread:     'consumer-prices:retailer-spread:ae:essentials-ae',
+  realorganicFarms: 'agriculture:realorganic-farms-bootstrap:v1',
+  rodaleOrganicFarms: 'agriculture:rodale-organic-farms-bootstrap:v1',
+   318|   318|};
+   319|   319|
+   320|   320|export const PORTWATCH_PORT_ACTIVITY_KEY_PREFIX = 'supply_chain:portwatch-ports:v1:';
+   321|   321|export const PORTWATCH_PORT_ACTIVITY_COUNTRIES_KEY = 'supply_chain:portwatch-ports:v1:_countries';
+   322|   322|
+   323|   323|export const BOOTSTRAP_TIERS: Record<string, 'slow' | 'fast'> = {
+   324|   324|  bisPolicy: 'slow', bisExchange: 'slow', bisCredit: 'slow',
+   325|   325|  bisDsr: 'slow', bisPropertyResidential: 'slow', bisPropertyCommercial: 'slow',
+   326|   326|  imfMacro: 'slow', imfGrowth: 'slow', imfLabor: 'slow', imfExternal: 'slow',
+   327|   327|  minerals: 'slow', giving: 'slow', sectors: 'slow',
+   328|   328|  progressData: 'slow', renewableEnergy: 'slow',
+   329|   329|  etfFlows: 'slow', shippingRates: 'fast', wildfires: 'slow',
+   330|   330|  climateAnomalies: 'slow', climateDisasters: 'slow', co2Monitoring: 'slow', oceanIce: 'slow', climateNews: 'slow', sanctionsPressure: 'slow', radiationWatch: 'slow', thermalEscalation: 'slow', crossSourceSignals: 'slow', cyberThreats: 'slow', techReadiness: 'slow',
+   331|   331|  theaterPosture: 'fast', naturalEvents: 'slow',
+   332|   332|  // dMRV tiers — real-time feeds fast, background/reference feeds slow
+   333|   333|  dmrvEmscEarthquakes: 'fast', dmrvFloodMonitoring: 'fast', dmrvGridStatus: 'fast', dmrvUsgsWater: 'fast',
+   334|   334|  dmrvOpenSky: 'fast', dmrvGdacs: 'fast', dmrvUsgsQuakes: 'fast', dmrvAviationweather: 'fast', dmrvRainviewer: 'fast', dmrv7timerForecast: 'fast', dmrvMetnoForecast: 'fast', dmrvAareRiver: 'fast', dmrvApiStatusCheck: 'fast', dmrvNoaaNwsAlerts: 'fast', dmrvOpenNotifyIss: 'fast', dmrvNoaaNwsForecast: 'fast', dmrvGlobalFloodApi: 'fast', dmrvOpenMeteoAirQuality: 'fast', dmrvOpenMeteoMarine: 'fast', dmrvSpotteron: 'fast', dmrvEbird: 'fast', dmrvObservationOrg: 'fast', dmrvGuardiansofearth: 'fast', dmrvInaturalist: 'fast', dmrvNaturespots: 'fast', dmrvWttrWeather: 'fast', dmrvHkoWeather: 'fast', dmrvSgWeather: 'fast', dmrvDwdWeather: 'fast', dmrvSurftruthsBuoys: 'fast', dmrvSurftruthsGfsLocations: 'fast',
+   335|   335|  dmrvSensorCommunity: 'slow', dmrvOpenSenseMap: 'slow', dmrvNoaaBuoys: 'slow', dmrvGreynoise: 'slow',
+   336|   336|  dmrvOpenMeteo: 'slow', dmrvUkCarbon: 'slow', dmrvDanishEnergi: 'slow', dmrvGruenstrom: 'slow',
+   337|   337|  dmrvNoaaNgdc: 'slow', dmrvUvIndex: 'slow', dmrvPm25Lass: 'slow', dmrvOpenfema: 'slow',
+   338|   338|  dmrvOpenCharge: 'slow', dmrvLuchtmeetnet: 'slow', dmrvEnergyCharts: 'slow', dmrvCopernicusAtmos: 'slow', dmrvPurpleair: 'slow',
+   339|   339|  dmrvCurrentuv: 'slow',
+   340|   340|  dmrvGbifBiodiversity: 'slow', dmrvObisMarine: 'slow', dmrvOpentopodata: 'slow',
+   341|   341|  dmrvAdresseGeocode: 'slow',
+   342|   342|  dmrvNasaOpen: 'slow', dmrvNasaPower: 'slow', dmrvOpenElevation: 'slow',
+   343|   343|  dmrvWormsMarineSpecies: 'slow', dmrvTleSatellites: 'slow',
+   344|   344|  dmrvRestorEco: 'slow', dmrvSilviEarth: 'slow', dmrvXenoCanto: 'slow', dmrvNaturemapr: 'slow', dmrvPlantnet: 'slow', dmrvCitsci: 'slow', dmrvReeflifesurvey: 'slow',
+   345|   345|  dmrvOverpassOsm: 'slow', dmrvNominatimGeocode: 'slow', dmrvIntentionalCommunities: 'slow', dmrvSurftruthsTideStations: 'slow', dmrvWebsitecarbonData: 'slow', dmrvEarthEngine: 'slow',
+   346|   346|  cryptoQuotes: 'slow', gulfQuotes: 'slow', stablecoinMarkets: 'slow',
+   347|   347|  unrestEvents: 'slow', ucdpEvents: 'slow', techEvents: 'slow',
+   348|   348|  earthquakes: 'fast', outages: 'fast', serviceStatuses: 'fast', ddosAttacks: 'fast', trafficAnomalies: 'fast',
+   349|   349|  macroSignals: 'fast', chokepoints: 'fast', riskScores: 'fast',
+   350|   350|  marketQuotes: 'fast', commodityQuotes: 'fast', positiveGeoEvents: 'fast',
+   351|   351|  flightDelays: 'fast', insights: 'fast', predictions: 'fast',
+   352|   352|  iranEvents: 'fast', temporalAnomalies: 'fast', weatherAlerts: 'fast',
+   353|   353|  spending: 'fast', gdeltIntel: 'fast', correlationCards: 'fast',
+   354|   354|  securityAdvisories: 'slow',
+   355|   355|  censorshipDomainCategories: 'slow',
+   356|   356|  forecasts: 'fast',
+   357|   357|  customsRevenue: 'slow',
+   358|   358|  consumerPricesOverview: 'slow', consumerPricesCategories: 'slow',
+   359|   359|  consumerPricesMovers: 'slow', consumerPricesSpread: 'slow',
+   360|   360|  groceryBasket: 'slow',
+   361|   361|  bigmac: 'slow',
+   362|   362|  fuelPrices: 'slow',
+   363|   363|  cryptoSectors: 'slow',
+   364|   364|  defiTokens: 'slow',
+   365|   365|  aiTokens: 'slow',
+   366|   366|  otherTokens: 'slow',
+   367|   367|  nationalDebt: 'slow',
+   368|   368|  marketImplications: 'slow',
+   369|   369|  fearGreedIndex: 'slow',
+   370|   370|  hyperliquidFlow: 'slow',
+   371|   371|  crudeInventories: 'slow',
+   372|   372|  natGasStorage: 'slow',
+   373|   373|  ecbFxRates: 'slow',
+   374|   374|  euGasStorage: 'slow',
+   375|   375|  eurostatCountryData: 'slow',
+   376|   376|  eurostatHousePrices: 'slow',
+   377|   377|  eurostatGovDebtQ: 'slow',
+   378|   378|  eurostatIndProd: 'slow',
+   379|   379|  euFsi: 'slow',
+   380|   380|  shippingStress: 'fast',
+   381|   381|  socialVelocity: 'fast',
+   382|   382|  wsbTickers: 'fast',
+   383|   383|  pizzint: 'slow',
+   384|   384|  diseaseOutbreaks: 'slow',
+   385|   385|  economicStress: 'slow',
+   386|   386|  faoFoodPriceIndex: 'slow',
+   387|   387|  electricityPrices:   'slow',
+   388|   388|  jodiOil:             'slow',
+   389|   389|  chokepointBaselines: 'slow',
+   390|   390|  portwatchChokepointsRef: 'slow',
+   391|   391|  portwatchPortActivity: 'slow',
+   392|   392|  oilStocksAnalysis: 'slow',
+   393|   393|  lngVulnerability: 'slow',
+   394|   394|  sprPolicies: 'slow',
+   395|   395|  energyCrisisPolicies: 'slow',
+   396|   396|  aaiiSentiment: 'slow',
+   397|   397|  breadthHistory: 'slow',
+   398|   398|  natcapMapData: 'slow',
+   399|   399|  bcorpMapData: 'slow',
+   400|   400|  bonsucroRegistry: 'slow',
+   401|   401|  greenDestinations: 'slow',
+   402|   402|  gstcCertifiedDestinations: 'slow',
+   403|   403|  earthcheckMembers: 'slow',
+   404|   404|  epicNaturalImagery: 'slow',
+   405|   405|  openMeteoWeather: 'fast',
+   406|   406|  openAQAirQuality: 'fast',
+   407|   407|  worldbankIndicators: 'slow',
+   408|   408|  maritimeAISPositions: 'fast',
+   409|   409|  nasaFireDetections: 'fast',
+   410|   410|  spaceOrbitalObjects: 'fast',
+   411|   411|  spaceWeatherForecasts: 'fast',
+   412|   412|  aviationWeatherReports: 'fast',
+   413|   413|  biodiversitySpeciesThreats: 'slow',
+   414|   414|  wellCertifiedProjects: 'slow',
+   415|   415|  wwoofHosts: 'slow',
+   416|   416|  breeamMapData: 'slow',
+   417|   417|};
+  realorganicFarms: 'slow',
+  rodaleOrganicFarms: 'slow',
+   418|   418|
+   419|   419|export const PORTWATCH_CHOKEPOINTS_REF_KEY = 'portwatch:chokepoints:ref:v1';
+   420|   420|

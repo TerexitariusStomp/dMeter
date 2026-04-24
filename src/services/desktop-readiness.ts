@@ -38,16 +38,6 @@ const keyBackedFeatures: RuntimeFeatureId[] = [
 
 export const DESKTOP_PARITY_FEATURES: DesktopParityFeature[] = [
   {
-    id: 'live-news',
-    panel: 'LiveNewsPanel',
-    serviceFiles: ['src/services/live-news.ts'],
-    apiRoutes: ['/api/youtube/live'],
-    apiHandlers: ['api/youtube/live.js'],
-    locality: 'fully-local',
-    fallback: 'Channel fallback video IDs are used when live detection fails.',
-    priority: 1,
-  },
-  {
     id: 'monitor',
     panel: 'MonitorPanel',
     serviceFiles: [],
@@ -129,7 +119,7 @@ export function getDesktopReadinessChecks(localBackendEnabled: boolean): Desktop
   return [
     { id: 'startup', label: 'Desktop startup + sidecar API health', ready: localBackendEnabled },
     { id: 'map', label: 'Map rendering (local layers + static geo assets)', ready: true },
-    { id: 'core-intel', label: 'Core intelligence panels (Live News, Monitor, Strategic Risk)', ready: true },
+    { id: 'core-intel', label: 'Core intelligence panels (Monitor, Strategic Risk)', ready: true },
     { id: 'summaries', label: 'Summaries (provider-backed or browser fallback)', ready: isFeatureAvailable('aiOllama') || isFeatureAvailable('aiGroq') || isFeatureAvailable('aiOpenRouter') },
     { id: 'market', label: 'Market panel live data paths', ready: true },
     { id: 'live-tracking', label: 'At least one live-tracking mode (AIS or OpenSky)', ready: liveTrackingReady },

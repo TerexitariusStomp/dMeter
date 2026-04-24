@@ -594,8 +594,8 @@ function renderStoryPage({ story, rank, palette, pageIndex, totalPages, issueDat
  */
 function renderBackCover({ tz, pageIndex, totalPages, publicMode, refCode }) {
   const ctaHref = publicMode
-    ? `https://worldmonitor.app/pro${refCode ? `?ref=${encodeURIComponent(refCode)}` : ''}`
-    : 'https://worldmonitor.app';
+    ? `https://templeearth.cc/pro${refCode ? `?ref=${encodeURIComponent(refCode)}` : ''}`
+    : 'https://templeearth.cc';
   const kicker = publicMode
     ? 'You\u2019re reading a shared brief'
     : 'Thank you for reading';
@@ -604,9 +604,9 @@ function renderBackCover({ tz, pageIndex, totalPages, publicMode, refCode }) {
     : 'End of<br/>Transmission.';
   const metaLeft = publicMode
     ? `<a href="${escapeHtml(ctaHref)}" class="mono back-cta" target="_blank" rel="noopener">Subscribe \u2192</a>`
-    : '<span class="mono">worldmonitor.app</span>';
+    : '<span class="mono">templeearth.cc</span>';
   const metaRight = publicMode
-    ? '<span class="mono">worldmonitor.app</span>'
+    ? '<span class="mono">templeearth.cc</span>'
     : `<span class="mono">Next brief \u00b7 08:00 ${escapeHtml(tz)}</span>`;
   return (
     '<section class="page cover back">' +
@@ -1287,7 +1287,7 @@ export function renderBriefMagazine(envelope, options = {}) {
   // In public view: the per-hash mirror is noindexed via the HTTP
   // header AND a meta tag, and we prepend a subscribe strip pointing
   // at /pro (with optional referral attribution).
-  const publicStripHref = `https://worldmonitor.app/pro${refCode ? `?ref=${encodeURIComponent(refCode)}` : ''}`;
+  const publicStripHref = `https://templeearth.cc/pro${refCode ? `?ref=${encodeURIComponent(refCode)}` : ''}`;
   const publicStripHtml = publicMode
     ? '<div class="wm-public-strip">'
       + '<span>WorldMonitor Brief \u00b7 shared issue</span>'

@@ -16,7 +16,6 @@ export { MINING_SITES, PROCESSING_PLANTS, COMMODITY_PORTS } from '@/config/commo
 export const DEFAULT_PANELS: Record<string, PanelConfig> = {
   // Core
   map: { name: 'Commodity & Mining Map', enabled: true, priority: 1 },
-  'live-news': { name: 'Commodity Headlines', enabled: true, priority: 1 },
   // Markets
   markets: { name: 'Mining & Commodity Stocks', enabled: true, priority: 1 },
   commodities: { name: 'Live Commodity Prices', enabled: true, priority: 1 },
@@ -65,17 +64,7 @@ export const DEFAULT_MAP_LAYERS: MapLayers = {
   // Geopolitical / military
   gpsJamming: false,
   satellites: false,
-
-  iranAttacks: false,
-  conflicts: false,
-  bases: false,
-  hotspots: false,
-  nuclear: false,
-  irradiators: false,
-  military: false,
   spaceports: false,
-  ucdpEvents: false,
-  displacement: false,
   // Protests / civil unrest
   protests: false,
   // Transport / tracking
@@ -115,7 +104,6 @@ export const DEFAULT_MAP_LAYERS: MapLayers = {
 
   ciiChoropleth: false,
   resilienceScore: false,
-  webcams: false,
   diseaseOutbreaks: false,
 };
 
@@ -138,17 +126,7 @@ export const MOBILE_DEFAULT_MAP_LAYERS: MapLayers = {
   // All others disabled on mobile
   gpsJamming: false,
   satellites: false,
-
-  iranAttacks: false,
-  conflicts: false,
-  bases: false,
-  hotspots: false,
-  nuclear: false,
-  irradiators: false,
-  military: false,
   spaceports: false,
-  ucdpEvents: false,
-  displacement: false,
   protests: false,
   ais: false,
   flights: false,
@@ -179,7 +157,6 @@ export const MOBILE_DEFAULT_MAP_LAYERS: MapLayers = {
 
   ciiChoropleth: false,
   resilienceScore: false,
-  webcams: false,
   diseaseOutbreaks: false,
 };
 

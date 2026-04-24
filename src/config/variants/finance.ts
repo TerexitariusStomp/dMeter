@@ -142,7 +142,6 @@ export const FEEDS: Record<string, Feed[]> = {
 // Panel configuration for finance/trading
 export const DEFAULT_PANELS: Record<string, PanelConfig> = {
   map: { name: 'Global Markets Map', enabled: true, priority: 1 },
-  'live-news': { name: 'Market Headlines', enabled: true, priority: 1 },
   insights: { name: 'AI Market Insights', enabled: true, priority: 1 },
   markets: { name: 'Live Markets', enabled: true, priority: 1 },
   'stock-analysis': { name: 'Stock Analysis', enabled: true, priority: 1 },
@@ -180,16 +179,9 @@ export const DEFAULT_PANELS: Record<string, PanelConfig> = {
 export const DEFAULT_MAP_LAYERS: MapLayers = {
   gpsJamming: false,
   satellites: false,
-
-
-  conflicts: false,
-  bases: false,
   cables: true,
   pipelines: true,
-  hotspots: false,
   ais: false,
-  nuclear: false,
-  irradiators: false,
   sanctions: true,
   weather: true,
   economic: true,
@@ -199,13 +191,10 @@ export const DEFAULT_MAP_LAYERS: MapLayers = {
   datacenters: false,
   protests: false,
   flights: false,
-  military: false,
   natural: true,
   spaceports: false,
   minerals: false,
   fires: false,
-  ucdpEvents: false,
-  displacement: false,
   climate: false,
   // Tech layers (disabled in finance variant)
   startupHubs: false,
@@ -226,7 +215,6 @@ export const DEFAULT_MAP_LAYERS: MapLayers = {
   speciesRecovery: false,
   renewableInstallations: false,
   tradeRoutes: true,
-  iranAttacks: false,
   ciiChoropleth: false,
   resilienceScore: false,
   dayNight: false,
@@ -234,7 +222,6 @@ export const DEFAULT_MAP_LAYERS: MapLayers = {
   miningSites: false,
   processingPlants: false,
   commodityPorts: false,
-  webcams: false,
   diseaseOutbreaks: false,
 };
 
@@ -242,16 +229,9 @@ export const DEFAULT_MAP_LAYERS: MapLayers = {
 export const MOBILE_DEFAULT_MAP_LAYERS: MapLayers = {
   gpsJamming: false,
   satellites: false,
-
-
-  conflicts: false,
-  bases: false,
   cables: false,
   pipelines: false,
-  hotspots: false,
   ais: false,
-  nuclear: false,
-  irradiators: false,
   sanctions: false,
   weather: false,
   economic: true,
@@ -261,13 +241,10 @@ export const MOBILE_DEFAULT_MAP_LAYERS: MapLayers = {
   datacenters: false,
   protests: false,
   flights: false,
-  military: false,
   natural: true,
   spaceports: false,
   minerals: false,
   fires: false,
-  ucdpEvents: false,
-  displacement: false,
   climate: false,
   // Tech layers (disabled)
   startupHubs: false,
@@ -288,7 +265,6 @@ export const MOBILE_DEFAULT_MAP_LAYERS: MapLayers = {
   speciesRecovery: false,
   renewableInstallations: false,
   tradeRoutes: false,
-  iranAttacks: false,
   ciiChoropleth: false,
   resilienceScore: false,
   dayNight: false,
@@ -296,7 +272,6 @@ export const MOBILE_DEFAULT_MAP_LAYERS: MapLayers = {
   miningSites: false,
   processingPlants: false,
   commodityPorts: false,
-  webcams: false,
   diseaseOutbreaks: false,
 };
 

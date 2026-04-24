@@ -601,15 +601,9 @@ export interface PanelConfig {
 }
 
 export interface MapLayers {
-  conflicts: boolean;
-  bases: boolean;
   cables: boolean;
   pipelines: boolean;
-  hotspots: boolean;
   ais: boolean;
-  nuclear: boolean;
-  irradiators: boolean;
-  radiationWatch?: boolean;
   sanctions: boolean;
   weather: boolean;
   economic: boolean;
@@ -619,14 +613,10 @@ export interface MapLayers {
   datacenters: boolean;
   protests: boolean;
   flights: boolean;
-  military: boolean;
   natural: boolean;
   spaceports: boolean;
   minerals: boolean;
   fires: boolean;
-  // Data source layers
-  ucdpEvents: boolean;
-  displacement: boolean;
   climate: boolean;
   // Tech variant layers
   startupHubs: boolean;
@@ -649,8 +639,6 @@ export interface MapLayers {
   renewableInstallations: boolean;
   // Trade route layers
   tradeRoutes: boolean;
-  // Iran attacks layer
-  iranAttacks: boolean;
   // GPS/GNSS interference layer
   gpsJamming: boolean;
   // Satellite orbital tracking + imagery footprints
@@ -666,9 +654,20 @@ export interface MapLayers {
   miningSites: boolean;
   processingPlants: boolean;
   commodityPorts: boolean;
-  webcams: boolean;
-  // Health layers
   diseaseOutbreaks: boolean;
+  // Removed layers (optional for backward compat)
+  conflicts?: boolean;
+  military?: boolean;
+  nuclear?: boolean;
+  iranAttacks?: boolean;
+  hotspots?: boolean;
+  bases?: boolean;
+  irradiators?: boolean;
+  radiationWatch?: boolean;
+  ucdpEvents?: boolean;
+  displacement?: boolean;
+  webcams?: boolean;
+
 }
 
 export interface AIDataCenter {

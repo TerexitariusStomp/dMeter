@@ -48,7 +48,7 @@ export function exportSettings(): void {
   const exportData: ExportedSettings = {
     version: 1,
     timestamp: new Date().toISOString(),
-    variant: localStorage.getItem('worldmonitor-variant') || 'full',
+    variant: localStorage.getItem('dmeter-variant') || 'full',
     data,
   };
 
@@ -57,7 +57,7 @@ export function exportSettings(): void {
   const a = document.createElement('a');
   a.href = url;
   const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  a.download = `worldmonitor-settings-${ts}.json`;
+  a.download = `dmeter-settings-${ts}.json`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

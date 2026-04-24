@@ -187,8 +187,12 @@ const SEED_DOMAINS = {
   'space:weather-forecasts': { key: 'seed-meta:space:weather-forecasts', intervalMin: 90 }, // hourly
   'buildings:well-certified-projects': { key: 'seed-meta:buildings:well-certified-projects', intervalMin: 360 }, // 6h cache
   'agriculture:wwoof-hosts:v1': { key: 'seed-meta:agriculture:wwoof-hosts', intervalMin: 360 }, // 6h cache
+  'agriculture:rodale-organic-farms': { key: 'seed-meta:agriculture:rodale-organic-farms', intervalMin: 360 }, // 6h cache
   'buildings:breeam-map': { key: 'seed-meta:buildings:breeam-map', intervalMin: 360 }, // 6h cache
+  'buildings:energystar-certified': { key: 'seed-meta:buildings:energystar-certified', intervalMin: 360 }, // 6h cache
   'environment:sites-projects': { key: 'seed-meta:environment:sites-projects', intervalMin: 360 }, // 6h cache
+  'dmrv:usda-organic-operations': { key: 'seed-meta:dmrv:usda-organic-operations', intervalMin: 1440 }, // daily seed
+  'environment:change-climate-brands': { key: 'seed-meta:environment:change-climate-brands', intervalMin: 360 }, // 6h cache
 
 };
 

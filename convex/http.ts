@@ -5,8 +5,8 @@ import { webhookHandler } from "./payments/webhookHandlers";
 import { resendWebhookHandler } from "./resendWebhookHandler";
 
 const TRUSTED = [
-  "https://worldmonitor.app",
-  "*.worldmonitor.app",
+  "https://templeearth.cc",
+  "*.templeearth.cc",
   "http://localhost:3000",
 ];
 

@@ -70,7 +70,7 @@ import { PanelLayoutManager } from '@/app/panel-layout';
 import { DataLoaderManager } from '@/app/data-loader';
 import { EventHandlerManager } from '@/app/event-handlers';
 import { resolveUserRegion, resolvePreciseUserCoordinates, type PreciseCoordinates } from '@/utils/user-location';
-import { showProBanner } from '@/components/ProBanner';
+
 import { initAuthState, subscribeAuthState } from '@/services/auth-state';
 import { install as installCloudPrefsSync, onSignIn as cloudPrefsSignIn, onSignOut as cloudPrefsSignOut } from '@/utils/cloud-prefs-sync';
 import { getConvexClient, getConvexApi, waitForConvexAuth } from '@/services/convex-client';
@@ -389,9 +389,6 @@ export class App {
       if (shouldPrime('stock-analysis')) {
         primeTask('stockAnalysis', () => this.dataLoader.loadStockAnalysis());
       }
-      if (shouldPrime('stock-backtest')) {
-        primeTask('stockBacktest', () => this.dataLoader.loadStockBacktest());
-      }
       if (shouldPrime('daily-market-brief')) {
         primeTask('dailyMarketBrief', () => this.dataLoader.loadDailyMarketBrief());
       }
@@ -426,13 +423,13 @@ export class App {
     const isDynamicPanel = (k: string) => k === 'runtime-config' || k.startsWith('cw-') || k.startsWith('mcp-');
 
     // Check if variant changed - reset all settings to variant defaults
-    const storedVariant = localStorage.getItem('worldmonitor-variant');
+    const storedVariant = localStorage.getItem('dmeter-variant');
     const currentVariant = SITE_VARIANT;
     console.log(`[App] Variant check: stored="${storedVariant}", current="${currentVariant}"`);
     if (storedVariant !== currentVariant) {
       // Variant changed — seed new variant's panels, disable panels not in the new variant
       console.log('[App] Variant changed - seeding new defaults, disabling cross-variant panels');
-      localStorage.setItem('worldmonitor-variant', currentVariant);
+      localStorage.setItem('dmeter-variant', currentVariant);
       // Reset map layers for the new variant (map layers are not user-personalized the same way)
       localStorage.removeItem(STORAGE_KEYS.mapLayers);
       mapLayers = normalizeExclusiveChoropleths(
@@ -774,7 +771,6 @@ export class App {
       ensureCorrectZones: () => this.panelLayout.ensureCorrectZones(),
       refreshOpenCountryBrief: () => this.countryIntel.refreshOpenBrief(),
       stopLayerActivity: (layer) => this.dataLoader.stopLayerActivity(layer),
-      mountLiveNewsIfReady: () => this.panelLayout.mountLiveNewsIfReady(),
       updateFlightSource: (adsb, military) => this.searchManager.updateFlightSource(adsb, military),
     });
 
@@ -920,7 +916,6 @@ export class App {
 
     // Phase 1: Layout (creates map + panels — they'll find hydrated data)
     this.panelLayout.init();
-    showProBanner(this.state.container);
     this.updateConnectivityUi();
     window.addEventListener('online', this.handleConnectivityChange);
     window.addEventListener('offline', this.handleConnectivityChange);
@@ -1240,12 +1235,6 @@ export class App {
         () => this.dataLoader.loadDailyMarketBrief(),
         REFRESH_INTERVALS.dailyMarketBrief,
         () => hasPremiumAccess() && this.isPanelNearViewport('daily-market-brief'),
-      );
-      this.refreshScheduler.scheduleRefresh(
-        'stock-backtest',
-        () => this.dataLoader.loadStockBacktest(),
-        REFRESH_INTERVALS.stockBacktest,
-        () => hasPremiumAccess() && this.isPanelNearViewport('stock-backtest'),
       );
       this.refreshScheduler.scheduleRefresh(
         'market-implications',

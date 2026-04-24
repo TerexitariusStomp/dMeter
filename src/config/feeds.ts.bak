@@ -1,0 +1,501 @@
+     1|import type { Feed } from '@/types';
+     2|import { SITE_VARIANT } from './variant';
+     3|import { rssProxyUrl } from '@/utils';
+     4|
+     5|const rss = rssProxyUrl;
+     6|const railwayRss = rssProxyUrl;
+     7|
+     8|// Source tier system — canonical definition lives in server/_shared/source-tiers.ts
+     9|// so server-side code can import it without pulling in client-only modules.
+    10|export { SOURCE_TIERS, getSourceTier } from '../../server/_shared/source-tiers';
+    11|
+    12|
+    13|export type SourceType = 'wire' | 'gov' | 'intel' | 'mainstream' | 'market' | 'tech' | 'other';
+    14|
+    15|export const SOURCE_TYPES: Record<string, SourceType> = {
+    16|  // Wire services - fastest, most authoritative
+    17|  'Reuters': 'wire', 'Reuters World': 'wire', 'Reuters Business': 'wire',
+    18|  'AP News': 'wire', 'AFP': 'wire', 'Bloomberg': 'wire',
+    19|
+    20|  // Government & International Org sources
+    21|  'White House': 'gov', 'State Dept': 'gov', 'Pentagon': 'gov',
+    22|  'Treasury': 'gov', 'DOJ': 'gov', 'DHS': 'gov', 'CDC': 'gov',
+    23|  'FEMA': 'gov', 'Federal Reserve': 'gov', 'SEC': 'gov',
+    24|  'UN News': 'gov', 'CISA': 'gov',
+    25|
+    26|  // Intel/Defense specialty
+    27|  'Defense One': 'intel', 'Breaking Defense': 'intel', 'The War Zone': 'intel',
+    28|  'Defense News': 'intel', 'Janes': 'intel', 'Military Times': 'intel', 'Task & Purpose': 'intel',
+    29|  'USNI News': 'intel', 'gCaptain': 'intel', 'Oryx OSINT': 'intel', 'UK MOD': 'gov',
+    30|  'Bellingcat': 'intel', 'Krebs Security': 'intel',
+    31|  'Foreign Policy': 'intel', 'The Diplomat': 'intel',
+    32|  'Atlantic Council': 'intel', 'Foreign Affairs': 'intel',
+    33|  'CrisisWatch': 'intel',
+    34|  'CSIS': 'intel', 'RAND': 'intel', 'Brookings': 'intel', 'Carnegie': 'intel',
+    35|  'IAEA': 'gov', 'WHO': 'gov', 'UNHCR': 'gov',
+    36|  'Xinhua': 'wire', 'TASS': 'wire', 'RT': 'wire', 'RT Russia': 'wire',
+    37|  'NHK World': 'mainstream', 'Nikkei Asia': 'market',
+    38|
+    39|  // Mainstream outlets
+    40|  'BBC World': 'mainstream', 'BBC Middle East': 'mainstream',
+    41|  'Guardian World': 'mainstream', 'Guardian ME': 'mainstream',
+    42|  'NPR News': 'mainstream', 'Al Jazeera': 'mainstream',
+    43|  'CNN World': 'mainstream', 'Politico': 'mainstream', 'Axios': 'mainstream',
+    44|  'EuroNews': 'mainstream', 'France 24': 'mainstream', 'Le Monde': 'mainstream',
+    45|  // European Addition
+    46|  'El País': 'mainstream', 'El Mundo': 'mainstream', 'BBC Mundo': 'mainstream',
+    47|  'Tagesschau': 'mainstream', 'Der Spiegel': 'mainstream', 'Die Zeit': 'mainstream', 'DW News': 'mainstream',
+    48|  'ANSA': 'wire', 'Corriere della Sera': 'mainstream', 'Repubblica': 'mainstream',
+    49|  'NOS Nieuws': 'mainstream', 'NRC': 'mainstream', 'De Telegraaf': 'mainstream',
+    50|  'SVT Nyheter': 'mainstream', 'Dagens Nyheter': 'mainstream', 'Svenska Dagbladet': 'mainstream',
+    51|  // Brazilian Addition
+    52|  'Brasil Paralelo': 'mainstream',
+    53|
+    54|  // Market/Finance
+    55|  'CNBC': 'market', 'MarketWatch': 'market', 'Yahoo Finance': 'market',
+    56|  'Financial Times': 'market',
+    57|
+    58|  // Tech
+    59|  'Hacker News': 'tech', 'Ars Technica': 'tech', 'The Verge': 'tech',
+    60|  'The Verge AI': 'tech', 'MIT Tech Review': 'tech', 'TechCrunch Layoffs': 'tech',
+    61|  'AI News': 'tech', 'ArXiv AI': 'tech', 'VentureBeat AI': 'tech',
+    62|  'Layoffs.fyi': 'tech', 'Layoffs News': 'tech',
+    63|
+    64|  // Regional Tech Startups
+    65|  'EU Startups': 'tech', 'Tech.eu': 'tech', 'Sifted (Europe)': 'tech',
+    66|  'The Next Web': 'tech', 'Tech in Asia': 'tech', 'e27 (SEA)': 'tech',
+    67|  'DealStreetAsia': 'tech', 'Pandaily (China)': 'tech', '36Kr English': 'tech',
+    68|  'TechNode (China)': 'tech', 'The Bridge (Japan)': 'tech', 'Nikkei Tech': 'tech',
+    69|  'Inc42 (India)': 'tech', 'YourStory': 'tech', 'TechCabal (Africa)': 'tech',
+    70|  'Wamda (MENA)': 'tech', 'Magnitt': 'tech',
+    71|
+    72|  // Think Tanks & Policy
+    73|  'Brookings Tech': 'intel', 'CSIS Tech': 'intel', 'Stanford HAI': 'intel',
+    74|  'AI Now Institute': 'intel', 'OECD Digital': 'intel', 'Bruegel (EU)': 'intel',
+    75|  'Chatham House Tech': 'intel', 'DigiChina': 'intel', 'Lowy Institute': 'intel',
+    76|  'EFF News': 'intel', 'Politico Tech': 'intel',
+    77|  // Security/Defense Think Tanks
+    78|  'RUSI': 'intel', 'Wilson Center': 'intel', 'GMF': 'intel',
+    79|  'Stimson Center': 'intel', 'CNAS': 'intel',
+    80|  // Nuclear & Arms Control
+    81|  'Arms Control Assn': 'intel', 'Bulletin of Atomic Scientists': 'intel',
+    82|  // Food Security & Regional
+    83|  'FAO GIEWS': 'gov', 'EU ISS': 'intel',
+    84|  // New verified think tanks
+    85|  'War on the Rocks': 'intel', 'AEI': 'intel', 'Responsible Statecraft': 'intel',
+    86|  'FPRI': 'intel', 'Jamestown': 'intel',
+    87|
+    88|  // Podcasts & Newsletters
+    89|  'Acquired Podcast': 'tech', 'All-In Podcast': 'tech', 'a16z Podcast': 'tech',
+    90|  'This Week in Startups': 'tech', 'The Twenty Minute VC': 'tech',
+    91|  'Hard Fork (NYT)': 'tech', 'Pivot (Vox)': 'tech', 'Stratechery': 'tech',
+    92|  'Benedict Evans': 'tech', 'How I Built This': 'tech', 'Masters of Scale': 'tech',
+    93|};
+    94|
+    95|export function getSourceType(sourceName: string): SourceType {
+    96|  return SOURCE_TYPES[sourceName] ?? 'other';
+    97|}
+    98|
+    99|// Propaganda risk assessment for sources (Quick Win #5)
+   100|// 'high' = State-controlled media, known to push government narratives
+   101|// 'medium' = State-affiliated or known editorial bias toward specific governments
+   102|// 'low' = Independent journalism with editorial standards
+   103|export type PropagandaRisk = 'low' | 'medium' | 'high';
+   104|
+   105|export interface SourceRiskProfile {
+   106|  risk: PropagandaRisk;
+   107|  stateAffiliated?: string;
+   108|  knownBiases?: string[];
+   109|  note?: string;
+   110|}
+   111|
+   112|export const SOURCE_PROPAGANDA_RISK: Record<string, SourceRiskProfile> = {
+   113|  // High risk - State-controlled media
+   114|  'Xinhua': { risk: 'high', stateAffiliated: 'China', note: 'Official CCP news agency' },
+   115|  'TASS': { risk: 'high', stateAffiliated: 'Russia', note: 'Russian state news agency' },
+   116|  'RT': { risk: 'high', stateAffiliated: 'Russia', note: 'Russian state media, banned in EU' },
+   117|  'RT Russia': { risk: 'high', stateAffiliated: 'Russia', note: 'Russian state media, Russia desk' },
+   118|  'Sputnik': { risk: 'high', stateAffiliated: 'Russia', note: 'Russian state media' },
+   119|  'CGTN': { risk: 'high', stateAffiliated: 'China', note: 'Chinese state broadcaster' },
+   120|  'Press TV': { risk: 'high', stateAffiliated: 'Iran', note: 'Iranian state media' },
+   121|  'IRNA': { risk: 'high', stateAffiliated: 'Iran', note: 'Iranian state news agency (Islamic Republic News Agency)' },
+   122|  'Mehr News': { risk: 'high', stateAffiliated: 'Iran', note: 'Iranian state-affiliated, Basij-linked' },
+   123|  'KCNA': { risk: 'high', stateAffiliated: 'North Korea', note: 'North Korean state media' },
+   124|
+   125|  // Medium risk - State-affiliated or known bias
+   126|  'Al Jazeera': { risk: 'medium', stateAffiliated: 'Qatar', note: 'Qatari state-funded, independent editorial' },
+   127|  'Al Arabiya': { risk: 'medium', stateAffiliated: 'Saudi Arabia', note: 'Saudi-owned, reflects Gulf perspective' },
+   128|  'TRT World': { risk: 'medium', stateAffiliated: 'Turkey', note: 'Turkish state broadcaster' },
+   129|  'France 24': { risk: 'medium', stateAffiliated: 'France', note: 'French state-funded, editorially independent' },
+   130|  'EuroNews': { risk: 'low', note: 'European public broadcaster consortium', knownBiases: ['Pro-EU'] },
+   131|  'Le Monde': { risk: 'low', note: 'French newspaper of record' },
+   132|  'DW News': { risk: 'medium', stateAffiliated: 'Germany', note: 'German state-funded, editorially independent' },
+   133|  'Voice of America': { risk: 'medium', stateAffiliated: 'USA', note: 'US government-funded' },
+   134|  'Kyiv Independent': { risk: 'medium', knownBiases: ['Pro-Ukraine'], note: 'Ukrainian perspective on Russia-Ukraine war' },
+   135|  'Moscow Times': { risk: 'medium', knownBiases: ['Anti-Kremlin'], note: 'Independent, critical of Russian government' },
+   136|
+   137|  // Low risk - Independent with editorial standards (explicit)
+   138|  'Jerusalem Post': { risk: 'low', knownBiases: ['Israeli centre-right'], note: 'English-language Israeli daily of record' },
+   139|  'Ynetnews': { risk: 'low', knownBiases: ['Israeli mainstream'], note: 'Yedioth Ahronoth English edition' },
+   140|  'Reuters': { risk: 'low', note: 'Wire service, strict editorial standards' },
+   141|  'AP News': { risk: 'low', note: 'Wire service, nonprofit cooperative' },
+   142|  'AFP': { risk: 'low', note: 'Wire service, editorially independent' },
+   143|  'BBC World': { risk: 'low', note: 'Public broadcaster, editorial independence charter' },
+   144|  'BBC Middle East': { risk: 'low', note: 'Public broadcaster, editorial independence charter' },
+   145|  'Guardian World': { risk: 'low', knownBiases: ['Center-left'], note: 'Scott Trust ownership, no shareholders' },
+   146|  'Financial Times': { risk: 'low', note: 'Business focus, Nikkei-owned' },
+   147|  'Bellingcat': { risk: 'low', note: 'Open-source investigations, methodology transparent' },
+   148|  'Brasil Paralelo': { risk: 'low', note: 'Independent media company: no political ties, no public funding, 100% subscriber-funded.' },
+   149|};
+   150|
+   151|export function getSourcePropagandaRisk(sourceName: string): SourceRiskProfile {
+   152|  return SOURCE_PROPAGANDA_RISK[sourceName] ?? { risk: 'low' };
+   153|}
+   154|
+   155|export function isStateAffiliatedSource(sourceName: string): boolean {
+   156|  const profile = SOURCE_PROPAGANDA_RISK[sourceName];
+   157|  return !!profile?.stateAffiliated;
+   158|}
+   159|
+   160|let _sourcePanelMap: Map<string, string> | null = null;
+   161|export function getSourcePanelId(sourceName: string): string {
+   162|  if (!_sourcePanelMap) {
+   163|    _sourcePanelMap = new Map();
+   164|    for (const [category, feeds] of Object.entries(FEEDS)) {
+   165|      for (const feed of feeds) _sourcePanelMap.set(feed.name, category);
+   166|    }
+   167|    for (const feed of INTEL_SOURCES) _sourcePanelMap.set(feed.name, 'intel');
+   168|  }
+   169|  return _sourcePanelMap.get(sourceName) ?? 'politics';
+   170|}
+   171|
+   172|const FULL_FEEDS: Record<string, Feed[]> = {
+   173|  politics: [
+   174|    { name: 'BBC World', url: rss('https://feeds.bbci.co.uk/news/world/rss.xml') },
+   175|    { name: 'Guardian World', url: rss('https://www.theguardian.com/world/rss') },
+   176|    { name: 'AP News', url: rss('https://news.google.com/rss/search?q=site:apnews.com&hl=en-US&gl=US&ceid=US:en') },
+   177|    { name: 'Reuters World', url: rss('https://news.google.com/rss/search?q=site:reuters.com+world&hl=en-US&gl=US&ceid=US:en') },
+   178|    { name: 'CNN World', url: rss('https://news.google.com/rss/search?q=site:cnn.com+world+news+when:1d&hl=en-US&gl=US&ceid=US:en') },
+   179|  ],
+   180|  us: [
+   181|    { name: 'Reuters US', url: rss('https://news.google.com/rss/search?q=site:reuters.com+US&hl=en-US&gl=US&ceid=US:en') },
+   182|    { name: 'NPR News', url: rss('https://feeds.npr.org/1001/rss.xml') },
+   183|    { name: 'PBS NewsHour', url: rss('https://www.pbs.org/newshour/feeds/rss/headlines') },
+   184|    { name: 'ABC News', url: rss('https://feeds.abcnews.com/abcnews/topstories') },
+   185|    { name: 'CBS News', url: rss('https://www.cbsnews.com/latest/rss/main') },
+   186|    { name: 'NBC News', url: rss('https://feeds.nbcnews.com/nbcnews/public/news') },
+   187|    { name: 'Wall Street Journal', url: rss('https://feeds.content.dowjones.io/public/rss/RSSUSnews') },
+   188|    { name: 'Politico', url: rss('https://rss.politico.com/politics-news.xml') },
+   189|    { name: 'The Hill', url: rss('https://thehill.com/news/feed') },
+   190|    { name: 'Axios', url: rss('https://api.axios.com/feed/') },
+   191|    { name: 'Fox News', url: rss('https://moxie.foxnews.com/google-publisher/us.xml') },
+   192|  ],
+   193|  europe: [
+   194|    {
+   195|      name: 'France 24',
+   196|      url: {
+   197|        en: rss('https://www.france24.com/en/rss'),
+   198|        fr: rss('https://www.france24.com/fr/rss'),
+   199|        es: rss('https://www.france24.com/es/rss'),
+   200|        ar: rss('https://www.france24.com/ar/rss')
+   201|      }
+   202|    },
+   203|    {
+   204|      name: 'EuroNews',
+   205|      url: {
+   206|        en: rss('https://www.euronews.com/rss?format=xml'),
+   207|        fr: rss('https://fr.euronews.com/rss?format=xml'),
+   208|        de: rss('https://de.euronews.com/rss?format=xml'),
+   209|        it: rss('https://it.euronews.com/rss?format=xml'),
+   210|        es: rss('https://es.euronews.com/rss?format=xml'),
+   211|        pt: rss('https://pt.euronews.com/rss?format=xml'),
+   212|        ru: rss('https://ru.euronews.com/rss?format=xml'),
+   213|        gr: rss('https://gr.euronews.com/rss?format=xml'),
+   214|      }
+   215|    },
+   216|    {
+   217|      name: 'Le Monde',
+   218|      url: {
+   219|        en: rss('https://www.lemonde.fr/en/rss/une.xml'),
+   220|        fr: rss('https://www.lemonde.fr/rss/une.xml')
+   221|      }
+   222|    },
+   223|    { name: 'DW News', url: { en: rss('https://rss.dw.com/xml/rss-en-all'), de: rss('https://rss.dw.com/xml/rss-de-all'), es: rss('https://news.google.com/rss/search?q=site:dw.com/es&hl=es-419&gl=MX&ceid=MX:es-419') } },
+   224|    // Spanish (ES)
+   225|    { name: 'El País', url: rss('https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada'), lang: 'es' },
+   226|    { name: 'El Mundo', url: rss('https://e00-elmundo.uecdn.es/elmundo/rss/portada.xml'), lang: 'es' },
+   227|    { name: 'BBC Mundo', url: rss('https://www.bbc.com/mundo/index.xml'), lang: 'es' },
+   228|    // German (DE)
+   229|    { name: 'Tagesschau', url: rss('https://www.tagesschau.de/xml/rss2/'), lang: 'de' },
+   230|    { name: 'Bild', url: rss('https://www.bild.de/feed/alles.xml'), lang: 'de' },
+   231|    { name: 'Der Spiegel', url: rss('https://www.spiegel.de/schlagzeilen/tops/index.rss'), lang: 'de' },
+   232|    { name: 'Die Zeit', url: rss('https://newsfeed.zeit.de/index'), lang: 'de' },
+   233|    // Italian (IT)
+   234|    { name: 'ANSA', url: rss('https://www.ansa.it/sito/notizie/topnews/topnews_rss.xml'), lang: 'it' },
+   235|    { name: 'Corriere della Sera', url: rss('https://www.corriere.it/rss/homepage.xml'), lang: 'it' },
+   236|    { name: 'Repubblica', url: rss('https://www.repubblica.it/rss/homepage/rss2.0.xml'), lang: 'it' },
+   237|    // Dutch (NL)
+   238|    { name: 'NOS Nieuws', url: rss('https://feeds.nos.nl/nosnieuwsalgemeen'), lang: 'nl' },
+   239|    { name: 'NRC', url: rss('https://www.nrc.nl/rss/'), lang: 'nl' },
+   240|    { name: 'De Telegraaf', url: rss('https://news.google.com/rss/search?q=site:telegraaf.nl+when:1d&hl=nl&gl=NL&ceid=NL:nl'), lang: 'nl' },
+   241|    // Swedish (SV)
+   242|    { name: 'SVT Nyheter', url: rss('https://www.svt.se/nyheter/rss.xml'), lang: 'sv' },
+   243|    { name: 'Dagens Nyheter', url: rss('https://www.dn.se/rss/'), lang: 'sv' },
+   244|    { name: 'Svenska Dagbladet', url: rss('https://www.svd.se/feed/articles.rss'), lang: 'sv' },
+   245|    // Turkish (TR)
+   246|    { name: 'BBC Turkce', url: rss('https://feeds.bbci.co.uk/turkce/rss.xml'), lang: 'tr' },
+   247|    { name: 'DW Turkish', url: rss('https://rss.dw.com/xml/rss-tur-all'), lang: 'tr' },
+   248|    { name: 'Hurriyet', url: rss('https://www.hurriyet.com.tr/rss/anasayfa'), lang: 'tr' },
+   249|    // Polish (PL)
+   250|    { name: 'TVN24', url: rss('https://tvn24.pl/swiat.xml'), lang: 'pl' },
+   251|    { name: 'Polsat News', url: rss('https://www.polsatnews.pl/rss/wszystkie.xml'), lang: 'pl' },
+   252|    { name: 'Rzeczpospolita', url: rss('https://www.rp.pl/rss_main'), lang: 'pl' },
+   253|    // Greek (EL)
+   254|    { name: 'Kathimerini', url: rss('https://news.google.com/rss/search?q=site:kathimerini.gr+when:2d&hl=el&gl=GR&ceid=GR:el'), lang: 'el' },
+   255|    { name: 'Naftemporiki', url: rss('https://www.naftemporiki.gr/feed/'), lang: 'el' },
+   256|    { name: 'in.gr', url: rss('https://www.in.gr/feed/'), lang: 'el' },
+   257|    { name: 'iefimerida', url: rss('https://www.iefimerida.gr/rss.xml'), lang: 'el' },
+   258|    { name: 'Proto Thema', url: rss('https://news.google.com/rss/search?q=site:protothema.gr+when:2d&hl=el&gl=GR&ceid=GR:el'), lang: 'el' },
+   259|    // Russia & Ukraine (independent sources)
+   260|    { name: 'BBC Russian', url: rss('https://feeds.bbci.co.uk/russian/rss.xml'), lang: 'ru' },
+   261|    { name: 'Meduza', url: rss('https://meduza.io/rss/all'), lang: 'ru' },
+   262|    { name: 'Novaya Gazeta Europe', url: rss('https://novayagazeta.eu/feed/rss'), lang: 'ru' },
+   263|
+   264|
+   265|
+   266|
+   267|
+   268|  ],
+   269|  middleeast: [
+   270|    { name: 'BBC Middle East', url: rss('https://feeds.bbci.co.uk/news/world/middle_east/rss.xml') },
+   271|    { name: 'Al Jazeera', url: { en: rss('https://www.aljazeera.com/xml/rss/all.xml'), ar: rss('https://www.aljazeera.net/aljazeerarss/a7c186be-1adb-4b11-a982-4783e765316e/4e17ecdc-8fb9-40de-a5d6-d00f72384a51') } },
+   272|    // AlArabiya EN blocks cloud IPs — Google News fallback; AR RSS is direct
+   273|    { name: 'Al Arabiya', url: { en: rss('https://news.google.com/rss/search?q=site:english.alarabiya.net+when:2d&hl=en-US&gl=US&ceid=US:en'), ar: rss('https://www.alarabiya.net/tools/mrss/?cat=main') } },
+   274|    // Arab News and Times of Israel removed — 403 from cloud IPs
+   275|    { name: 'Guardian ME', url: rss('https://www.theguardian.com/world/middleeast/rss') },
+   276|    { name: 'BBC Persian', url: rss('http://feeds.bbci.co.uk/persian/tv-and-radio-37434376/rss.xml') },
+   277|    { name: 'Iran International', url: rss('https://news.google.com/rss/search?q=site:iranintl.com+when:2d&hl=en-US&gl=US&ceid=US:en') },
+   278|
+   279|
+   280|
+   281|
+   282|
+   283|
+   284|    { name: 'Arab News', url: rss('https://news.google.com/rss/search?q=site:arabnews.com+when:7d&hl=en-US&gl=US&ceid=US:en') },
+   285|    { name: 'The National', url: rss('https://news.google.com/rss/search?q=site:thenationalnews.com+when:2d&hl=en-US&gl=US&ceid=US:en') },
+   286|    { name: 'Oman Observer', url: rss('https://www.omanobserver.om/rssFeed/1') },
+   287|    { name: 'Asharq Business', url: rss('https://asharqbusiness.com/rss.xml') },
+   288|    { name: 'Asharq News', url: rss('https://asharq.com/snapchat/rss.xml'), lang: 'ar' },
+   289|
+   290|  ],
+   291|  tech: [
+   292|    { name: 'Hacker News', url: rss('https://hnrss.org/frontpage') },
+   293|    { name: 'Ars Technica', url: rss('https://feeds.arstechnica.com/arstechnica/technology-lab') },
+   294|    { name: 'The Verge', url: rss('https://www.theverge.com/rss/index.xml') },
+   295|    { name: 'MIT Tech Review', url: rss('https://www.technologyreview.com/feed/') },
+   296|  ],
+   297|  ai: [
+   298|    { name: 'AI News', url: rss('https://news.google.com/rss/search?q=(OpenAI+OR+Anthropic+OR+Google+AI+OR+"large+language+model"+OR+ChatGPT)+when:2d&hl=en-US&gl=US&ceid=US:en') },
+   299|    { name: 'VentureBeat AI', url: rss('https://venturebeat.com/category/ai/feed/') },
+   300|    { name: 'The Verge AI', url: rss('https://www.theverge.com/rss/ai-artificial-intelligence/index.xml') },
+   301|    { name: 'MIT Tech Review', url: rss('https://www.technologyreview.com/topic/artificial-intelligence/feed') },
+   302|    { name: 'ArXiv AI', url: rss('https://export.arxiv.org/rss/cs.AI') },
+   303|  ],
+   304|  finance: [
+   305|    { name: 'CNBC', url: rss('https://www.cnbc.com/id/100003114/device/rss/rss.html') },
+   306|    { name: 'MarketWatch', url: rss('https://news.google.com/rss/search?q=site:marketwatch.com+markets+when:1d&hl=en-US&gl=US&ceid=US:en') },
+   307|    { name: 'Yahoo Finance', url: rss('https://finance.yahoo.com/news/rssindex') },
+   308|    { name: 'Financial Times', url: rss('https://www.ft.com/rss/home') },
+   309|    { name: 'Reuters Business', url: rss('https://news.google.com/rss/search?q=site:reuters.com+business+markets&hl=en-US&gl=US&ceid=US:en') },
+   310|  ],
+   311|  gov: [
+   312|    { name: 'White House', url: rss('https://news.google.com/rss/search?q=site:whitehouse.gov&hl=en-US&gl=US&ceid=US:en') },
+   313|    { name: 'State Dept', url: rss('https://news.google.com/rss/search?q=site:state.gov+OR+"State+Department"&hl=en-US&gl=US&ceid=US:en') },
+   314|    { name: 'Pentagon', url: rss('https://news.google.com/rss/search?q=site:defense.gov+OR+Pentagon&hl=en-US&gl=US&ceid=US:en') },
+   315|    { name: 'Treasury', url: rss('https://news.google.com/rss/search?q=site:treasury.gov+OR+"Treasury+Department"&hl=en-US&gl=US&ceid=US:en') },
+   316|    { name: 'DOJ', url: rss('https://news.google.com/rss/search?q=site:justice.gov+OR+"Justice+Department"+DOJ&hl=en-US&gl=US&ceid=US:en') },
+   317|    { name: 'Federal Reserve', url: rss('https://www.federalreserve.gov/feeds/press_all.xml') },
+   318|    { name: 'SEC', url: rss('https://www.sec.gov/news/pressreleases.rss') },
+   319|    { name: 'CDC', url: rss('https://news.google.com/rss/search?q=site:cdc.gov+OR+CDC+health&hl=en-US&gl=US&ceid=US:en') },
+   320|    { name: 'FEMA', url: rss('https://news.google.com/rss/search?q=site:fema.gov+OR+FEMA+emergency&hl=en-US&gl=US&ceid=US:en') },
+   321|    { name: 'DHS', url: rss('https://news.google.com/rss/search?q=site:dhs.gov+OR+"Homeland+Security"&hl=en-US&gl=US&ceid=US:en') },
+   322|    { name: 'UN News', url: railwayRss('https://news.un.org/feed/subscribe/en/news/all/rss.xml') },
+   323|    { name: 'CISA', url: railwayRss('https://www.cisa.gov/cybersecurity-advisories/all.xml') },
+   324|  ],
+   325|  layoffs: [
+   326|    { name: 'Layoffs.fyi', url: rss('https://news.google.com/rss/search?q=tech+company+layoffs+announced&hl=en&gl=US&ceid=US:en') },
+   327|    { name: 'TechCrunch Layoffs', url: rss('https://techcrunch.com/tag/layoffs/feed/') },
+   328|    { name: 'Layoffs News', url: rss('https://news.google.com/rss/search?q=(layoffs+OR+"job+cuts"+OR+"workforce+reduction")+when:3d&hl=en-US&gl=US&ceid=US:en') },
+   329|  ],
+   330|  thinktanks: [
+   331|    { name: 'Foreign Policy', url: rss('https://foreignpolicy.com/feed/') },
+   332|    { name: 'Atlantic Council', url: railwayRss('https://www.atlanticcouncil.org/feed/') },
+   333|    { name: 'Foreign Affairs', url: rss('https://www.foreignaffairs.com/rss.xml') },
+   334|    { name: 'CSIS', url: rss('https://news.google.com/rss/search?q=site:csis.org+when:7d&hl=en-US&gl=US&ceid=US:en') },
+   335|    { name: 'RAND', url: rss('https://www.rand.org/pubs/articles.xml') },
+   336|    { name: 'Brookings', url: rss('https://news.google.com/rss/search?q=site:brookings.edu+when:7d&hl=en-US&gl=US&ceid=US:en') },
+   337|    { name: 'Carnegie', url: rss('https://news.google.com/rss/search?q=site:carnegieendowment.org+when:7d&hl=en-US&gl=US&ceid=US:en') },
+   338|    // New verified think tank feeds
+   339|    // War on the Rocks - Defense and national security analysis
+   340|
+   341|    // Responsible Statecraft - Foreign policy analysis (Quincy Institute)
+   342|    { name: 'Responsible Statecraft', url: rss('https://responsiblestatecraft.org/feed/') },
+   343|    // RUSI - Royal United Services Institute (UK defense & security)
+   344|
+   345|    // FPRI - Foreign Policy Research Institute (US foreign policy)
+   346|
+   347|    // Jamestown Foundation - Eurasia/China/Terrorism analysis
+   348|
+   349|  ],
+   350|  crisis: [
+   351|    { name: 'CrisisWatch', url: rss('https://www.crisisgroup.org/rss') },
+   352|    { name: 'IAEA', url: rss('https://www.iaea.org/feeds/topnews') },
+   353|    { name: 'WHO', url: rss('https://www.who.int/rss-feeds/news-english.xml') },
+   354|    { name: 'UNHCR', url: rss('https://news.google.com/rss/search?q=site:unhcr.org+OR+UNHCR+refugees+when:3d&hl=en-US&gl=US&ceid=US:en') },
+   355|  ],
+   356|  africa: [
+   357|    { name: 'Africa News', url: rss('https://news.google.com/rss/search?q=(Africa+OR+Nigeria+OR+Kenya+OR+"South+Africa"+OR+Ethiopia)+when:2d&hl=en-US&gl=US&ceid=US:en') },
+   358|
+   359|    { name: 'News24', url: rss('https://feeds.news24.com/articles/news24/TopStories/rss') },
+   360|    { name: 'BBC Africa', url: rss('https://feeds.bbci.co.uk/news/world/africa/rss.xml') },
+   361|    { name: 'Jeune Afrique', url: rss('https://www.jeuneafrique.com/feed/'), lang: 'fr' },
+   362|    { name: 'Africanews', url: { en: rss('https://www.africanews.com/feed/rss'), fr: rss('https://fr.africanews.com/feed/rss') } },
+   363|    { name: 'BBC Afrique', url: rss('https://www.bbc.com/afrique/index.xml'), lang: 'fr' },
+   364|    // Nigeria
+   365|    { name: 'Premium Times', url: rss('https://www.premiumtimesng.com/feed') },
+   366|    { name: 'Vanguard Nigeria', url: rss('https://www.vanguardngr.com/feed/') },
+   367|    { name: 'Channels TV', url: rss('https://www.channelstv.com/feed/') },
+   368|    { name: 'Daily Trust', url: rss('https://dailytrust.com/feed/') },
+   369|    { name: 'ThisDay', url: rss('https://www.thisdaylive.com/feed') },
+   370|  ],
+   371|  latam: [
+   372|    { name: 'Latin America', url: rss('https://news.google.com/rss/search?q=(Brazil+OR+Mexico+OR+Argentina+OR+Venezuela+OR+Colombia)+when:2d&hl=en-US&gl=US&ceid=US:en') },
+   373|    { name: 'BBC Latin America', url: rss('https://feeds.bbci.co.uk/news/world/latin_america/rss.xml') },
+   374|    { name: 'Reuters LatAm', url: rss('https://news.google.com/rss/search?q=site:reuters.com+(Brazil+OR+Mexico+OR+Argentina)+when:3d&hl=en-US&gl=US&ceid=US:en') },
+   375|    { name: 'Guardian Americas', url: rss('https://www.theguardian.com/world/americas/rss') },
+   376|    // Localized Feeds
+   377|    { name: 'Clarín', url: rss('https://www.clarin.com/rss/lo-ultimo/'), lang: 'es' },
+   378|    { name: 'O Globo', url: rss('https://news.google.com/rss/search?q=site:oglobo.globo.com+when:1d&hl=pt-BR&gl=BR&ceid=BR:pt-419'), lang: 'pt' },
+   379|    { name: 'Folha de S.Paulo', url: rss('https://feeds.folha.uol.com.br/emcimadahora/rss091.xml'), lang: 'pt' },
+   380|    { name: 'Brasil Paralelo', url: rss('https://www.brasilparalelo.com.br/noticias/rss.xml'), lang: 'pt' },
+   381|    { name: 'El Tiempo', url: rss('https://www.eltiempo.com/rss/mundo_latinoamerica.xml'), lang: 'es' },
+   382|    { name: 'La Silla Vacía', url: rss('https://www.lasillavacia.com/rss') },
+   383|    { name: 'Primicias', url: rss('https://www.primicias.ec/feed/'), lang: 'es' },
+   384|    { name: 'Infobae Americas', url: rss('https://www.infobae.com/arc/outboundfeeds/rss/'), lang: 'es' },
+   385|    { name: 'El Universo', url: rss('https://www.eluniverso.com/arc/outboundfeeds/rss/category/noticias/?outputType=xml'), lang: 'es' },
+   386|    // Mexico
+   387|    { name: 'Mexico News Daily', url: rss('https://mexiconewsdaily.com/feed/') },
+   388|
+   389|    { name: 'AP Mexico', url: rss('https://news.google.com/rss/search?q=site:apnews.com+Mexico+when:3d&hl=en-US&gl=US&ceid=US:en') },
+   390|    // LatAm Security
+   391|
+   392|    { name: 'France 24 LatAm', url: rss('https://www.france24.com/en/americas/rss') },
+   393|  ],
+   394|  asia: [
+   395|    { name: 'Asia News', url: rss('https://news.google.com/rss/search?q=(China+OR+Japan+OR+Korea+OR+India+OR+ASEAN)+when:2d&hl=en-US&gl=US&ceid=US:en') },
+   396|    { name: 'BBC Asia', url: rss('https://feeds.bbci.co.uk/news/world/asia/rss.xml') },
+   397|    { name: 'The Diplomat', url: rss('https://thediplomat.com/feed/') },
+   398|    { name: 'South China Morning Post', url: railwayRss('https://www.scmp.com/rss/91/feed/') },
+   399|    { name: 'Reuters Asia', url: rss('https://news.google.com/rss/search?q=site:reuters.com+(China+OR+Japan+OR+Taiwan+OR+Korea)+when:3d&hl=en-US&gl=US&ceid=US:en') },
+   400|    { name: 'Xinhua', url: rss('https://news.google.com/rss/search?q=site:xinhuanet.com+OR+Xinhua+when:1d&hl=en-US&gl=US&ceid=US:en') },
+   401|    { name: 'Japan Today', url: rss('https://japantoday.com/feed/atom') },
+   402|    { name: 'Nikkei Asia', url: rss('https://news.google.com/rss/search?q=site:asia.nikkei.com+when:3d&hl=en-US&gl=US&ceid=US:en') },
+   403|    { name: 'Asahi Shimbun', url: rss('https://www.asahi.com/rss/asahi/newsheadlines.rdf'), lang: 'ja' },
+   404|    { name: 'The Hindu', url: rss('https://www.thehindu.com/news/national/feeder/default.rss'), lang: 'en' },
+   405|    { name: 'Indian Express', url: rss('https://indianexpress.com/section/india/feed/') },
+   406|    { name: 'NDTV', url: rss('https://feeds.feedburner.com/ndtvnews-top-stories') },
+   407|    { name: 'India News Network', url: rss('https://news.google.com/rss/search?q=India+diplomacy+foreign+policy+news&hl=en&gl=US&ceid=US:en') },
+   408|    { name: 'CNA', url: rss('https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml') },
+   409|    { name: 'MIIT (China)', url: rss('https://news.google.com/rss/search?q=site:miit.gov.cn+when:7d&hl=zh-CN&gl=CN&ceid=CN:zh-Hans'), lang: 'zh' },
+   410|    { name: 'MOFCOM (China)', url: rss('https://news.google.com/rss/search?q=site:mofcom.gov.cn+when:7d&hl=zh-CN&gl=CN&ceid=CN:zh-Hans'), lang: 'zh' },
+   411|    // Thailand
+   412|    { name: 'Bangkok Post', url: rss('https://news.google.com/rss/search?q=site:bangkokpost.com+when:1d&hl=en-US&gl=US&ceid=US:en'), lang: 'th' },
+   413|    { name: 'Thai PBS', url: rss('https://news.google.com/rss/search?q=Thai+PBS+World+news&hl=en&gl=US&ceid=US:en'), lang: 'th' },
+   414|    // Vietnam
+   415|    { name: 'VnExpress', url: rss('https://vnexpress.net/rss/tin-moi-nhat.rss'), lang: 'vi' },
+   416|    { name: 'Tuoi Tre News', url: rss('https://tuoitrenews.vn/rss'), lang: 'vi' },
+   417|    // Korea
+   418|    { name: 'Yonhap News', url: rss('https://www.yonhapnewstv.co.kr/browse/feed/'), lang: 'ko' },
+   419|    { name: 'Chosun Ilbo', url: rss('https://www.chosun.com/arc/outboundfeeds/rss/?outputType=xml'), lang: 'ko' },
+   420|    // Australia
+   421|    { name: 'ABC News Australia', url: rss('https://www.abc.net.au/news/feed/2942460/rss.xml') },
+   422|    { name: 'Guardian Australia', url: rss('https://www.theguardian.com/australia-news/rss') },
+   423|    // Pacific Islands
+   424|    { name: 'Island Times (Palau)', url: rss('https://islandtimes.org/feed/') },
+   425|  ],
+   426|  energy: [
+   427|    { name: 'Oil & Gas', url: rss('https://news.google.com/rss/search?q=(oil+price+OR+OPEC+OR+"natural+gas"+OR+pipeline+OR+LNG)+when:2d&hl=en-US&gl=US&ceid=US:en') },
+   428|    { name: 'Nuclear Energy', url: rss('https://news.google.com/rss/search?q=("nuclear+energy"+OR+"nuclear+power"+OR+uranium+OR+IAEA)+when:3d&hl=en-US&gl=US&ceid=US:en') },
+   429|    { name: 'Reuters Energy', url: rss('https://news.google.com/rss/search?q=site:reuters.com+(oil+OR+gas+OR+energy+OR+OPEC)+when:3d&hl=en-US&gl=US&ceid=US:en') },
+   430|    { name: 'Mining & Resources', url: rss('https://news.google.com/rss/search?q=(lithium+OR+"rare+earth"+OR+cobalt+OR+mining)+when:3d&hl=en-US&gl=US&ceid=US:en') },
+   431|  ],
+   432|};
+   433|
+   434|// Tech/AI variant feeds
+   435|const TECH_FEEDS: Record<string, Feed[]> = {
+   436|  tech: [
+   437|    { name: 'TechCrunch', url: rss('https://techcrunch.com/feed/') },
+   438|    { name: 'The Verge', url: rss('https://www.theverge.com/rss/index.xml') },
+   439|    { name: 'Ars Technica', url: rss('https://feeds.arstechnica.com/arstechnica/technology-lab') },
+   440|    { name: 'Hacker News', url: rss('https://hnrss.org/frontpage') },
+   441|    { name: 'MIT Tech Review', url: rss('https://www.technologyreview.com/feed/') },
+   442|    { name: 'ZDNet', url: rss('https://www.zdnet.com/news/rss.xml') },
+   443|    { name: 'TechMeme', url: rss('https://www.techmeme.com/feed.xml') },
+   444|    { name: 'Engadget', url: rss('https://www.engadget.com/rss.xml') },
+   445|    { name: 'Fast Company', url: rss('https://feeds.feedburner.com/fastcompany/headlines') },
+   446|  ],
+   447|  ai: [
+   448|    { name: 'AI News', url: rss('https://news.google.com/rss/search?q=(OpenAI+OR+Anthropic+OR+Google+AI+OR+"large+language+model"+OR+ChatGPT+OR+Claude+OR+"AI+model")+when:2d&hl=en-US&gl=US&ceid=US:en') },
+   449|    { name: 'VentureBeat AI', url: rss('https://venturebeat.com/category/ai/feed/') },
+   450|    { name: 'The Verge AI', url: rss('https://www.theverge.com/rss/ai-artificial-intelligence/index.xml') },
+   451|    { name: 'MIT Tech Review AI', url: rss('https://www.technologyreview.com/topic/artificial-intelligence/feed') },
+   452|    { name: 'MIT Research', url: rss('https://news.mit.edu/rss/research') },
+   453|    { name: 'ArXiv AI', url: rss('https://export.arxiv.org/rss/cs.AI') },
+   454|    { name: 'ArXiv ML', url: rss('https://export.arxiv.org/rss/cs.LG') },
+   455|    { name: 'AI Weekly', url: rss('https://news.google.com/rss/search?q="artificial+intelligence"+OR+"machine+learning"+when:3d&hl=en-US&gl=US&ceid=US:en') },
+   456|    { name: 'Anthropic News', url: rss('https://news.google.com/rss/search?q=Anthropic+Claude+AI+when:7d&hl=en-US&gl=US&ceid=US:en') },
+   457|    { name: 'OpenAI News', url: rss('https://news.google.com/rss/search?q=OpenAI+ChatGPT+GPT-4+when:7d&hl=en-US&gl=US&ceid=US:en') },
+   458|  ],
+   459|  startups: [
+   460|    { name: 'TechCrunch Startups', url: rss('https://techcrunch.com/category/startups/feed/') },
+   461|    { name: 'VentureBeat', url: rss('https://venturebeat.com/feed/') },
+   462|    { name: 'Crunchbase News', url: rss('https://news.crunchbase.com/feed/') },
+   463|    { name: 'SaaStr', url: rss('https://www.saastr.com/feed/') },
+   464|    { name: 'AngelList News', url: rss('https://news.google.com/rss/search?q=site:angellist.com+OR+"AngelList"+funding+when:7d&hl=en-US&gl=US&ceid=US:en') },
+   465|    { name: 'TechCrunch Venture', url: rss('https://techcrunch.com/category/venture/feed/') },
+   466|    { name: 'The Information', url: rss('https://news.google.com/rss/search?q=site:theinformation.com+startup+OR+funding+when:3d&hl=en-US&gl=US&ceid=US:en') },
+   467|    { name: 'Fortune Term Sheet', url: rss('https://news.google.com/rss/search?q="Term+Sheet"+venture+capital+OR+startup+when:7d&hl=en-US&gl=US&ceid=US:en') },
+   468|    { name: 'PitchBook News', url: rss('https://news.google.com/rss/search?q=site:pitchbook.com+when:7d&hl=en-US&gl=US&ceid=US:en') },
+   469|    { name: 'CB Insights', url: rss('https://www.cbinsights.com/research/feed/') },
+   470|  ],
+   471|  vcblogs: [
+   472|    { name: 'Y Combinator Blog', url: rss('https://www.ycombinator.com/blog/rss/') },
+   473|    { name: 'a16z Blog', url: rss('https://news.google.com/rss/search?q=site:a16z.com+OR+"Andreessen+Horowitz"+blog+when:14d&hl=en-US&gl=US&ceid=US:en') },
+   474|    { name: 'Sequoia Blog', url: rss('https://news.google.com/rss/search?q=site:sequoiacap.com+when:7d&hl=en-US&gl=US&ceid=US:en') },
+   475|    { name: 'Paul Graham Essays', url: rss('https://news.google.com/rss/search?q="Paul+Graham"+essay+OR+blog+when:30d&hl=en-US&gl=US&ceid=US:en') },
+   476|    { name: 'VC Insights', url: rss('https://news.google.com/rss/search?q=("venture+capital"+insights+OR+"VC+trends"+OR+"startup+advice")+when:7d&hl=en-US&gl=US&ceid=US:en') },
+   477|    { name: 'Lenny\'s Newsletter', url: rss('https://www.lennysnewsletter.com/feed') },
+   478|    { name: 'Stratechery', url: rss('https://stratechery.com/feed/') },
+   479|    { name: 'FwdStart Newsletter', url: '/api/fwdstart' },
+   480|  ],
+   481|  regionalStartups: [
+   482|    // Europe
+   483|    { name: 'EU Startups', url: rss('https://news.google.com/rss/search?q=site:eu-startups.com+when:7d&hl=en-US&gl=US&ceid=US:en') },
+   484|    { name: 'Tech.eu', url: rss('https://tech.eu/feed/') },
+   485|    { name: 'Sifted (Europe)', url: rss('https://sifted.eu/feed') },
+   486|    { name: 'The Next Web', url: rss('https://news.google.com/rss/search?q=site:thenextweb.com+when:7d&hl=en-US&gl=US&ceid=US:en') },
+   487|    // Asia - General
+   488|    { name: 'Tech in Asia', url: rss('https://news.google.com/rss/search?q=site:techinasia.com+when:7d&hl=en-US&gl=US&ceid=US:en') },
+   489|    { name: 'KrASIA', url: rss('https://news.google.com/rss/search?q=site:kr-asia.com+OR+KrASIA+when:7d&hl=en-US&gl=US&ceid=US:en') },
+   490|    { name: 'SEA Startups', url: rss('https://news.google.com/rss/search?q=(Singapore+OR+Indonesia+OR+Vietnam+OR+Thailand+OR+Malaysia)+startup+funding+when:7d&hl=en-US&gl=US&ceid=US:en') },
+   491|    { name: 'Asia VC News', url: rss('https://news.google.com/rss/search?q=("Southeast+Asia"+OR+ASEAN)+venture+capital+OR+funding+when:7d&hl=en-US&gl=US&ceid=US:en') },
+   492|    // China
+   493|    { name: 'China Startups', url: rss('https://news.google.com/rss/search?q=China+startup+funding+OR+"Chinese+startup"+when:7d&hl=en-US&gl=US&ceid=US:en') },
+   494|    { name: '36Kr English', url: rss('https://news.google.com/rss/search?q=site:36kr.com+OR+"36Kr"+startup+china+when:7d&hl=en-US&gl=US&ceid=US:en') },
+   495|    { name: 'China Tech Giants', url: rss('https://news.google.com/rss/search?q=(Alibaba+OR+Tencent+OR+ByteDance+OR+Baidu+OR+JD.com+OR+Xiaomi+OR+Huawei)+when:3d&hl=en-US&gl=US&ceid=US:en') },
+   496|    // Japan
+   497|    { name: 'Japan Startups', url: rss('https://news.google.com/rss/search?q=Japan+startup+funding+OR+"Japanese+startup"+when:7d&hl=en-US&gl=US&ceid=US:en') },
+   498|    { name: 'Japan Tech News', url: rss('https://news.google.com/rss/search?q=(Japan+startup+OR+Japan+tech+OR+SoftBank+OR+Rakuten+OR+Sony)+funding+when:7d&hl=en-US&gl=US&ceid=US:en') },
+   499|    { name: 'Nikkei Tech', url: rss('https://news.google.com/rss/search?q=site:asia.nikkei.com+technology+when:3d&hl=en-US&gl=US&ceid=US:en') },
+   500|    // Korea
+   501|

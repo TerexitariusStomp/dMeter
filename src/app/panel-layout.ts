@@ -10,7 +10,6 @@ import {
   NewsPanel,
   MarketPanel,
   StockAnalysisPanel,
-  StockBacktestPanel,
   HeatmapPanel,
   CommoditiesPanel,
   CryptoPanel,
@@ -22,15 +21,9 @@ import {
   MonitorPanel,
   LatestBriefPanel,
   EconomicPanel,
-  ConsumerPricesPanel,
   EnergyComplexPanel,
   OilInventoriesPanel,
   GdeltIntelPanel,
-  LiveNewsPanel,
-  getDefaultLiveChannels,
-  loadChannelsFromStorage,
-  LiveWebcamsPanel,
-  PinnedWebcamsPanel,
   CIIPanel,
   CascadePanel,
   StrategicRiskPanel,
@@ -40,7 +33,6 @@ import {
   InternetDisruptionsPanel,
   RuntimeConfigPanel,
   InsightsPanel,
-  MacroSignalsPanel,
   FearGreedPanel,
   MarketBreadthPanel,
   ETFFlowsPanel,
@@ -66,14 +58,12 @@ import {
   DefensePatentsPanel,
   HormuzPanel,
   MacroTilesPanel,
-  FSIPanel,
   YieldCurvePanel,
   EarningsCalendarPanel,
   EconomicCalendarPanel,
   CotPositioningPanel,
   LiquidityShiftsPanel,
   PositioningPanel,
-  GoldIntelligencePanel,
   DiseaseOutbreaksPanel,
   SocialVelocityPanel,
   WsbTickerScannerPanel,
@@ -239,7 +229,6 @@ export class PanelLayoutManager implements AppModule {
     this.unsubscribeAuth = subscribeAuthState((state) => {
       this.updatePanelGating(state);
     });
-    this.fetchGitHubStars();
 
     // Handle analyst action chip "Create chart widget →" click
     this.boundWidgetCreatorHandler = ((e: CustomEvent<{ initialMessage?: string }>) => {
@@ -354,27 +343,12 @@ export class PanelLayoutManager implements AppModule {
       case PanelGateReason.ANONYMOUS:
         return () => this.ctx.authModal?.open();
       case PanelGateReason.FREE_TIER:
-        return () => window.open('https://worldmonitor.app/pro', '_blank');
+        return () => window.open('https://dmeter.templeearth.cc/pro', '_blank');
       default:
         return () => {};
     }
   }
 
-  private async fetchGitHubStars(): Promise<void> {
-    try {
-      const response = await fetch('https://api.github.com/repos/koala73/worldmonitor');
-      if (!response.ok) return;
-      const data = await response.json();
-      const starsEl = document.getElementById('githubStars');
-      if (starsEl) {
-        const count = data.stargazers_count;
-        const k = Math.round(count / 1000);
-        starsEl.textContent = `${k}k`;
-      }
-    } catch (e) {
-      // ignore errors
-    }
-  }
 
   renderLayout(): void {
     this.ctx.container.innerHTML = `
@@ -390,7 +364,7 @@ export class PanelLayoutManager implements AppModule {
         const vHref = (v: string, prod: string) => local || SITE_VARIANT === v ? '#' : prod;
         const vTarget = (v: string) => !local && SITE_VARIANT !== v && inIframe ? 'target="_blank" rel="noopener"' : '';
         return `
-            <a href="${vHref('full', 'https://worldmonitor.app')}"
+            <a href="${vHref('full', 'https://dmeter.templeearth.cc')}"
                class="variant-option ${SITE_VARIANT === 'full' ? 'active' : ''}"
                data-variant="full"
                ${vTarget('full')}
@@ -399,7 +373,7 @@ export class PanelLayoutManager implements AppModule {
               <span class="variant-label">${t('header.world')}</span>
             </a>
             <span class="variant-divider"></span>
-            <a href="${vHref('tech', 'https://tech.worldmonitor.app')}"
+            <a href="${vHref('tech', 'https://tech.templeearth.cc')}"
                class="variant-option ${SITE_VARIANT === 'tech' ? 'active' : ''}"
                data-variant="tech"
                ${vTarget('tech')}
@@ -408,7 +382,7 @@ export class PanelLayoutManager implements AppModule {
               <span class="variant-label">${t('header.tech')}</span>
             </a>
             <span class="variant-divider"></span>
-            <a href="${vHref('finance', 'https://finance.worldmonitor.app')}"
+            <a href="${vHref('finance', 'https://finance.templeearth.cc')}"
                class="variant-option ${SITE_VARIANT === 'finance' ? 'active' : ''}"
                data-variant="finance"
                ${vTarget('finance')}
@@ -417,7 +391,7 @@ export class PanelLayoutManager implements AppModule {
               <span class="variant-label">${t('header.finance')}</span>
             </a>
             <span class="variant-divider"></span>
-            <a href="${vHref('commodity', 'https://commodity.worldmonitor.app')}"
+            <a href="${vHref('commodity', 'https://commodity.templeearth.cc')}"
                class="variant-option ${SITE_VARIANT === 'commodity' ? 'active' : ''}"
                data-variant="commodity"
                ${vTarget('commodity')}
@@ -426,7 +400,7 @@ export class PanelLayoutManager implements AppModule {
               <span class="variant-label">${t('header.commodity')}</span>
             </a>
             <span class="variant-divider"></span>
-            <a href="${vHref('happy', 'https://happy.worldmonitor.app')}"
+            <a href="${vHref('happy', 'https://happy.templeearth.cc')}"
                class="variant-option ${SITE_VARIANT === 'happy' ? 'active' : ''}"
                data-variant="happy"
                ${vTarget('happy')}
@@ -435,14 +409,9 @@ export class PanelLayoutManager implements AppModule {
               <span class="variant-label">Good News</span>
             </a>`;
       })()}</div>
-          <span class="logo">MONITOR</span><span class="logo-mobile">World Monitor</span><span class="version">v${__APP_VERSION__}</span>${BETA_MODE ? '<span class="beta-badge">BETA</span>' : ''}
-          <a href="https://x.com/eliehabib" target="_blank" rel="noopener" class="credit-link">
-            <svg class="x-logo" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-            <span class="credit-text">@eliehabib</span>
-          </a>
-          <a href="https://github.com/koala73/worldmonitor" target="_blank" rel="noopener" class="github-link" title="${t('header.viewOnGitHub')}">
+          <span class="logo">dMeter</span><span class="logo-mobile">dMeter</span><span class="version">v${__APP_VERSION__}</span>${BETA_MODE ? '<span class="beta-badge">BETA</span>' : ''}
+          <a href="https://github.com/TerexitariusStomp/dMeter" target="_blank" rel="noopener" class="github-link" title="${t('header.viewOnGitHub')}">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-            <span class="github-stars" id="githubStars"></span>
           </a>
           <button class="mobile-settings-btn" id="mobileSettingsBtn" title="${t('header.settings')}">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -516,17 +485,7 @@ export class PanelLayoutManager implements AppModule {
           <span class="mobile-menu-item-icon">${getCurrentTheme() === 'dark' ? '☀️' : '🌙'}</span>
           <span class="mobile-menu-item-label">${getCurrentTheme() === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
         </button>
-        <a class="mobile-menu-item" href="https://x.com/eliehabib" target="_blank" rel="noopener">
-          <span class="mobile-menu-item-icon"><svg class="x-logo" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></span>
-          <span class="mobile-menu-item-label">@eliehabib</span>
-        </a>
         <div class="mobile-menu-divider"></div>
-        <div class="mobile-menu-footer-links">
-          <a href="${this.ctx.isDesktopApp ? 'https://worldmonitor.app/pro' : 'https://www.worldmonitor.app/pro'}" target="_blank" rel="noopener">Pro</a>
-          <a href="${this.ctx.isDesktopApp ? 'https://worldmonitor.app/blog/' : 'https://www.worldmonitor.app/blog/'}" target="_blank" rel="noopener">Blog</a>
-          <a href="${this.ctx.isDesktopApp ? 'https://worldmonitor.app/docs' : 'https://www.worldmonitor.app/docs'}" target="_blank" rel="noopener">Docs</a>
-          <a href="https://status.worldmonitor.app/" target="_blank" rel="noopener">Status</a>
-        </div>
         <div class="mobile-menu-version">v${__APP_VERSION__}</div>
       </nav>
       <div class="region-sheet-backdrop" id="regionSheetBackdrop"></div>
@@ -580,26 +539,6 @@ export class PanelLayoutManager implements AppModule {
         <div class="panels-grid" id="panelsGrid"></div>
         <button class="search-mobile-fab" id="searchMobileFab" aria-label="Search">\u{1F50D}</button>
       </div>
-      <footer class="site-footer">
-        <div class="site-footer-brand">
-          <img src="/favico/favicon-32x32.png" alt="" width="28" height="28" class="site-footer-icon" />
-          <div class="site-footer-brand-text">
-            <span class="site-footer-name">WORLD MONITOR</span>
-            <span class="site-footer-sub">v${__APP_VERSION__} &middot; <a href="https://x.com/eliehabib" target="_blank" rel="noopener" class="site-footer-credit">@eliehabib</a></span>
-          </div>
-        </div>
-        <nav>
-          <a href="${this.ctx.isDesktopApp ? 'https://worldmonitor.app/pro' : 'https://www.worldmonitor.app/pro'}" target="_blank" rel="noopener">Pro</a>
-          <a href="${this.ctx.isDesktopApp ? 'https://worldmonitor.app/blog/' : 'https://www.worldmonitor.app/blog/'}" target="_blank" rel="noopener">Blog</a>
-          <a href="${this.ctx.isDesktopApp ? 'https://worldmonitor.app/docs' : 'https://www.worldmonitor.app/docs'}" target="_blank" rel="noopener">Docs</a>
-          <a href="https://status.worldmonitor.app/" target="_blank" rel="noopener">Status</a>
-          <a href="https://github.com/koala73/worldmonitor" target="_blank" rel="noopener">GitHub</a>
-          <a href="https://discord.gg/re63kWKxaz" target="_blank" rel="noopener">Discord</a>
-          <a href="https://x.com/worldmonitorai" target="_blank" rel="noopener">X</a>
-          ${this.ctx.isDesktopApp ? '' : `<span id="footerDownloadMount"></span>`}
-        </nav>
-        <span class="site-footer-copy">&copy; ${new Date().getFullYear()} World Monitor</span>
-      </footer>
     `;
 
     this.createPanels();
@@ -723,27 +662,6 @@ export class PanelLayoutManager implements AppModule {
     });
   }
 
-  /**
-   * Lazily instantiates and mounts LiveNewsPanel when channels become available
-   * mid-session (e.g. user adds channels via the standalone manager on a variant
-   * whose defaults are empty). No-op if the panel already exists or still has no
-   * channels. Called from the liveChannels storage event handler.
-   */
-  mountLiveNewsIfReady(): void {
-    if (this.ctx.panels['live-news']) return;
-    if (getDefaultLiveChannels().length === 0 && loadChannelsFromStorage().length === 0) return;
-    const panel = new LiveNewsPanel();
-    this.ctx.panels['live-news'] = panel;
-    const el = panel.getElement();
-    this.makeDraggable(el, 'live-news');
-    const grid = document.getElementById('panelsGrid');
-    if (grid) {
-      const addBlock = grid.querySelector('.add-panel-block');
-      if (addBlock) grid.insertBefore(el, addBlock);
-      else grid.appendChild(el);
-    }
-    this.applyPanelSettings();
-  }
 
   private shouldCreatePanel(key: string): boolean {
     return Object.prototype.hasOwnProperty.call(this.ctx.panelSettings, key);
@@ -814,7 +732,6 @@ export class PanelLayoutManager implements AppModule {
     this.createPanel('heatmap', () => new HeatmapPanel());
     this.createPanel('markets', () => new MarketPanel());
     this.createPanel('stock-analysis', () => new StockAnalysisPanel());
-    this.createPanel('stock-backtest', () => new StockBacktestPanel());
     // Web premium gating for stock-analysis and stock-backtest is handled
     // reactively by updatePanelGating() via auth state subscription.
 
@@ -863,7 +780,6 @@ export class PanelLayoutManager implements AppModule {
     this.createNewsPanel('ipo', 'panels.ipo');
     this.createNewsPanel('thinktanks', 'panels.thinktanks');
     this.createPanel('economic', () => new EconomicPanel());
-    this.createPanel('consumer-prices', () => new ConsumerPricesPanel());
 
     this.createPanel('trade-policy', () => new TradePolicyPanel());
     this.createPanel('sanctions-pressure', () => new SanctionsPressurePanel());
@@ -901,23 +817,6 @@ export class PanelLayoutManager implements AppModule {
 
     this.createPanel('gdelt-intel', () => new GdeltIntelPanel());
 
-    import('@/components/DeductionPanel').then(({ DeductionPanel }) => {
-      const deductionPanel = new DeductionPanel(() => this.ctx.allNews);
-      this.ctx.panels['deduction'] = deductionPanel;
-      const el = deductionPanel.getElement();
-      this.makeDraggable(el, 'deduction');
-      const grid = document.getElementById('panelsGrid');
-      if (grid) {
-        const gdeltEl = this.ctx.panels['gdelt-intel']?.getElement();
-        if (gdeltEl?.parentNode === grid && gdeltEl.nextSibling) {
-          grid.insertBefore(el, gdeltEl.nextSibling);
-        } else {
-          grid.appendChild(el);
-        }
-      }
-      this.applyPanelSettings();
-      this.updatePanelGating(getAuthState());
-    });
 
     import('@/components/RegionalIntelligenceBoard').then(({ RegionalIntelligenceBoard }) => {
       const regionalBoard = new RegionalIntelligenceBoard();
@@ -1054,9 +953,6 @@ export class PanelLayoutManager implements AppModule {
       import('@/components/DailyMarketBriefPanel').then(m => new m.DailyMarketBriefPanel()),
     );
 
-    this.lazyPanel('market-implications', () =>
-      import('@/components/MarketImplicationsPanel').then(m => new m.MarketImplicationsPanel()),
-    );
     // Gating for daily-market-brief, market-implications, and chat-analyst is handled
     // reactively by updatePanelGating() via auth state subscription (all in WEB_PREMIUM_PANELS).
 
@@ -1122,18 +1018,6 @@ export class PanelLayoutManager implements AppModule {
       this.ctx.panels['climate-news'] = new ClimateNewsPanel();
     }
 
-    if (this.shouldCreatePanel('live-news') &&
-        (getDefaultLiveChannels().length > 0 || loadChannelsFromStorage().length > 0)) {
-      this.ctx.panels['live-news'] = new LiveNewsPanel();
-    }
-
-    if (this.shouldCreatePanel('live-webcams')) {
-      this.ctx.panels['live-webcams'] = new LiveWebcamsPanel();
-    }
-
-    if (this.shouldCreatePanel('windy-webcams')) {
-      this.ctx.panels['windy-webcams'] = new PinnedWebcamsPanel();
-    }
 
     this.createPanel('events', () => new TechEventsPanel('events', () => this.ctx.allNews));
     this.createPanel('internet-disruptions', () => new InternetDisruptionsPanel());
@@ -1179,19 +1063,16 @@ export class PanelLayoutManager implements AppModule {
       import('@/components/RegulationPanel').then(m => new m.RegulationPanel('ai-regulation')),
     );
 
-    this.createPanel('macro-signals', () => new MacroSignalsPanel());
     this.createPanel('fear-greed', () => new FearGreedPanel());
     this.createPanel('aaii-sentiment', () => new AAIISentimentPanel());
     this.createPanel('market-breadth', () => new MarketBreadthPanel());
     this.createPanel('macro-tiles', () => new MacroTilesPanel());
-    this.createPanel('fsi', () => new FSIPanel());
     this.createPanel('yield-curve', () => new YieldCurvePanel());
     this.createPanel('earnings-calendar', () => new EarningsCalendarPanel());
     this.createPanel('economic-calendar', () => new EconomicCalendarPanel());
     this.createPanel('cot-positioning', () => new CotPositioningPanel());
     this.createPanel('liquidity-shifts', () => new LiquidityShiftsPanel());
     this.createPanel('positioning-247', () => new PositioningPanel());
-    this.createPanel('gold-intelligence', () => new GoldIntelligencePanel());
     this.createPanel('hormuz-tracker', () => new HormuzPanel());
     this.createPanel('etf-flows', () => new ETFFlowsPanel());
     this.createPanel('stablecoins', () => new StablecoinPanel());

@@ -875,7 +875,7 @@ tr.diag-ok td { color: var(--settings-text-secondary); }
 tr.diag-warn td { color: var(--settings-yellow); }
 tr.diag-err td { color: var(--settings-red); }
 
-/* ── World Monitor / Overview styles ── */
+/* ── dMeter / Overview styles ── */
 .wm-tab {
   max-width: 600px;
   margin: 0 auto;
@@ -1433,3 +1433,17 @@ tr.diag-err td { color: var(--settings-red); }
   }
 }
 
+
+/* dMeter: hide Sign In / Unlock Pro elements */
+.signin-button,
+.pro-badge,
+.panel-pro-badge,
+.widget-pro-badge,
+.layer-pro-badge,
+.panel-toggle-pro-badge,
+.auth-signin-btn,
+.bot-check-signin,
+.us-notif-signin,
+.panel-locked-desc {
+  display: none !important;
+}
